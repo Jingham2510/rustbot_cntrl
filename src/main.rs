@@ -7,6 +7,7 @@ use std::io::stdin;
 use std::thread;
 
 mod tcp_sock;
+mod abb_rob;
 
 const VER_NUM: &str = "V0.0.0";
 //Program title
@@ -66,6 +67,7 @@ fn core_cmd_handler(){
 
 }
 
+//TODO - remove ping once ABB robot implemented
 //Test function just to check the TCP socket works - currently used to spam pings with a thread
 fn spam_ping(){
     //Create the socket

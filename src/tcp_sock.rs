@@ -5,7 +5,7 @@ use core::time::Duration;
 //TCP socket structure
 pub struct TcpSock {
     ip : String,
-    port : i32,
+    port : u32,
     //The TCP stream itself
     stream : Option<TcpStream>,
     //Details of last error that occurred - for debugging
@@ -17,7 +17,7 @@ pub struct TcpSock {
 impl TcpSock{
 
     //Connect to a socket
-    pub fn connect(&mut self){
+    pub fn connect(&mut self) -> bool{
         //Connect and return the TCP _stream
         if let Ok(stream) = TcpStream::connect(format!("{}:{}", self.ip, self.port)){
             //Set the read timeout to 2 seconds - should stop blocking
@@ -25,11 +25,13 @@ impl TcpSock{
 
             self.stream = Option::from(stream);
             println!("Connected to {0}:{1}", self.ip, self.port);
+            true
         }
         //If cant connect
         else{
             self.last_error = Option::from(String::from("Failed to connect"));
             println!("Failed to connect...");
+            false
 
         }
     }
@@ -90,7 +92,7 @@ impl TcpSock{
         self.write(msg);
         self.read()
     }
-    
+
     //Close the stream by shutting it down
     pub fn disconnect(&mut self){
         self.stream.as_ref().unwrap().shutdown(Shutdown::Both).expect("Failed to shutdown! Panic!");
@@ -102,7 +104,7 @@ impl TcpSock{
 
 
 //Create a new socket and attempt to connect to it
-pub fn create_sock(ip: String, port: i32) -> TcpSock{
+pub fn create_sock(ip: String, port: u32) -> TcpSock{
 
     //Create a socket
     let new_sock = TcpSock{
