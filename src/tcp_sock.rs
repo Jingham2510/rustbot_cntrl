@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 use core::time::Duration;
 
@@ -21,7 +21,7 @@ impl TcpSock{
         //Connect and return the TCP _stream
         if let Ok(stream) = TcpStream::connect(format!("{}:{}", self.ip, self.port)){
             //Set the read timeout to 2 seconds - should stop blocking
-            stream.set_read_timeout(Option::Some(Duration::from_secs(2))).expect("Incorrect read timeout value!");
+            stream.set_read_timeout(Some(Duration::from_secs(2))).expect("Incorrect read timeout value!");
 
             self.stream = Option::from(stream);
             println!("Connected to {0}:{1}", self.ip, self.port);
@@ -36,11 +36,11 @@ impl TcpSock{
 
     //Writes a message to the TCP connection buffer
     //Returns a boolean true if successful
-    pub fn write(& mut self, msg : String) -> bool{
-
-        //Check if 
+    fn write(& mut self, msg : String) -> bool{
+        //Check if the stream exists
         if let Some(mut writer) = self.stream.as_ref(){
-            if let Ok(size) = writer.write_all(msg.as_bytes()){
+            //Attempt to write the data
+            if let Ok(_ok) = writer.write_all(msg.as_bytes()){
                 println!("Data written");
                 true
             }
@@ -54,30 +54,40 @@ impl TcpSock{
             println!("No connection... Not writing...");
             false
         }
-
-
     }
 
 
 
-
-
-
-
-
-
     //Reads from the TCP input buffer - returns the info as a string
-    pub fn read(&self) -> String{
-        todo!()
+    fn read(&mut self) -> Option<String>{
+
+
+        //Create buffer for the message
+        let mut recv = vec![];
+
+        //Create the listener as a buffer reader so we can read until a given character
+        let mut reader = BufReader::new(self.stream.as_ref().unwrap());
+
+        //Attempt to read from the TCP stream until the '!' character is reached
+        if let Ok(_size) = reader.read_until(b'!', &mut recv){
+
+            //println!("{:?}", String::from_utf8(Vec::from(recv)));
+
+            Option::from(String::from_utf8(Vec::from(recv)).expect("FAILED TO CONVERT RECEIVE STRING"))
+        }
+        else{
+            println!("Failed to read TCP stream");
+            self.last_error = Option::from(String::from("TCP Read Error"));
+            Option::None
+        }
+
   
     }
 
     
     //Public interface for requesting for a TCP connection
-    pub fn req(&mut self, msg : String) -> String{
-        
-        self.write( msg);
-        
+    pub fn req(&mut self, msg : String) -> Option<String> {
+        self.write(msg);
         self.read()
     }
 

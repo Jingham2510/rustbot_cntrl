@@ -69,7 +69,8 @@ fn ping(){
     //Connect to the socket
     sock.connect();
     //Write the ping message to the socket
-    sock.write(String::from("ECHO:ping"));
-
+    let s = sock.req(String::from("ECHO:ping"));
+    
+    
     //It auto closes because it leaves the scope - noone has ownership
 }
