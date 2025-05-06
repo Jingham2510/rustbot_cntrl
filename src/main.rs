@@ -100,3 +100,5 @@ fn spam_ping(){
 
     //It auto closes because it leaves the scope - noone has ownership
 }
+
+//TODO - Robot spawner - checks if robot is connected to tcp before any instructions

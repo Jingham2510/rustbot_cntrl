@@ -1,6 +1,7 @@
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Shutdown, TcpStream};
 use core::time::Duration;
+use std::thread;
 
 //TCP socket structure
 pub struct TcpSock {
@@ -9,13 +10,18 @@ pub struct TcpSock {
     //The TCP stream itself
     stream : Option<TcpStream>,
     //Details of last error that occurred - for debugging
-    last_error : Option<String>
+    last_error : Option<String>,
+    //Indicates whether the socket is connected
+    connected : bool
+
 }
 
 
 //Methods for a TCP socket
-impl TcpSock{
+impl TcpSock {
 
+   
+    
     //Connect to a socket
     pub fn connect(&mut self) -> bool{
         //Connect and return the TCP _stream
@@ -24,6 +30,7 @@ impl TcpSock{
             stream.set_read_timeout(Some(Duration::from_secs(2))).expect("Incorrect read timeout value!");
 
             self.stream = Option::from(stream);
+            self.connected = true;
             println!("Connected to {0}:{1}", self.ip, self.port);
             true
         }
@@ -31,6 +38,7 @@ impl TcpSock{
         else{
             self.last_error = Option::from(String::from("Failed to connect"));
             println!("Failed to connect...");
+            self.connected = false;
             false
 
         }
@@ -49,6 +57,7 @@ impl TcpSock{
             else{
                 println!("Failed to write!");
                 self.last_error = Option::from(String::from("Write failure"));
+                self.connected = false;
                 false
             }
         }
@@ -80,6 +89,7 @@ impl TcpSock{
         else{
             println!("Failed to read TCP stream");
             self.last_error = Option::from(String::from("TCP Read Error"));
+            self.connected = false;
             Option::None
         }
 
@@ -90,13 +100,25 @@ impl TcpSock{
     //Public interface for requesting for a TCP connection
     pub fn req(&mut self, msg : String) -> Option<String> {
         self.write(msg);
-        self.read()
+        
+        let s = self.read();        
+        match s {
+            Some(mut s) => {
+                //Remove the ! character
+                s.pop();
+                Option::from(s)
+            },
+            None => None
+        }
+        
+        
     }
 
     //Close the stream by shutting it down
     pub fn disconnect(&mut self){
         self.stream.as_ref().unwrap().shutdown(Shutdown::Both).expect("Failed to shutdown! Panic!");
         self.stream = None;
+        self.connected = false;
     }
 
 
@@ -104,14 +126,15 @@ impl TcpSock{
 
 
 //Create a new socket and attempt to connect to it
-pub fn create_sock(ip: String, port: u32) -> TcpSock{
+pub fn create_sock(ip: String, port: u32) -> TcpSock {
 
     //Create a socket
-    let new_sock = TcpSock{
+    let new_sock = TcpSock {
         ip,
         port,
         stream : None,
-        last_error : Option::from(String::new())
+        last_error : Option::from(String::new()),
+        connected : false
     };
 
     new_sock

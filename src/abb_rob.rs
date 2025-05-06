@@ -9,7 +9,8 @@ pub struct AbbRob {
     ori : Option<(f32, f32, f32)>,
     jnt_angles : Option<(f32, f32, f32, f32, f32, f32)>,
     force : Option<(f32, f32, f32, f32, f32, f32)>,
-    move_flag : bool
+    move_flag : bool,
+    traj_done_flag : bool
 }
 
 
@@ -30,28 +31,29 @@ impl AbbRob {
                 ori : None,
                 jnt_angles : None,
                 force : None,
-                move_flag : false
+                move_flag : false,
+                traj_done_flag : false
             };
 
             Ok(new_rob)
-        }       
-        
+        }
+
     }
 
     //TODO - When communicating with robot - handle chance that robot has disconnected without crashing program
-    
-    
+
+
     //Disconnect from the robot - don't change any robot info, chances are the robot is going out of scope after this
     pub fn disconnect_rob(&mut self){
         self.socket.disconnect();
     }
 
-    
+
     pub fn ping(&mut self){
         let s = self.socket.req(String::from("ECHO:PING"));
-        
+
         println!("Ping recieved - {}", s.unwrap());
-        
+
     }
 
     fn set_joints(&self){
@@ -90,9 +92,30 @@ impl AbbRob {
         todo!()
     }
 
-    fn req_traj_done(&self){
-        todo!()
+    fn update_traj_done(&mut self) -> Option<bool>{
+        
+        //Safe socket read - incase the socket crashes
+        match self.socket.req(String::from("TJDN:?")){
+            Some(recv) => {
+                if recv == "true" {
+                    self.traj_done_flag = true;
+                    Option::from(true)
+                }else{
+                    self.traj_done_flag = false;
+                    Option::from(false)
+                }
+            },
+            None => {
+                println!("WARNING ROBOT DISCONNECTED");
+                None
+            }
+        }
+        
+       
+
     }
+
+
 
     fn req_xyz(&self){
         todo!()
