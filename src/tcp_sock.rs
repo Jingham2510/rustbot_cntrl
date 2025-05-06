@@ -1,5 +1,5 @@
-use std::io::{BufRead, BufReader, Read, Write};
-use std::net::TcpStream;
+use std::io::{BufRead, BufReader, Write};
+use std::net::{Shutdown, TcpStream};
 use core::time::Duration;
 
 //TCP socket structure
@@ -89,6 +89,12 @@ impl TcpSock{
     pub fn req(&mut self, msg : String) -> Option<String> {
         self.write(msg);
         self.read()
+    }
+    
+    //Close the stream by shutting it down
+    pub fn disconnect(&mut self){
+        self.stream.as_ref().unwrap().shutdown(Shutdown::Both).expect("Failed to shutdown! Panic!");
+        self.stream = None;
     }
 
 
