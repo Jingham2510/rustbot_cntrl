@@ -21,14 +21,14 @@ impl AbbRob {
     
     
     
-    pub fn create_rob(ip: String, port: u32) -> Result<AbbRob, io::Error> {
+    pub fn create_rob(ip: String, port: u32) -> Option<AbbRob> {
 
         //Create the robots socket
         let mut rob_sock = create_sock(ip, port);
         //Attempt to connect to the robot
         if rob_sock.connect() == false {
             //Failed to connect
-            Err(Error::from(ErrorKind::NotConnected))
+            None
         }
         else{
             let new_rob = AbbRob{
@@ -41,7 +41,7 @@ impl AbbRob {
                 traj_done_flag : false
             };
 
-            Ok(new_rob)
+            Option::from(new_rob)
         }
 
     }
