@@ -14,7 +14,13 @@ pub struct AbbRob {
 }
 
 
-impl AbbRob {
+pub const IMPL_COMMDS: [&str; 5] = ["", "", "", "", ""];
+
+
+impl AbbRob {   
+    
+    
+    
     pub fn create_rob(ip: String, port: u32) -> Result<AbbRob, io::Error> {
 
         //Create the robots socket
