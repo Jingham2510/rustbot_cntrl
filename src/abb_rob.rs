@@ -71,7 +71,7 @@ impl AbbRob {
             //Check user inout
             match user_inp.to_lowercase().trim() {
                 "info" => {
-                    println!("Robot controller");
+                    println!("Robot controller connected to - {}", self.req_model());
                 }
                 //Print out the commands in the valid commands list
                 "cmds" => {
@@ -305,8 +305,13 @@ impl AbbRob {
 
     }
 
-    fn req_model(&mut self){
-        todo!()
+    fn req_model(&mut self) -> String{
+        //Request the model name
+        if let Some(model) = self.socket.req("RMDL:0"){
+            model
+        }else{
+            String::from("[WRN - Unable to identify model]")
+        }
     }
 
     fn update_rob_info(&mut self) {
