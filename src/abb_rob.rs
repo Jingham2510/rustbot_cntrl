@@ -96,7 +96,7 @@ impl AbbRob {
 
                 //Whatever function is being tested at the moment
                 "test" => {
-                    self.req_force();
+                    self.req_rob_mov_state();
                 },
 
                 _ => println!("Unknown command - see CMDs for list of commands"),
@@ -283,7 +283,26 @@ impl AbbRob {
     }
 
     fn req_rob_mov_state(&mut self){
-        todo!()
+        
+        //Get the value of the move state flag - 1 indicating not moving
+        if let Some(truth_val) = self.socket.req("MVST:0"){
+            
+            match truth_val.as_str() {
+                "0" => {                    
+                    self.move_flag = true;
+                },
+                "1" => {
+                    println!("False!");
+                    self.move_flag = false
+                }
+                _ => {println!("Warning - invalid get move response! - got {}", truth_val.as_str())}
+            }
+        }else{
+            println!("Warning - Robot possibly disconnected!");
+        }
+               
+
+
     }
 
     fn req_model(&mut self){
