@@ -3,7 +3,7 @@
 //Version 0.0.0
 //Author - Joe Ingham
 
-use crate::abb_rob::AbbRob;
+
 use std::collections::HashMap;
 use std::io::stdin;
 use std::thread;
@@ -82,7 +82,7 @@ fn spam_ping() {
     thread::spawn(move || {
         loop {
             //Write the ping message to the socket
-            let s = sock.req(String::from("ECHO:ping"));
+            let s = sock.req("ECHO:ping");
 
             if let Some(recv) = s {
                 println!("{}", recv);

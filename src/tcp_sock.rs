@@ -1,7 +1,7 @@
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Shutdown, TcpStream};
 use core::time::Duration;
-use std::thread;
+
 
 //TCP socket structure
 pub struct TcpSock {
@@ -46,7 +46,7 @@ impl TcpSock {
 
     //Writes a message to the TCP connection buffer
     //Returns a boolean true if successful
-    fn write(& mut self, msg : String) -> bool{
+    fn write(& mut self, msg : &str) -> bool{
         //Check if the stream exists
         if let Some(mut writer) = self.stream.as_ref(){
             //Attempt to write the data
@@ -98,7 +98,7 @@ impl TcpSock {
 
     
     //Public interface for requesting for a TCP connection
-    pub fn req(&mut self, msg : String) -> Option<String> {
+    pub fn req(&mut self, msg : &str) -> Option<String> {
         self.write(msg);
         
         let s = self.read();        

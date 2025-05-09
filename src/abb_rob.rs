@@ -1,7 +1,7 @@
-use std::collections::HashMap;
-use std::io;
-use std::io::{stdin, Error, ErrorKind};
-use crate::{abb_rob, tcp_sock};
+
+
+use std::io::{stdin};
+use crate::{tcp_sock};
 use crate::tcp_sock::create_sock;
 
 pub struct AbbRob {
@@ -21,7 +21,7 @@ pub const IMPL_COMMDS : [&str; 10] = ["info", "cmds", "disconnect", "set joints"
 
 impl AbbRob {
 
-    
+
     pub fn create_rob(ip: String, port: u32) -> Option<AbbRob> {
 
         //Create the robots socket
@@ -47,15 +47,15 @@ impl AbbRob {
 
     }
 
-    
+
 
 
     //Disconnect from the robot - don't change any robot info, chances are the robot is going out of scope after this
     pub fn disconnect_rob(&mut self){
         self.socket.disconnect();
     }
-    
-    
+
+
     pub fn rob_cmd_handler(&mut self){
 
 
@@ -93,7 +93,7 @@ impl AbbRob {
 
 
     pub fn ping(&mut self){
-        let s = self.socket.req(String::from("ECHO:PING"));
+        let s = self.socket.req("ECHO:PING");
 
         println!("Ping recieved - {}", s.unwrap());
 
@@ -138,7 +138,7 @@ impl AbbRob {
     fn update_traj_done(&mut self) -> Option<bool>{
         
         //Safe socket read - incase the socket crashes
-        match self.socket.req(String::from("TJDN:?")){
+        match self.socket.req("TJDN:?"){
             Some(recv) => {
                 if recv == "true" {
                     self.traj_done_flag = true;
@@ -160,8 +160,8 @@ impl AbbRob {
 
 
 
-    fn req_xyz(&self){
-        todo!()
+    fn req_xyz(&mut self){
+        self.socket.req("GTPS:0");
     }
 
     fn req_ori(&self){
