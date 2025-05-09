@@ -96,6 +96,7 @@ impl AbbRob {
 
                 //Whatever function is being tested at the moment
                 "test" => {
+                    self.set_speed(500.0);
                     self.set_joints((60.0, 40.0, 50.0, 0.0, 25.0, 20.0));
                 },
 
@@ -115,13 +116,13 @@ impl AbbRob {
     //Request the robot move to specific joint angles
     fn set_joints(&mut self, angs : (f32, f32, f32, f32, f32, f32)){
 
+        //Check to see if a response was returned
         if let Some(resp) = self.socket.req(&format!("STJT:[[{},{},{},{},{},{}], [9E9,9E9,9E9,9E9,9E9,9E9]]",angs.0, angs.1, angs.2, angs.3, angs.4, angs.5)){
             println!("{}", resp);
         }else{
+            //Warn the user that the robot didn't respond
             println!("Warning no response! Robot may not have moved");
         }
-
-       
 
     }
 
@@ -129,9 +130,16 @@ impl AbbRob {
         todo!()
     }
 
-    fn set_speed(&self){
-        todo!()
+    fn set_speed(&mut self, speed: f32){
+        if let Some(resp) = self.socket.req(&format!("STSP:{}", speed)){
+            //Do nothing - no user notification required
+            println!("{resp}");
+        }else{
+            //Warn the user the speed might not have changed
+            println!("Danger! No response recieved - unknown robot speed");
+        }
     }
+
 
     fn move_tool(&self){
         todo!()
