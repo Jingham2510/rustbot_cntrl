@@ -90,7 +90,7 @@ impl TcpSock {
             println!("Failed to read TCP stream");
             self.last_error = Option::from(String::from("TCP Read Error"));
             self.connected = false;
-            Option::None
+            None
         }
 
   

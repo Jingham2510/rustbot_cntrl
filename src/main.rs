@@ -107,7 +107,7 @@ fn rob_connect() {
     ]);
 
     //User selected profile
-    let mut profile : [&str; 2];
+    let profile : [&str; 2];
 
     loop {
         println!("Please select a profile");
