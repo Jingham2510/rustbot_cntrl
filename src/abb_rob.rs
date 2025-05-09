@@ -47,6 +47,7 @@ impl AbbRob {
 
     }
 
+    //TODO - Implement robot reconnect function
 
 
 
@@ -59,7 +60,6 @@ impl AbbRob {
     pub fn rob_cmd_handler(&mut self){
 
 
-        //TODO: get valid commands dictionary from robot using callbacks?
         //Loop until command given
         loop {
             //Get user input
@@ -85,15 +85,18 @@ impl AbbRob {
                     self.disconnect_rob();
                     return;
                 },
-                
+
                 "req xyz" => {
-                  self.req_xyz();  
+                  self.req_xyz();
                 },
-                
-                
+
+                "req ori" =>{
+                    self.req_ori();
+                }
+
                 //Whatever function is being tested at the moment
                 "test" => {
-                    
+
                 },
 
                 _ => println!("Unknown command - see CMDs for list of commands"),
@@ -169,24 +172,34 @@ impl AbbRob {
     }
 
 
-
+    //Requests the xyz position of the TCP from the robot and stores it in the robot info
     fn req_xyz(&mut self){
 
+        //Request the info
+        if let Some(recv) = self.socket.req("GTPS:0"){
 
-        let recv = self.socket.req("GTPS:0").unwrap();
+            //Format the string
+            let recv = string_tools::rem_first_and_last(&*recv);
+            let xyz_vec = string_tools::str_to_vector(recv);
 
-        let recv = string_tools::rem_first_and_last(&*recv);
+            //Check that the vector is the right length
+            if xyz_vec.len() != 3{
+                println!("XYZ pos read error!");
+                return;
+            }
+            else{
+                //Store the pos in the robot info
+                self.pos = Option::from((xyz_vec[0], xyz_vec[1], xyz_vec[2]));
+            }
 
-        let xyz_vec = string_tools::str_to_vector(recv);
 
-        if xyz_vec.len() != 3{
-            println!("XYZ pos read error!");
-            return;
+        }else{
+                //If the socket request returns nothing
+                println!("WARNING ROBOT DISCONNECTED");
+                return;
         }
-        else{
-            self.pos = Option::from((xyz_vec[0], xyz_vec[1], xyz_vec[2]));
-            println!("X: {} Y:{} Z:{}", xyz_vec[0], xyz_vec[1], xyz_vec[2]);
-        }
+
+
 
 
 
@@ -194,8 +207,30 @@ impl AbbRob {
 
     }
 
-    fn req_ori(&self){
-        todo!()
+    fn req_ori(&mut self){
+        //Request the info
+        if let Some(recv) = self.socket.req("GTOR:0"){
+
+            //Format the string
+            let recv = string_tools::rem_first_and_last(&*recv);
+            let ori_vec = string_tools::str_to_vector(recv);
+
+            //Check that the vector is the right length
+            if ori_vec.len() != 3{
+                println!("XYZ pos read error!");
+                return;
+            }
+            else{
+                //Store the pos in the robot info
+                self.ori = Option::from((ori_vec[0], ori_vec[1], ori_vec[2]));
+            }
+
+
+        }else{
+            //If the socket request returns nothing
+            println!("WARNING ROBOT DISCONNECTED");
+            return;
+        }
     }
 
     fn req_jnt_angs(&self){

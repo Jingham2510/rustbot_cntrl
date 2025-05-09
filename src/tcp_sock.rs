@@ -51,7 +51,6 @@ impl TcpSock {
         if let Some(mut writer) = self.stream.as_ref(){
             //Attempt to write the data
             if let Ok(_ok) = writer.write_all(msg.as_bytes()){
-                println!("Data written");
                 true
             }
             else{
