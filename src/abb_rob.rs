@@ -96,7 +96,7 @@ impl AbbRob {
 
                 //Whatever function is being tested at the moment
                 "test" => {
-                    self.update_rob_info();
+                    self.set_joints((60.0, 40.0, 50.0, 0.0, 25.0, 20.0));
                 },
 
                 _ => println!("Unknown command - see CMDs for list of commands"),
@@ -112,8 +112,17 @@ impl AbbRob {
 
     }
 
-    fn set_joints(&self){
-        todo!()
+    //Request the robot move to specific joint angles
+    fn set_joints(&mut self, angs : (f32, f32, f32, f32, f32, f32)){
+
+        if let Some(resp) = self.socket.req(&format!("STJT:[[{},{},{},{},{},{}], [9E9,9E9,9E9,9E9,9E9,9E9]]",angs.0, angs.1, angs.2, angs.3, angs.4, angs.5)){
+            println!("{}", resp);
+        }else{
+            println!("Warning no response! Robot may not have moved");
+        }
+
+       
+
     }
 
     fn set_ori(&self){
