@@ -16,7 +16,7 @@ pub struct AbbRob {
 
 
 
-pub const IMPL_COMMDS : [&str; 10] = ["info", "cmds", "disconnect", "set joints", "set orientation", "move tool", "set pos", "req xyz", "req force", "req ori"];
+pub const IMPL_COMMDS : [&str; 9] = ["info", "cmds", "disconnect", "set joints", "set orientation", "move tool", "set pos", "req xyz", "req ori"];
 
 
 impl AbbRob {
@@ -96,7 +96,7 @@ impl AbbRob {
 
                 //Whatever function is being tested at the moment
                 "test" => {
-
+                    self.req_force();
                 },
 
                 _ => println!("Unknown command - see CMDs for list of commands"),
@@ -199,12 +199,6 @@ impl AbbRob {
                 return;
         }
 
-
-
-
-
-
-
     }
 
     fn req_ori(&mut self){
@@ -217,7 +211,7 @@ impl AbbRob {
 
             //Check that the vector is the right length
             if ori_vec.len() != 3{
-                println!("XYZ pos read error!");
+                println!("ORI pos read error!");
                 return;
             }
             else{
@@ -233,23 +227,70 @@ impl AbbRob {
         }
     }
 
-    fn req_jnt_angs(&self){
+    fn req_jnt_angs(&mut self){
+        //Request the info
+        if let Some(recv) = self.socket.req("GTJA:0"){
+
+            //Format the string
+            let recv = string_tools::rem_first_and_last(&*recv);
+            let jtang_vec = string_tools::str_to_vector(recv);
+
+            //Check that the vector is the right length
+            if jtang_vec.len() != 6{
+                println!("joint angle read error!");
+                println!("Expected: 6. Actual: {}", jtang_vec.len());
+                return;
+            }
+            else{
+                //Store the pos in the robot info
+                self.jnt_angles = Option::from((jtang_vec[0], jtang_vec[1], jtang_vec[2], jtang_vec[3], jtang_vec[4], jtang_vec[5]));
+            }
+
+
+        }else{
+            //If the socket request returns nothing
+            println!("WARNING ROBOT DISCONNECTED");
+            return;
+        }
+    }
+
+    fn req_force(&mut self){
+        //Request the info
+        if let Some(recv) = self.socket.req("GTFC:0"){
+
+            //Format the string
+            let recv = string_tools::rem_first_and_last(&*recv);
+            let fc_vec = string_tools::str_to_vector(recv);
+
+            //Check that the vector is the right length
+            if fc_vec.len() != 6{
+                println!("joint angle read error!");
+                println!("Expected: 6. Actual: {}", fc_vec.len());
+                return;
+            }
+            else{
+                //Store the pos in the robot info
+                self.force = Option::from((fc_vec[0], fc_vec[1], fc_vec[2], fc_vec[3], fc_vec[4], fc_vec[5]));
+                println!("0:{} 1:{} 2:{} 3:{} 4:{} 5:{}", fc_vec[0], fc_vec[1], fc_vec[2], fc_vec[3], fc_vec[4], fc_vec[5]);
+            }
+
+
+        }else{
+            //If the socket request returns nothing
+            println!("WARNING ROBOT DISCONNECTED");
+            return;
+        }
+    }
+
+    fn req_rob_mov_state(&mut self){
         todo!()
     }
 
-    fn req_force(&self){
+    fn req_model(&mut self){
         todo!()
     }
 
-    fn req_rob_mov_state(&self){
-        todo!()
-    }
-
-    fn req_model(&self){
-        todo!()
-    }
-
-    fn update_rob_info(&self) {
+    fn update_rob_info(&mut self) {
         todo!()
     }
 
