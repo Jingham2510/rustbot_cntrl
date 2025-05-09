@@ -48,7 +48,7 @@ fn core_cmd_handler() {
             "info" => {
                 println!("{TITLE} - {VER_NUM}");
                 println!(
-                    "This program is a headerless robot control tool - intended to remotely control 6 axis robots for the TRL - create a robot to gain access to more commands"
+                    "This program is a headerless robot control tool - intended to remotely control 6 axis robots for the TRL - connect to a robot to gain access to more commands"
                 );
             }
             //Print out the commands in the valid commands list
@@ -139,47 +139,12 @@ fn rob_connect() {
     println!("Logging into robot on : {}:{}", profile[0], profile[1]);
 
     //If connected - create the robot and keep it in scope to keep the connection open
-    if let Some(curr_rob) = abb_rob::AbbRob::create_rob(profile[0].parse().unwrap(), profile[1].parse().unwrap()) {
+    if let Some(mut curr_rob) = abb_rob::AbbRob::create_rob(profile[0].parse().unwrap(), profile[1].parse().unwrap()) {
         println!("Connected!");
-
-        //Array of implemented commands
-        const VALID_CMDS: [&str; 5] = [
-            "info - get robot model",
-            "close - close the connection",
-            "cmds - list the currently implemented commands",
-            "",
-            "",
-        ];
-
-        //Loop until command given
-        loop {
-            //Get user input
-            let mut user_inp = String::new();
-            stdin()
-                .read_line(&mut user_inp)
-                .expect("Failed to read line");
-
-            //Check uesr inout
-            match user_inp.to_lowercase().trim() {
-                "info" => {
-                    println!("Robot controller");
-                }
-                //Print out the commands in the valid commands list
-                "cmds" => {
-                    for cmd in VALID_CMDS {
-                        println!("{cmd}");
-                    }
-                    println!("Robot commands:");
-                    for cmd in abb_rob::IMPL_COMMDS {
-                        println!("{cmd}");
-                    }
-                }
-                "close" => break,
-
-                //Catch all else
-                _ => println!("Unknown command - see CMDs for list of commands"),
-            }
-        }
+        
+        //Open the robot command handler - must be defined for robot!
+        curr_rob.rob_cmd_handler();
+        
     } else {
         //Robot failed to connect - go up back to core cmd handler
         println!("{TITLE} - {VER_NUM}");

@@ -1,6 +1,7 @@
+use std::collections::HashMap;
 use std::io;
-use std::io::{Error, ErrorKind};
-use crate::tcp_sock;
+use std::io::{stdin, Error, ErrorKind};
+use crate::{abb_rob, tcp_sock};
 use crate::tcp_sock::create_sock;
 
 pub struct AbbRob {
@@ -14,12 +15,12 @@ pub struct AbbRob {
 }
 
 
-pub const IMPL_COMMDS: [&str; 5] = ["", "", "", "", ""];
+
+pub const IMPL_COMMDS : [&str; 10] = ["info", "cmds", "disconnect", "set joints", "set orientation", "move tool", "set pos", "req xyz", "req force", "req ori"];
 
 
-impl AbbRob {   
-    
-    
+impl AbbRob {
+
     
     pub fn create_rob(ip: String, port: u32) -> Option<AbbRob> {
 
@@ -46,12 +47,48 @@ impl AbbRob {
 
     }
 
-    //TODO - When communicating with robot - handle chance that robot has disconnected without crashing program
+    
 
 
     //Disconnect from the robot - don't change any robot info, chances are the robot is going out of scope after this
     pub fn disconnect_rob(&mut self){
         self.socket.disconnect();
+    }
+    
+    
+    pub fn rob_cmd_handler(&mut self){
+
+
+        //TODO: get valid commands dictionary from robot using callbacks?
+        //Loop until command given
+        loop {
+            //Get user input
+            let mut user_inp = String::new();
+            stdin()
+                .read_line(&mut user_inp)
+                .expect("Failed to read line");
+
+            //Check user inout
+            match user_inp.to_lowercase().trim() {
+                "info" => {
+                    println!("Robot controller");
+                }
+                //Print out the commands in the valid commands list
+                "cmds" => {
+                    println!("Robot commands:");
+                    for cmd in IMPL_COMMDS {
+                        println!("\t {cmd}");
+                    }
+                }
+                //Disconnect robot has to be defined for every robot type
+                "disconnect" => {
+                    self.disconnect_rob();
+                    return;
+                },
+
+                _ => println!("Unknown command - see CMDs for list of commands"),
+            }
+        }
     }
 
 
