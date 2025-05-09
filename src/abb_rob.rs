@@ -54,6 +54,7 @@ impl AbbRob {
     //Disconnect from the robot - don't change any robot info, chances are the robot is going out of scope after this
     pub fn disconnect_rob(&mut self){
         self.socket.disconnect();
+        println!("Disconnected... Moving back to core command handler");
     }
 
 
@@ -96,8 +97,8 @@ impl AbbRob {
 
                 //Whatever function is being tested at the moment
                 "test" => {
-                    self.set_speed(500.0);
-                    self.set_joints((60.0, 40.0, 50.0, 0.0, 25.0, 20.0));
+                    self.traj_queue_go();
+                    self.traj_queue_stop();
                 },
 
                 _ => println!("Unknown command - see CMDs for list of commands"),
@@ -105,7 +106,7 @@ impl AbbRob {
         }
     }
 
-
+    //Ping the robot to check the connection
     pub fn ping(&mut self){
         let s = self.socket.req("ECHO:PING");
 
@@ -126,10 +127,12 @@ impl AbbRob {
 
     }
 
+    //Set the orientation of the robots tcp
     fn set_ori(&self){
         todo!()
     }
 
+    //Set the speed of the robot TCP
     fn set_speed(&mut self, speed: f32){
         if let Some(resp) = self.socket.req(&format!("STSP:{}", speed)){
             //Do nothing - no user notification required
@@ -141,28 +144,42 @@ impl AbbRob {
     }
 
 
+    //Move the tool in its own local coordinate system
     fn move_tool(&self){
         todo!()
     }
 
+    //Set the TCP point within the global coordinate system
     fn set_pos(&self){
         todo!()
     }
 
+    //Add a translational movement to the robot movement queue
     fn traj_queue_add_trans(&self){
         todo!()
     }
 
+    //Add a rotational movement to the robot movement queue
     fn traj_queue_add_rot(&self){
         todo!()
     }
 
-    fn traj_queue_go(&self){
-        todo!()
+    //Set the trajectory queue flag high - telling the robot to begin the trajectory queue
+    fn traj_queue_go(&mut self){
+        if let Some(resp) = self.socket.req("TJGO:0"){
+            println!("{resp}");
+        }else{
+            println!("Warning - no response from robot trajectory may not begin!");
+        }
     }
 
-    fn traj_queue_stop(&self){
-        todo!()
+    //Set the trajectory queue flag low - telling the robot to stop the trajectory queue
+    fn traj_queue_stop(&mut self){
+        if let Some(resp) = self.socket.req("TJST:0"){
+            println!("{resp}");
+        }else{
+            println!("Warning - no response from robot trajectory may not stop!");
+        }
     }
 
     //Requests robot state of trajectory
