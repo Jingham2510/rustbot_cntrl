@@ -96,7 +96,7 @@ impl AbbRob {
 
                 //Whatever function is being tested at the moment
                 "test" => {
-                    self.req_rob_mov_state();
+                    self.update_rob_info();
                 },
 
                 _ => println!("Unknown command - see CMDs for list of commands"),
@@ -148,7 +148,8 @@ impl AbbRob {
         todo!()
     }
 
-    fn update_traj_done(&mut self) -> Option<bool>{
+    //Requests robot state of trajectory
+    fn get_traj_done_flag(&mut self) -> Option<bool>{
         
         //Safe socket read - incase the socket crashes
         match self.socket.req("TJDN:?"){
@@ -201,6 +202,7 @@ impl AbbRob {
 
     }
 
+    //Requests the orientation information
     fn req_ori(&mut self){
         //Request the info
         if let Some(recv) = self.socket.req("GTOR:0"){
@@ -227,6 +229,7 @@ impl AbbRob {
         }
     }
 
+    //Requests joint angle information
     fn req_jnt_angs(&mut self){
         //Request the info
         if let Some(recv) = self.socket.req("GTJA:0"){
@@ -254,6 +257,7 @@ impl AbbRob {
         }
     }
 
+    //Requests 6-axis force information
     fn req_force(&mut self){
         //Request the info
         if let Some(recv) = self.socket.req("GTFC:0"){
@@ -271,7 +275,6 @@ impl AbbRob {
             else{
                 //Store the pos in the robot info
                 self.force = Option::from((fc_vec[0], fc_vec[1], fc_vec[2], fc_vec[3], fc_vec[4], fc_vec[5]));
-                println!("0:{} 1:{} 2:{} 3:{} 4:{} 5:{}", fc_vec[0], fc_vec[1], fc_vec[2], fc_vec[3], fc_vec[4], fc_vec[5]);
             }
 
 
@@ -282,17 +285,17 @@ impl AbbRob {
         }
     }
 
+    //Requests robot move state information flag
     fn req_rob_mov_state(&mut self){
-        
+
         //Get the value of the move state flag - 1 indicating not moving
         if let Some(truth_val) = self.socket.req("MVST:0"){
-            
+
             match truth_val.as_str() {
-                "0" => {                    
+                "0" => {
                     self.move_flag = true;
                 },
                 "1" => {
-                    println!("False!");
                     self.move_flag = false
                 }
                 _ => {println!("Warning - invalid get move response! - got {}", truth_val.as_str())}
@@ -300,11 +303,12 @@ impl AbbRob {
         }else{
             println!("Warning - Robot possibly disconnected!");
         }
-               
+
 
 
     }
 
+    //Requests the model name of the robot
     fn req_model(&mut self) -> String{
         //Request the model name
         if let Some(model) = self.socket.req("RMDL:0"){
@@ -314,8 +318,15 @@ impl AbbRob {
         }
     }
 
+    //Helper function that requests all the update information from the robot
     fn update_rob_info(&mut self) {
-        todo!()
+
+        self.req_xyz();
+        self.req_ori();
+        self.req_force();
+        self.req_rob_mov_state();
+        self.get_traj_done_flag();
+
     }
 
 
