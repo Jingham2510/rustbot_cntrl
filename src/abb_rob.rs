@@ -1,7 +1,7 @@
 
 
 use std::io::{stdin};
-use crate::{tcp_sock};
+use crate::{tcp_sock, string_tools};
 use crate::tcp_sock::create_sock;
 
 pub struct AbbRob {
@@ -85,6 +85,16 @@ impl AbbRob {
                     self.disconnect_rob();
                     return;
                 },
+                
+                "req xyz" => {
+                  self.req_xyz();  
+                },
+                
+                
+                //Whatever function is being tested at the moment
+                "test" => {
+                    
+                },
 
                 _ => println!("Unknown command - see CMDs for list of commands"),
             }
@@ -161,7 +171,27 @@ impl AbbRob {
 
 
     fn req_xyz(&mut self){
-        self.socket.req("GTPS:0");
+
+
+        let recv = self.socket.req("GTPS:0").unwrap();
+
+        let recv = string_tools::rem_first_and_last(&*recv);
+
+        let xyz_vec = string_tools::str_to_vector(recv);
+
+        if xyz_vec.len() != 3{
+            println!("XYZ pos read error!");
+            return;
+        }
+        else{
+            self.pos = Option::from((xyz_vec[0], xyz_vec[1], xyz_vec[2]));
+            println!("X: {} Y:{} Z:{}", xyz_vec[0], xyz_vec[1], xyz_vec[2]);
+        }
+
+
+
+
+
     }
 
     fn req_ori(&self){
