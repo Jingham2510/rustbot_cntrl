@@ -98,13 +98,19 @@ impl AbbRob {
 
                 //Whatever function is being tested at the moment
                 "test" => {
-                    self.set_ori(angle_tools::Quartenion{
-                        w :  0.14913,
-                        x : -0.43361,
-                        y: 0.88679,
-                        z : 0.05777,
+                    self.traj_queue_add_rot(angle_tools::Quartenion{
+                        w : 0.07731,
+                        x : -0.88577,
+                        y: 0.45533,
+                        z: -0.04604,
                     });
+                    self.traj_queue_add_trans((790.0, 2300.0, 1400.0));
+                    
+                    self.traj_queue_go();
+                
                 },
+                
+                
 
                 _ => println!("Unknown command - see CMDs for list of commands"),
             }
@@ -141,8 +147,8 @@ impl AbbRob {
             println!("Response!");
             self.update_rob_info();
         }else{
-            println!("Warning - no robot response! - Robot might not move!");
-            
+            println!("Warning - no robot response! - Robot might not reorient!");
+
         }
     }
 
@@ -181,13 +187,21 @@ impl AbbRob {
     }
 
     //Add a translational movement to the robot movement queue
-    fn traj_queue_add_trans(&self){
-        todo!()
+    fn traj_queue_add_trans(&mut self, xyz:(f32, f32, f32)){
+        if let Some(_resp) = self.socket.req(&format!("TQAD:[{},{},{}]", xyz.0, xyz.1, xyz.2)){
+            println!("trans traj added");
+        }else{
+            println!("Warning - no response - trajectory may differ from expected!");
+        }
     }
 
     //Add a rotational movement to the robot movement queue
-    fn traj_queue_add_rot(&self){
-        todo!()
+    fn traj_queue_add_rot(&mut self, q : angle_tools::Quartenion ){
+        if let Some(_resp) = self.socket.req(&format!("RQAD:[{}, {}, {}, {}]", q.w, q.x, q.y, q.z)){
+            println!("rot traj added");
+        }else{
+            println!("Warning - no response - trajectory may differ from expected!");
+        }
     }
 
     //Set the trajectory queue flag high - telling the robot to begin the trajectory queue
