@@ -97,7 +97,7 @@ impl AbbRob {
 
                 //Whatever function is being tested at the moment
                 "test" => {
-                    self.move_tool((100.0, 100.0, 100.0));
+                    self.set_pos((700.0, 2000.0, 2000.0));
                 },
 
                 _ => println!("Unknown command - see CMDs for list of commands"),
@@ -156,8 +156,14 @@ impl AbbRob {
     }
 
     //Set the TCP point within the global coordinate system
-    fn set_pos(&self){
-        todo!()
+    //xyz - desired position in cartesian coordinates
+    fn set_pos(&mut self, xyz : (f32, f32, f32)){
+        if let Some(_resp) = self.socket.req(&format!("MVTO:[{},{},{}]", xyz.0, xyz.1, xyz.2)){
+            println!("Response!");
+            self.update_rob_info();
+        }else{
+            println!("Warning - no response - robot may not move");
+        }
     }
 
     //Add a translational movement to the robot movement queue
