@@ -29,6 +29,7 @@ impl AbbRob {
         //Attempt to connect to the robot
         if rob_sock.connect() == false {
             //Failed to connect
+            println!("Robot not connected");
             None
         }
         else{
@@ -97,7 +98,12 @@ impl AbbRob {
 
                 //Whatever function is being tested at the moment
                 "test" => {
-                    self.set_pos((700.0, 2000.0, 2000.0));
+                    self.set_ori(angle_tools::Quartenion{
+                        w :  0.14913,
+                        x : -0.43361,
+                        y: 0.88679,
+                        z : 0.05777,
+                    });
                 },
 
                 _ => println!("Unknown command - see CMDs for list of commands"),
@@ -128,8 +134,16 @@ impl AbbRob {
     }
 
     //Set the orientation of the robots tcp
-    fn set_ori(&self){
-        todo!()
+    //Currently assumes that the quartenion is valid
+    //q - the desired orientation
+    fn set_ori(&mut self, q : angle_tools::Quartenion){
+        if let Some(_resp) = self.socket.req(&format!("STOR:[{}, {}, {}, {}]", q.w, q.x, q.y, q.z)){
+            println!("Response!");
+            self.update_rob_info();
+        }else{
+            println!("Warning - no robot response! - Robot might not move!");
+            
+        }
     }
 
     //Set the speed of the robot TCP

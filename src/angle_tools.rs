@@ -5,11 +5,11 @@
 
 //Implementations/Calculations taken from
 //https://danceswithcode.net/engineeringnotes/quaternions/quaternions.html
-struct Quartenion {
-    w : f32,
-    x : f32,
-    y : f32,
-    z : f32,
+pub struct Quartenion {
+    pub w : f32,
+    pub x : f32,
+    pub y : f32,
+    pub z : f32,
 }
 
 impl Quartenion{
