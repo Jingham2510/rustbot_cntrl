@@ -97,8 +97,7 @@ impl AbbRob {
 
                 //Whatever function is being tested at the moment
                 "test" => {
-                    self.traj_queue_go();
-                    self.traj_queue_stop();
+                    self.move_tool((100.0, 100.0, 100.0));
                 },
 
                 _ => println!("Unknown command - see CMDs for list of commands"),
@@ -118,8 +117,9 @@ impl AbbRob {
     fn set_joints(&mut self, angs : (f32, f32, f32, f32, f32, f32)){
 
         //Check to see if a response was returned
-        if let Some(resp) = self.socket.req(&format!("STJT:[[{},{},{},{},{},{}], [9E9,9E9,9E9,9E9,9E9,9E9]]",angs.0, angs.1, angs.2, angs.3, angs.4, angs.5)){
-            println!("{}", resp);
+        if let Some(_resp) = self.socket.req(&format!("STJT:[[{},{},{},{},{},{}], [9E9,9E9,9E9,9E9,9E9,9E9]]", angs.0, angs.1, angs.2, angs.3, angs.4, angs.5)){
+            //Update the robot info
+            self.update_rob_info();
         }else{
             //Warn the user that the robot didn't respond
             println!("Warning no response! Robot may not have moved");
@@ -144,9 +144,15 @@ impl AbbRob {
     }
 
 
-    //Move the tool in its own local coordinate system
-    fn move_tool(&self){
-        todo!()
+    //Move the tool relative to its own local coordinate system
+    //xyz - how far the tcp will move in each caridnal direction
+    fn move_tool(&mut self, xyz : (f32, f32, f32)){
+        if let Some(_resp) = self.socket.req(&format!("MVTL:[{},{},{}]",xyz.0, xyz.1, xyz.2)){
+
+            self.update_rob_info();
+        }else{
+            println!("Warning - repsonse not recieved! - Robot may not move")
+        }
     }
 
     //Set the TCP point within the global coordinate system
