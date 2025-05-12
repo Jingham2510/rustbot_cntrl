@@ -11,6 +11,7 @@ use std::thread;
 mod abb_rob;
 mod tcp_sock;
 mod string_tools;
+mod angle_tools;
 
 const VER_NUM: &str = "V0.0.0";
 //Program title
