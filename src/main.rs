@@ -3,15 +3,14 @@
 //Version 0.0.0
 //Author - Joe Ingham
 
-
 use std::collections::HashMap;
 use std::io::stdin;
 use std::thread;
 
 mod abb_rob;
-mod tcp_sock;
-mod string_tools;
 mod angle_tools;
+mod string_tools;
+mod tcp_sock;
 
 const VER_NUM: &str = "V0.0.0";
 //Program title
@@ -105,18 +104,18 @@ fn rob_connect() {
 
     let profiles = HashMap::from([
         ("local", ["127.0.0.1", "8888"]),
-        ("remote", ["192.168.125.1","8888"]),
+        ("remote", ["192.168.125.1", "8888"]),
     ]);
 
     //User selected profile
-    let profile : [&str; 2];
+    let profile: [&str; 2];
 
     loop {
         println!("Please select a profile");
 
         println!("Profiles available: ");
 
-        for key in profiles.keys(){
+        for key in profiles.keys() {
             println!("\t {key}");
         }
 
@@ -141,12 +140,13 @@ fn rob_connect() {
     println!("Logging into robot on : {}:{}", profile[0], profile[1]);
 
     //If connected - create the robot and keep it in scope to keep the connection open
-    if let Some(mut curr_rob) = abb_rob::AbbRob::create_rob(profile[0].parse().unwrap(), profile[1].parse().unwrap()) {
+    if let Some(mut curr_rob) =
+        abb_rob::AbbRob::create_rob(profile[0].parse().unwrap(), profile[1].parse().unwrap())
+    {
         println!("Connected!");
-        
+
         //Open the robot command handler - must be defined for robot!
         curr_rob.rob_cmd_handler();
-        
     } else {
         //Robot failed to connect - go up back to core cmd handler
         println!("{TITLE} - {VER_NUM}");

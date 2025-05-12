@@ -1,4 +1,3 @@
-
 pub fn rem_first_and_last(value: &str) -> &str {
     let mut chars = value.chars();
     chars.next();
@@ -6,12 +5,10 @@ pub fn rem_first_and_last(value: &str) -> &str {
     chars.as_str()
 }
 
-
-pub fn str_to_vector(inp: &str) -> Vec<f32>{    
+pub fn str_to_vector(inp: &str) -> Vec<f32> {
     //Create the vector delimited by ,
-    let  sep: Vec<_>  = inp.split(",").collect();
-    
+    let sep: Vec<_> = inp.split(",").collect();
+
     //Remap all the values to become f32s
-    sep.iter().map(|x| x.parse()).flatten().collect()   
-    
+    sep.iter().map(|x| x.parse()).flatten().collect()
 }

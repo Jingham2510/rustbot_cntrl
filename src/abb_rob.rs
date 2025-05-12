@@ -1,29 +1,31 @@
-
-
-use std::io::{stdin};
-use crate::{tcp_sock, string_tools, angle_tools};
 use crate::tcp_sock::create_sock;
+use crate::{angle_tools, string_tools, tcp_sock};
+use std::io::stdin;
 
 pub struct AbbRob {
-    socket : tcp_sock::TcpSock,
-    pos : Option<(f32, f32, f32)>,
-    ori : Option<(f32, f32, f32)>,
-    jnt_angles : Option<(f32, f32, f32, f32, f32, f32)>,
-    force : Option<(f32, f32, f32, f32, f32, f32)>,
-    move_flag : bool,
-    traj_done_flag : bool
+    socket: tcp_sock::TcpSock,
+    pos: Option<(f32, f32, f32)>,
+    ori: Option<(f32, f32, f32)>,
+    jnt_angles: Option<(f32, f32, f32, f32, f32, f32)>,
+    force: Option<(f32, f32, f32, f32, f32, f32)>,
+    move_flag: bool,
+    traj_done_flag: bool,
 }
 
-
-
-pub const IMPL_COMMDS : [&str; 9] = ["info", "cmds", "disconnect", "set joints", "set orientation", "move tool", "set pos", "req xyz", "req ori"];
-
+pub const IMPL_COMMDS: [&str; 9] = [
+    "info",
+    "cmds",
+    "disconnect",
+    "set joints",
+    "set orientation",
+    "move tool",
+    "set pos",
+    "req xyz",
+    "req ori",
+];
 
 impl AbbRob {
-
-
     pub fn create_rob(ip: String, port: u32) -> Option<AbbRob> {
-
         //Create the robots socket
         let mut rob_sock = create_sock(ip, port);
         //Attempt to connect to the robot
@@ -31,37 +33,30 @@ impl AbbRob {
             //Failed to connect
             println!("Robot not connected");
             None
-        }
-        else{
-            let new_rob = AbbRob{
-                socket : rob_sock,
-                pos : None,
-                ori : None,
-                jnt_angles : None,
-                force : None,
-                move_flag : false,
-                traj_done_flag : false
+        } else {
+            let new_rob = AbbRob {
+                socket: rob_sock,
+                pos: None,
+                ori: None,
+                jnt_angles: None,
+                force: None,
+                move_flag: false,
+                traj_done_flag: false,
             };
 
             Option::from(new_rob)
         }
-
     }
 
     //TODO - Implement robot reconnect function
 
-
-
     //Disconnect from the robot - don't change any robot info, chances are the robot is going out of scope after this
-    pub fn disconnect_rob(&mut self){
+    pub fn disconnect_rob(&mut self) {
         self.socket.disconnect();
         println!("Disconnected... Moving back to core command handler");
     }
 
-
-    pub fn rob_cmd_handler(&mut self){
-
-
+    pub fn rob_cmd_handler(&mut self) {
         //Loop until command given
         loop {
             //Get user input
@@ -86,31 +81,28 @@ impl AbbRob {
                 "disconnect" => {
                     self.disconnect_rob();
                     return;
-                },
+                }
 
                 "req xyz" => {
-                  self.req_xyz();
-                },
+                    self.req_xyz();
+                }
 
-                "req ori" =>{
+                "req ori" => {
                     self.req_ori();
                 }
 
                 //Whatever function is being tested at the moment
                 "test" => {
-                    self.traj_queue_add_rot(angle_tools::Quartenion{
-                        w : 0.07731,
-                        x : -0.88577,
+                    self.traj_queue_add_rot(angle_tools::Quartenion {
+                        w: 0.07731,
+                        x: -0.88577,
                         y: 0.45533,
                         z: -0.04604,
                     });
                     self.traj_queue_add_trans((790.0, 2300.0, 1400.0));
-                    
+
                     self.traj_queue_go();
-                
-                },
-                
-                
+                }
 
                 _ => println!("Unknown command - see CMDs for list of commands"),
             }
@@ -118,185 +110,182 @@ impl AbbRob {
     }
 
     //Ping the robot to check the connection
-    pub fn ping(&mut self){
+    pub fn ping(&mut self) {
         let s = self.socket.req("ECHO:PING");
 
         println!("Ping recieved - {}", s.unwrap());
-
     }
 
     //Request the robot move to specific joint angles
-    fn set_joints(&mut self, angs : (f32, f32, f32, f32, f32, f32)){
-
+    fn set_joints(&mut self, angs: (f32, f32, f32, f32, f32, f32)) {
         //Check to see if a response was returned
-        if let Some(_resp) = self.socket.req(&format!("STJT:[[{},{},{},{},{},{}], [9E9,9E9,9E9,9E9,9E9,9E9]]", angs.0, angs.1, angs.2, angs.3, angs.4, angs.5)){
+        if let Some(_resp) = self.socket.req(&format!(
+            "STJT:[[{},{},{},{},{},{}], [9E9,9E9,9E9,9E9,9E9,9E9]]",
+            angs.0, angs.1, angs.2, angs.3, angs.4, angs.5
+        )) {
             //Update the robot info
             self.update_rob_info();
-        }else{
+        } else {
             //Warn the user that the robot didn't respond
             println!("Warning no response! Robot may not have moved");
         }
-
     }
 
     //Set the orientation of the robots tcp
     //Currently assumes that the quartenion is valid
     //q - the desired orientation
-    fn set_ori(&mut self, q : angle_tools::Quartenion){
-        if let Some(_resp) = self.socket.req(&format!("STOR:[{}, {}, {}, {}]", q.w, q.x, q.y, q.z)){
+    fn set_ori(&mut self, q: angle_tools::Quartenion) {
+        if let Some(_resp) = self
+            .socket
+            .req(&format!("STOR:[{}, {}, {}, {}]", q.w, q.x, q.y, q.z))
+        {
             println!("Response!");
             self.update_rob_info();
-        }else{
+        } else {
             println!("Warning - no robot response! - Robot might not reorient!");
-
         }
     }
 
     //Set the speed of the robot TCP
-    fn set_speed(&mut self, speed: f32){
-        if let Some(resp) = self.socket.req(&format!("STSP:{}", speed)){
+    fn set_speed(&mut self, speed: f32) {
+        if let Some(resp) = self.socket.req(&format!("STSP:{}", speed)) {
             //Do nothing - no user notification required
             println!("{resp}");
-        }else{
+        } else {
             //Warn the user the speed might not have changed
             println!("Danger! No response recieved - unknown robot speed");
         }
     }
 
-
     //Move the tool relative to its own local coordinate system
     //xyz - how far the tcp will move in each caridnal direction
-    fn move_tool(&mut self, xyz : (f32, f32, f32)){
-        if let Some(_resp) = self.socket.req(&format!("MVTL:[{},{},{}]",xyz.0, xyz.1, xyz.2)){
-
+    fn move_tool(&mut self, xyz: (f32, f32, f32)) {
+        if let Some(_resp) = self
+            .socket
+            .req(&format!("MVTL:[{},{},{}]", xyz.0, xyz.1, xyz.2))
+        {
             self.update_rob_info();
-        }else{
+        } else {
             println!("Warning - repsonse not recieved! - Robot may not move")
         }
     }
 
     //Set the TCP point within the global coordinate system
     //xyz - desired position in cartesian coordinates
-    fn set_pos(&mut self, xyz : (f32, f32, f32)){
-        if let Some(_resp) = self.socket.req(&format!("MVTO:[{},{},{}]", xyz.0, xyz.1, xyz.2)){
+    fn set_pos(&mut self, xyz: (f32, f32, f32)) {
+        if let Some(_resp) = self
+            .socket
+            .req(&format!("MVTO:[{},{},{}]", xyz.0, xyz.1, xyz.2))
+        {
             println!("Response!");
             self.update_rob_info();
-        }else{
+        } else {
             println!("Warning - no response - robot may not move");
         }
     }
 
     //Add a translational movement to the robot movement queue
-    fn traj_queue_add_trans(&mut self, xyz:(f32, f32, f32)){
-        if let Some(_resp) = self.socket.req(&format!("TQAD:[{},{},{}]", xyz.0, xyz.1, xyz.2)){
+    fn traj_queue_add_trans(&mut self, xyz: (f32, f32, f32)) {
+        if let Some(_resp) = self
+            .socket
+            .req(&format!("TQAD:[{},{},{}]", xyz.0, xyz.1, xyz.2))
+        {
             println!("trans traj added");
-        }else{
+        } else {
             println!("Warning - no response - trajectory may differ from expected!");
         }
     }
 
     //Add a rotational movement to the robot movement queue
-    fn traj_queue_add_rot(&mut self, q : angle_tools::Quartenion ){
-        if let Some(_resp) = self.socket.req(&format!("RQAD:[{}, {}, {}, {}]", q.w, q.x, q.y, q.z)){
+    fn traj_queue_add_rot(&mut self, q: angle_tools::Quartenion) {
+        if let Some(_resp) = self
+            .socket
+            .req(&format!("RQAD:[{}, {}, {}, {}]", q.w, q.x, q.y, q.z))
+        {
             println!("rot traj added");
-        }else{
+        } else {
             println!("Warning - no response - trajectory may differ from expected!");
         }
     }
 
     //Set the trajectory queue flag high - telling the robot to begin the trajectory queue
-    fn traj_queue_go(&mut self){
-        if let Some(resp) = self.socket.req("TJGO:0"){
+    fn traj_queue_go(&mut self) {
+        if let Some(resp) = self.socket.req("TJGO:0") {
             println!("{resp}");
-        }else{
+        } else {
             println!("Warning - no response from robot trajectory may not begin!");
         }
     }
 
     //Set the trajectory queue flag low - telling the robot to stop the trajectory queue
-    fn traj_queue_stop(&mut self){
-        if let Some(resp) = self.socket.req("TJST:0"){
+    fn traj_queue_stop(&mut self) {
+        if let Some(resp) = self.socket.req("TJST:0") {
             println!("{resp}");
-        }else{
+        } else {
             println!("Warning - no response from robot trajectory may not stop!");
         }
     }
 
     //Requests robot state of trajectory
-    fn get_traj_done_flag(&mut self) -> Option<bool>{
-        
+    fn get_traj_done_flag(&mut self) -> Option<bool> {
         //Safe socket read - incase the socket crashes
-        match self.socket.req("TJDN:?"){
+        match self.socket.req("TJDN:?") {
             Some(recv) => {
                 if recv == "true" {
                     self.traj_done_flag = true;
                     Option::from(true)
-                }else{
+                } else {
                     self.traj_done_flag = false;
                     Option::from(false)
                 }
-            },
+            }
             None => {
                 println!("WARNING ROBOT DISCONNECTED");
                 None
             }
         }
-        
-       
-
     }
 
-
     //Requests the xyz position of the TCP from the robot and stores it in the robot info
-    fn req_xyz(&mut self){
-
+    fn req_xyz(&mut self) {
         //Request the info
-        if let Some(recv) = self.socket.req("GTPS:0"){
-
+        if let Some(recv) = self.socket.req("GTPS:0") {
             //Format the string
             let recv = string_tools::rem_first_and_last(&*recv);
             let xyz_vec = string_tools::str_to_vector(recv);
 
             //Check that the vector is the right length
-            if xyz_vec.len() != 3{
+            if xyz_vec.len() != 3 {
                 println!("XYZ pos read error!");
                 return;
-            }
-            else{
+            } else {
                 //Store the pos in the robot info
                 self.pos = Option::from((xyz_vec[0], xyz_vec[1], xyz_vec[2]));
             }
-
-
-        }else{
-                //If the socket request returns nothing
-                println!("WARNING ROBOT DISCONNECTED");
-                return;
+        } else {
+            //If the socket request returns nothing
+            println!("WARNING ROBOT DISCONNECTED");
+            return;
         }
-
     }
 
     //Requests the orientation information
-    fn req_ori(&mut self){
+    fn req_ori(&mut self) {
         //Request the info
-        if let Some(recv) = self.socket.req("GTOR:0"){
-
+        if let Some(recv) = self.socket.req("GTOR:0") {
             //Format the string
             let recv = string_tools::rem_first_and_last(&*recv);
             let ori_vec = string_tools::str_to_vector(recv);
 
             //Check that the vector is the right length
-            if ori_vec.len() != 3{
+            if ori_vec.len() != 3 {
                 println!("ORI pos read error!");
                 return;
-            }
-            else{
+            } else {
                 //Store the pos in the robot info
                 self.ori = Option::from((ori_vec[0], ori_vec[1], ori_vec[2]));
             }
-
-
-        }else{
+        } else {
             //If the socket request returns nothing
             println!("WARNING ROBOT DISCONNECTED");
             return;
@@ -304,27 +293,30 @@ impl AbbRob {
     }
 
     //Requests joint angle information
-    fn req_jnt_angs(&mut self){
+    fn req_jnt_angs(&mut self) {
         //Request the info
-        if let Some(recv) = self.socket.req("GTJA:0"){
-
+        if let Some(recv) = self.socket.req("GTJA:0") {
             //Format the string
             let recv = string_tools::rem_first_and_last(&*recv);
             let jtang_vec = string_tools::str_to_vector(recv);
 
             //Check that the vector is the right length
-            if jtang_vec.len() != 6{
+            if jtang_vec.len() != 6 {
                 println!("joint angle read error!");
                 println!("Expected: 6. Actual: {}", jtang_vec.len());
                 return;
-            }
-            else{
+            } else {
                 //Store the pos in the robot info
-                self.jnt_angles = Option::from((jtang_vec[0], jtang_vec[1], jtang_vec[2], jtang_vec[3], jtang_vec[4], jtang_vec[5]));
+                self.jnt_angles = Option::from((
+                    jtang_vec[0],
+                    jtang_vec[1],
+                    jtang_vec[2],
+                    jtang_vec[3],
+                    jtang_vec[4],
+                    jtang_vec[5],
+                ));
             }
-
-
-        }else{
+        } else {
             //If the socket request returns nothing
             println!("WARNING ROBOT DISCONNECTED");
             return;
@@ -332,27 +324,25 @@ impl AbbRob {
     }
 
     //Requests 6-axis force information
-    fn req_force(&mut self){
+    fn req_force(&mut self) {
         //Request the info
-        if let Some(recv) = self.socket.req("GTFC:0"){
-
+        if let Some(recv) = self.socket.req("GTFC:0") {
             //Format the string
             let recv = string_tools::rem_first_and_last(&*recv);
             let fc_vec = string_tools::str_to_vector(recv);
 
             //Check that the vector is the right length
-            if fc_vec.len() != 6{
+            if fc_vec.len() != 6 {
                 println!("joint angle read error!");
                 println!("Expected: 6. Actual: {}", fc_vec.len());
                 return;
-            }
-            else{
+            } else {
                 //Store the pos in the robot info
-                self.force = Option::from((fc_vec[0], fc_vec[1], fc_vec[2], fc_vec[3], fc_vec[4], fc_vec[5]));
+                self.force = Option::from((
+                    fc_vec[0], fc_vec[1], fc_vec[2], fc_vec[3], fc_vec[4], fc_vec[5],
+                ));
             }
-
-
-        }else{
+        } else {
             //If the socket request returns nothing
             println!("WARNING ROBOT DISCONNECTED");
             return;
@@ -360,49 +350,42 @@ impl AbbRob {
     }
 
     //Requests robot move state information flag
-    fn req_rob_mov_state(&mut self){
-
+    fn req_rob_mov_state(&mut self) {
         //Get the value of the move state flag - 1 indicating not moving
-        if let Some(truth_val) = self.socket.req("MVST:0"){
-
+        if let Some(truth_val) = self.socket.req("MVST:0") {
             match truth_val.as_str() {
                 "0" => {
                     self.move_flag = true;
-                },
-                "1" => {
-                    self.move_flag = false
                 }
-                _ => {println!("Warning - invalid get move response! - got {}", truth_val.as_str())}
+                "1" => self.move_flag = false,
+                _ => {
+                    println!(
+                        "Warning - invalid get move response! - got {}",
+                        truth_val.as_str()
+                    )
+                }
             }
-        }else{
+        } else {
             println!("Warning - Robot possibly disconnected!");
         }
-
-
-
     }
 
     //Requests the model name of the robot
-    fn req_model(&mut self) -> String{
+    fn req_model(&mut self) -> String {
         //Request the model name
-        if let Some(model) = self.socket.req("RMDL:0"){
+        if let Some(model) = self.socket.req("RMDL:0") {
             model
-        }else{
+        } else {
             String::from("[WRN - Unable to identify model]")
         }
     }
 
     //Helper function that requests all the update information from the robot
     fn update_rob_info(&mut self) {
-
         self.req_xyz();
         self.req_ori();
         self.req_force();
         self.req_rob_mov_state();
         self.get_traj_done_flag();
-
     }
-
-
-
 }
