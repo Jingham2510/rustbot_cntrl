@@ -10,6 +10,7 @@ pub struct AbbRob {
     force: Option<(f32, f32, f32, f32, f32, f32)>,
     move_flag: bool,
     traj_done_flag: bool,
+    disconnected : bool,
 }
 
 pub const IMPL_COMMDS: [&str; 9] = [
@@ -42,6 +43,7 @@ impl AbbRob {
                 force: None,
                 move_flag: false,
                 traj_done_flag: false,
+                disconnected : false
             };
 
             Option::from(new_rob)
@@ -236,16 +238,21 @@ impl AbbRob {
         //Safe socket read - incase the socket crashes
         match self.socket.req("TJDN:?") {
             Some(recv) => {
-                if recv == "true" {
+                if recv == "1" {
                     self.traj_done_flag = true;
                     Option::from(true)
-                } else {
+                }else if recv == "0"{
                     self.traj_done_flag = false;
                     Option::from(false)
+                }
+                else {
+                    println!("Warning - Trajectory flag error! - Unknown state!");
+                    None
                 }
             }
             None => {
                 println!("WARNING ROBOT DISCONNECTED");
+                self.disconnected = true;
                 None
             }
         }
@@ -295,7 +302,13 @@ impl AbbRob {
                         while(!(self.traj_done_flag)){
                             self.update_rob_info();
                             //DEBUG LINE REMOVE
-                            println!("X:{}, Y:{}, Z:{}", self.pos.unwrap().0, self.pos.unwrap().1, self.pos.unwrap().2)
+                            println!("TRAJ: {}", self.traj_done_flag);
+
+                            if(self.disconnected){
+                                println!("Warning - disconnected during test");
+                                return;
+                            }
+
                         }
 
                         println!("Trajectory done!");
@@ -332,6 +345,7 @@ impl AbbRob {
         } else {
             //If the socket request returns nothing
             println!("WARNING ROBOT DISCONNECTED");
+            self.disconnected = true;
             return;
         }
     }
@@ -355,6 +369,7 @@ impl AbbRob {
         } else {
             //If the socket request returns nothing
             println!("WARNING ROBOT DISCONNECTED");
+            self.disconnected = true;
             return;
         }
     }
@@ -386,6 +401,7 @@ impl AbbRob {
         } else {
             //If the socket request returns nothing
             println!("WARNING ROBOT DISCONNECTED");
+            self.disconnected = true;
             return;
         }
     }
@@ -412,6 +428,7 @@ impl AbbRob {
         } else {
             //If the socket request returns nothing
             println!("WARNING ROBOT DISCONNECTED");
+            self.disconnected = true;
             return;
         }
     }
@@ -434,6 +451,7 @@ impl AbbRob {
             }
         } else {
             println!("Warning - Robot possibly disconnected!");
+            self.disconnected = true;
         }
     }
 
