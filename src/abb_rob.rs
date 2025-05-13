@@ -238,15 +238,16 @@ impl AbbRob {
         //Safe socket read - incase the socket crashes
         match self.socket.req("TJDN:?") {
             Some(recv) => {
-                if recv == "1" {
+                if recv == "TRUE" {
                     self.traj_done_flag = true;
                     Option::from(true)
-                }else if recv == "0"{
+                }else if recv == "FALSE"{
                     self.traj_done_flag = false;
                     Option::from(false)
                 }
                 else {
                     println!("Warning - Trajectory flag error! - Unknown state!");
+                    println!("Got response - `{recv}`");
                     None
                 }
             }
