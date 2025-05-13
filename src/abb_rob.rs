@@ -1,5 +1,5 @@
 use crate::tcp_sock::create_sock;
-use crate::{angle_tools, string_tools, tcp_sock};
+use crate::{angle_tools, string_tools, tcp_sock, trajectory_planner};
 use std::io::stdin;
 
 pub struct AbbRob {
@@ -91,6 +91,10 @@ impl AbbRob {
                     self.req_ori();
                 }
 
+                "trajectory" =>{
+                    self.run_test();
+                }
+
                 //Whatever function is being tested at the moment
                 "test" => {
                     self.traj_queue_add_rot(angle_tools::Quartenion {
@@ -103,6 +107,7 @@ impl AbbRob {
 
                     self.traj_queue_go();
                 }
+
 
                 _ => println!("Unknown command - see CMDs for list of commands"),
             }
@@ -245,6 +250,68 @@ impl AbbRob {
             }
         }
     }
+
+    //Essentially another command line handler - just for running specific tests
+    fn run_test(&mut self){
+
+
+        println!("Specifiy the trajectory you wish to run");
+
+        //Loop until command given
+        loop {
+            //Get user input
+            let mut user_inp = String::new();
+            stdin()
+                .read_line(&mut user_inp)
+                .expect("Failed to read line");
+
+            //Check user inout
+            match user_inp.to_lowercase().trim() {
+                "info" => {
+                    println!("Specify the trajectory you wish to run");
+                }
+                //Print out the commands in the valid commands list
+
+                "exit" => {
+                    return
+                }
+
+                //Capture all other
+                other => {
+                    //If the trajectory is valid - i.e. it has been programmed
+                    if let Some(traj) = trajectory_planner::traj_gen(other) {
+
+                        //Place all the trajectories in the queue
+                        for pnt in traj{
+                            self.traj_queue_add_trans(pnt);
+                        }
+
+                        //Start the trajectory
+                        self.traj_queue_go();
+
+                        //Read the values once
+                        self.update_rob_info();
+                        //Read the values until the trajectory is reported as done
+                        while(!(self.traj_done_flag)){
+                            self.update_rob_info();
+                            //DEBUG LINE REMOVE
+                            println!("X:{}, Y:{}, Z:{}", self.pos.unwrap().0, self.pos.unwrap().1, self.pos.unwrap().2)
+                        }
+
+                        println!("Trajectory done!");
+
+                        return
+
+
+                    }
+                }
+
+            }
+
+
+        }
+    }
+
 
     //Requests the xyz position of the TCP from the robot and stores it in the robot info
     fn req_xyz(&mut self) {

@@ -11,7 +11,7 @@ mod abb_rob;
 mod angle_tools;
 mod string_tools;
 mod tcp_sock;
-
+mod trajectory_planner;
 const VER_NUM: &str = "V0.0.0";
 //Program title
 const TITLE: &str = "Rustbot Control";
