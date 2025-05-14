@@ -1,6 +1,7 @@
+use std::fs::OpenOptions;
 use crate::tcp_sock::create_sock;
 use crate::{angle_tools, string_tools, tcp_sock, trajectory_planner};
-use std::io::stdin;
+use std::io::{stdin, prelude::*};
 
 pub struct AbbRob {
     socket: tcp_sock::TcpSock,
@@ -289,6 +290,17 @@ impl AbbRob {
                     //If the trajectory is valid - i.e. it has been programmed
                     if let Some(traj) = trajectory_planner::traj_gen(other) {
 
+                        //Create the filename
+                        println!("Please provide a filename");
+
+                        //Get user input
+                        let mut user_inp = String::new();
+                        stdin()
+                            .read_line(&mut user_inp)
+                            .expect("Failed to read line");
+
+                        let filename = format!("C:/Users/User/Documents/Results/rustbot_dumps/{}", user_inp);
+
                         //Place all the trajectories in the queue
                         for pnt in traj{
                             self.traj_queue_add_trans(pnt);
@@ -302,8 +314,9 @@ impl AbbRob {
                         //Read the values until the trajectory is reported as done
                         while(!(self.traj_done_flag)){
                             self.update_rob_info();
-                            //DEBUG LINE REMOVE
-                            println!("TRAJ: {}", self.traj_done_flag);
+                            self.store_state(&filename);
+
+
 
                             if(self.disconnected){
                                 println!("Warning - disconnected during test");
@@ -474,4 +487,30 @@ impl AbbRob {
         self.req_rob_mov_state();
         self.get_traj_done_flag();
     }
-}
+
+
+    //Appends relevant test information to the provided filename
+    fn store_state(&mut self, filename : &String){
+
+        println!("{}", filename);
+
+        //Open the file (or create if it doesn't exist)
+        let mut file = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(filename.trim())
+            .unwrap();
+            
+        //Format the line to write
+        let line = "test";
+
+        //Write to the file - indicating if writing failed (but don't worry about it!)
+        if let Err(e) = writeln!(file, "{}", line){
+                eprint!("Couldn't write to file: {}", e);
+            }
+        }
+
+
+
+    }
+
