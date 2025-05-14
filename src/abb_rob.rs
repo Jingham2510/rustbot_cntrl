@@ -1,3 +1,4 @@
+use std::fmt::format;
 use std::fs::OpenOptions;
 use crate::tcp_sock::create_sock;
 use crate::{angle_tools, string_tools, tcp_sock, trajectory_planner};
@@ -311,10 +312,16 @@ impl AbbRob {
 
                         //Read the values once
                         self.update_rob_info();
+
+                        let mut cnt = 0;
+
                         //Read the values until the trajectory is reported as done
                         while(!(self.traj_done_flag)){
                             self.update_rob_info();
-                            self.store_state(&filename);
+                            self.store_state(&filename, cnt);
+
+                            //Increase the count
+                            cnt = cnt + 1;
 
 
 
@@ -490,7 +497,7 @@ impl AbbRob {
 
 
     //Appends relevant test information to the provided filename
-    fn store_state(&mut self, filename : &String){
+    fn store_state(&mut self, filename : &String, i : i32){
 
         println!("{}", filename);
 
@@ -500,9 +507,25 @@ impl AbbRob {
             .create(true)
             .open(filename.trim())
             .unwrap();
-            
+
         //Format the line to write
-        let line = "test";
+        let line = format!("{},[{},{},{}],[{},{},{}],[{},{},{},{},{},{}]",
+                           i,
+                            //Make sure that you dont print a lack of information in the data
+                            //TODO - Create formatting function - that can print blank spots
+                           self.pos.expect("Err - reading pos - x").0,
+                           self.pos.expect("Err - reading pos - y").1,
+                           self.pos.expect("Err - reading pos - z").2,
+                           self.ori.expect("Err - reading ori - x").0,
+                           self.ori.expect("Err - reading ori - y").1,
+                           self.ori.expect("Err - reading pos - z").2,
+                           self.force.expect("Err - reading force - x").0,
+                           self.force.expect("Err - reading force - y").1,
+                           self.force.expect("Err - reading force - z").2,
+                           self.force.expect("Err - reading moment - x").3,
+                           self.force.expect("Err - reading moment - y").4,
+                           self.force.expect("Err - reading moment - z").5,
+        );
 
         //Write to the file - indicating if writing failed (but don't worry about it!)
         if let Err(e) = writeln!(file, "{}", line){
