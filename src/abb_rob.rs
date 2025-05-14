@@ -1,4 +1,3 @@
-use std::fmt::format;
 use std::fs::OpenOptions;
 use crate::tcp_sock::create_sock;
 use crate::{angle_tools, string_tools, tcp_sock, trajectory_planner};
