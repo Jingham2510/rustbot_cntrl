@@ -315,7 +315,7 @@ impl AbbRob {
                         let mut cnt = 0;
 
                         //Read the values until the trajectory is reported as done
-                        while(!(self.traj_done_flag)){
+                        while !self.traj_done_flag{
                             self.update_rob_info();
                             self.store_state(&filename, cnt);
 
@@ -324,7 +324,7 @@ impl AbbRob {
 
 
 
-                            if(self.disconnected){
+                            if self.disconnected{
                                 println!("Warning - disconnected during test");
                                 return;
                             }
