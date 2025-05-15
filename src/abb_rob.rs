@@ -302,10 +302,16 @@ impl AbbRob {
 
                         let filename = format!("C:/Users/User/Documents/Results/rustbot_dumps/{}", user_inp);
 
+                        //Move to a starting point - above the starting point
+                        self.set_pos((traj[0].0, traj[0].1, traj[0].2 + 25.0));
+                       
+                        
                         //Place all the trajectories in the queue
                         for pnt in traj{
                             self.traj_queue_add_trans(pnt);
                         }
+                        
+           
 
                         //Start the trajectory
                         self.traj_queue_go();
