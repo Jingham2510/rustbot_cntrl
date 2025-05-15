@@ -2,6 +2,7 @@ use std::fs::OpenOptions;
 use crate::tcp_sock::create_sock;
 use crate::{angle_tools, string_tools, tcp_sock, trajectory_planner};
 use std::io::{stdin, prelude::*};
+use std::time::SystemTime;
 
 pub struct AbbRob {
     socket: tcp_sock::TcpSock,
@@ -497,8 +498,7 @@ impl AbbRob {
 
     //Appends relevant test information to the provided filename
     fn store_state(&mut self, filename : &String, i : i32){
-
-        println!("{}", filename);
+        
 
         //Open the file (or create if it doesn't exist)
         let mut file = OpenOptions::new()
@@ -508,8 +508,9 @@ impl AbbRob {
             .unwrap();
 
         //Format the line to write
-        let line = format!("{},[{},{},{}],[{},{},{}],[{},{},{},{},{},{}]",
+        let line = format!("{},{:?},[{},{},{}],[{},{},{}],[{},{},{},{},{},{}]",
                            i,
+                            SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs_f64(),
                             //Make sure that you dont print a lack of information in the data
                             //TODO - Create formatting function - that can print blank spots
                            self.pos.expect("Err - reading pos - x").0,
