@@ -304,14 +304,14 @@ impl AbbRob {
 
                         //Move to a starting point - above the starting point
                         self.set_pos((traj[0].0, traj[0].1, traj[0].2 + 25.0));
-                       
-                        
+
+
                         //Place all the trajectories in the queue
                         for pnt in traj{
                             self.traj_queue_add_trans(pnt);
                         }
-                        
-           
+
+
 
                         //Start the trajectory
                         self.traj_queue_go();
@@ -504,7 +504,7 @@ impl AbbRob {
 
     //Appends relevant test information to the provided filename
     fn store_state(&mut self, filename : &String, i : i32){
-        
+
 
         //Open the file (or create if it doesn't exist)
         let mut file = OpenOptions::new()
