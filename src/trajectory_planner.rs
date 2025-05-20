@@ -29,7 +29,6 @@ pub fn traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>>{
         },
 
         "circle" =>{
-
             //Define all characteristics of the circle
             let centre: (f32, f32, f32) = (200.0, 2160.0, 100.0);
             //Number of times the circle goes round
@@ -40,8 +39,7 @@ pub fn traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>>{
             //Create the circle trajectory 
             for i in 1..(360*loops){
                 trajectory.push((centre.0 + (i as f32 * (PI/180.0) * radius).sin(), centre.1 + (i as f32 * (PI/180.0) * radius).cos(), centre.2));
-            }
-            
+            }            
         }
 
 
