@@ -30,7 +30,7 @@ pub fn traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>>{
 
         "circle" =>{
             //Define all characteristics of the circle
-            let centre: (f32, f32, f32) = (200.0, 2160.0, 100.0);
+            let centre: (f32, f32, f32) = (200.0, 2160.0, 125.0);
             //Number of times the circle goes round
             let loops = 3;
             //"size" of circle

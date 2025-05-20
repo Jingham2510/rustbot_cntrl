@@ -493,12 +493,31 @@ impl AbbRob {
     }
 
     //Helper function that requests all the update information from the robot
+    //Returns early from the function if the robot has disconnected
+    //TODO - Check to see if there is a cleaner way to check if disconnected?
     fn update_rob_info(&mut self) {
-        self.req_xyz();
+        self.req_xyz();        
+        if self.disconnected{
+            return;
+        }          
         self.req_ori();
+
+        if self.disconnected{
+            return;
+        }
         self.req_force();
+
+        if self.disconnected{
+            return;
+        }
         self.req_rob_mov_state();
+
+        if self.disconnected{
+            return;
+        }
+        
         self.get_traj_done_flag();
+
     }
 
 
