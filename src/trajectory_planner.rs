@@ -36,10 +36,10 @@ pub fn traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>>{
             //"size" of circle
             let radius : f32 = 350.0;
 
-            //Create the circle trajectory 
+            //Create the circle trajectory
             for i in 1..(360*loops){
-                trajectory.push((centre.0 + (i as f32 * (PI/180.0) * radius).sin(), centre.1 + (i as f32 * (PI/180.0) * radius).cos(), centre.2));
-            }            
+                trajectory.push((centre.0 + ((i as f32 * (PI/180.0) ).sin() * radius), centre.1 + ((i as f32 * (PI/180.0) ).cos() * radius), centre.2));
+            }
         }
 
 
