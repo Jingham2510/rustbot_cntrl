@@ -4,6 +4,7 @@ use crate::{angle_tools, string_tools, tcp_sock, trajectory_planner};
 use std::io::{stdin, prelude::*};
 use std::time::SystemTime;
 
+
 pub struct AbbRob {
     socket: tcp_sock::TcpSock,
     pos: Option<(f32, f32, f32)>,
@@ -15,14 +16,13 @@ pub struct AbbRob {
     disconnected : bool,
 }
 
-pub const IMPL_COMMDS: [&str; 9] = [
+pub const IMPL_COMMDS: [&str; 8] = [
     "info",
     "cmds",
     "disconnect",
-    "set joints",
-    "set orientation",
-    "move tool",
-    "set pos",
+    "trajectory",
+    "test",
+    "home",
     "req xyz",
     "req ori",
 ];
@@ -110,6 +110,12 @@ impl AbbRob {
                     self.traj_queue_add_trans((790.0, 2300.0, 1400.0));
 
                     self.traj_queue_go();
+                    
+                    
+                }
+
+                "home" => {
+                    self.go_home_pos();
                 }
 
 
@@ -138,6 +144,27 @@ impl AbbRob {
             //Warn the user that the robot didn't respond
             println!("Warning no response! Robot may not have moved");
         }
+    }
+
+    fn go_home_pos(&mut self){
+        //Define the home point
+        let home_pos = (177.77, 1777.27, 487.68);
+        
+        //Define the home orientation
+        let home_ori = angle_tools::Quartenion{
+            w : 0.02607,
+            x : -0.76666,
+            y : 0.64128,
+            z : 0.01799
+        };
+        
+        //Set the pos and ori
+        self.set_pos(home_pos);
+        
+        self.set_ori(home_ori);
+
+        println!("Home!");
+
     }
 
     //Set the orientation of the robots tcp
@@ -343,6 +370,8 @@ impl AbbRob {
                         return
 
 
+                    }else{
+                        return;
                     }
                 }
 
