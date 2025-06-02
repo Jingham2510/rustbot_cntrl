@@ -126,23 +126,49 @@ fn cust_traj_handler() -> Option<Vec<(f32, f32, f32)>>{
         .expect("Failed to read line");
 
 
+
+
     //Attempt to match to a trajectory in the directory
-    if let Ok(file) = File::open(format!("{}/{}.traj", CUST_TRAJ_LOC, user_inp)){
+    if let Ok(file) = File::open(format!("{}{}.traj", CUST_TRAJ_LOC, user_inp.trim())){
 
         //Create an empty vector
         let mut traj: Vec<(f32, f32, f32)> = vec![];
 
-        //Go through the file line by line and extract the trajectory points
+        //Extract the line containing the trajectory info
+        let mut traj_str = String::new();
+        
         for line in io::BufReader::new(file).lines(){
-            println!("{:?}", line);
+            traj_str = line.unwrap();
         }
 
+        //Parse each trajectory coordinate via comma
+        let split_traj = traj_str.split(",");
+
+        //Place each trajectory coordinate into the trajectory vector (with a default height)
+        for coord in split_traj{
+            
+            if coord.is_empty(){
+                println!("Empty line");
+            }else {
+                //trim the parantheses (using a pattern)
+                let coord = coord.replace(&['(', ')'][..], "");
+
+                println!("{coord}");
+
+                //split via space
+                let coord_split: Vec<_> = coord.split(" ").collect();
+
+                //Place in a tuple and add to the trajectory
+                let default_height: f32 = 125.0;
+                traj.push((coord_split[0].parse().unwrap(), coord_split[1].parse().unwrap(), default_height))
+            }
+        }
 
         Option::from(traj)
 
     }else{
         println!("Custom trajectory not found!");
-        return None
+        None
     }
 
 
