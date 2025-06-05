@@ -148,7 +148,7 @@ impl AbbRob {
 
     fn go_home_pos(&mut self){
         //Define the home point
-        let home_pos = (177.77, 1777.27, 487.68);
+        let home_pos = (177.77, 1777.27, 350.0);
         
         //Define the home orientation
         let home_ori = angle_tools::Quartenion{
@@ -157,11 +157,16 @@ impl AbbRob {
             y : 0.64128,
             z : 0.01799
         };
-        
+
+
+        self.set_speed(500.0);
+
         //Set the pos and ori
         self.set_pos(home_pos);
         
         self.set_ori(home_ori);
+
+        self.set_speed(50.0);
 
         println!("Home!");
 
