@@ -6,12 +6,16 @@
 use std::collections::HashMap;
 use std::io::stdin;
 use std::thread;
+use crate::terr_map_tools::Map;
 
 mod abb_rob;
 mod angle_tools;
 mod string_tools;
 mod tcp_sock;
 mod trajectory_planner;
+
+mod terr_map_tools;
+
 const VER_NUM: &str = "V0.0.0";
 //Program title
 const TITLE: &str = "Rustbot Control";
@@ -19,6 +23,13 @@ const TITLE: &str = "Rustbot Control";
 fn main() {
     //Run the command handler
     core_cmd_handler();
+
+
+    //test the map features
+    //let test: Map = Map::new(13, 6);
+
+    //test.print_cells();
+
 
     println!("Shutting down");
 }
