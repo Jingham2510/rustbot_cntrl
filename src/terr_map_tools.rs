@@ -17,7 +17,7 @@ pub struct Map {
 //Map tools - including display and modification etc
 impl Map {
 
-    pub fn new(height: i32, width: i32) -> Self{
+    pub fn new( width: i32, height: i32) -> Self{
 
         //Initialise new variables for the object
         let mut square_check = false;
@@ -28,19 +28,55 @@ impl Map {
         }
 
         //Generate an empty cell bed of height*width size
-        Self{height, width, square: square_check, cells: vec![vec![0.0; width as usize]; height as usize]}
+        Self{height, width, square: square_check, cells: vec![vec![0.0; height as usize]; width as usize]}
     }
 
     pub fn print_cells(self){
-
         for row in self.cells{
             for cell in row{
                 print!("{} ", cell);
             }
             print!("\n");
         }
-
     }
+
+    //TODO: CHANGE CELL VALUE, CHANGE ALL CELL VALUES
+
+    //Get the height for a given cell
+    pub fn get_cell_height(self, x: usize, y: usize) -> f32{
+        self.cells[x][y]
+    }
+
+
+}
+
+//Compares a given map with a desired map and outputs a map of height differences
+pub fn comp_maps(curr_map: Map, desired_map: Map) -> Option<Map>{
+
+    //Check the maps are the same size - if not exit
+    if(curr_map.height != desired_map.height || curr_map.width != curr_map.height){
+        println!("Warning - Maps are not the same size - cannot be compared");
+        None
+    }
+
+    //Create a new empty map that holds the difference
+    let mut diff_map: Map = Map::new(curr_map.height, curr_map.width);
+
+    //TODO: FINISH SOME MAP UTILS
+
+    //Access cell info
+    for row in diff_map{
+        for cell in row{
+            //get the difference
+            cell = 1;            
+        }       
+        
+    }
+
+    Option::from(diff_map)
+    
+    
+
 
 
 }
