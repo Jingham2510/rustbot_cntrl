@@ -38,7 +38,7 @@ impl Map {
             }
             print!("\n");
         }
-    }   
+    }
 
     //Get the height for a given cell
     pub fn get_cell_height(&self, x: usize, y: usize) -> f32{
@@ -66,7 +66,7 @@ impl Map {
 }
 
 //Compares a given map with a desired map and outputs a map of height differences
-pub fn comp_maps(curr_map: Map, desired_map: Map) -> Option<Map>{
+pub fn comp_maps(curr_map: &Map, desired_map: &Map) -> Option<Map>{
 
     //Check the maps are the same size - if not exit
     if(curr_map.height != desired_map.height || curr_map.width != curr_map.height){
@@ -77,10 +77,16 @@ pub fn comp_maps(curr_map: Map, desired_map: Map) -> Option<Map>{
     //Create a new empty map that holds the difference
     let mut diff_map: Map = Map::new(curr_map.height, curr_map.width);
 
-    //TODO: FINISH SOME MAP UTILS
+    //TODO: CHECK THE COMP MAPS THING
 
-    //Access cell info
-  
+    //Sweep through cells and get the differences
+    //NOT ABSOLUTE - we want to know the over/under
+    for x in 0..diff_map.width{
+        for y in 0..diff_map.height{
+            diff_map.cells[x as usize][y as usize] = curr_map.cells[x as usize][y as usize] - desired_map.cells[x as usize][y as usize];
+        }
+    }
+
 
     Option::from(diff_map)
     

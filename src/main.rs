@@ -22,7 +22,7 @@ const TITLE: &str = "Rustbot Control";
 
 fn main() {
     //Run the command handler
-    core_cmd_handler();
+    //core_cmd_handler();
 
 
     //test the map features
