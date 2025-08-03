@@ -27,10 +27,19 @@ fn main() {
 
     //test the map features
     let mut test: Map = Map::new(13, 6);
-    
+
     test.set_cell_height(1,1, 23.0);
+    test.set_cell_height(4, 5, 5.0);
+
+    let mut des_test: Map = Map::new(13, 6); 
     
-    test.print_cells();
+    des_test.set_cell_height(1, 1, 25.0);
+    des_test.set_cell_height(4, 5, 2.0);
+
+
+    terr_map_tools::comp_maps(&test, &des_test).unwrap().print_cells();
+    
+   
 
 
     println!("Shutting down");

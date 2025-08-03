@@ -28,7 +28,7 @@ impl Map {
         }
 
         //Generate an empty cell bed of height*width size
-        Self{height, width, square: square_check, cells: vec![vec![0.0; width as usize]; height as usize]}
+        Self{height, width, square: square_check, cells: vec![vec![0.0; height as usize]; width as usize]}
     }
 
     pub fn print_cells(&self){
@@ -41,22 +41,34 @@ impl Map {
     }
 
     //Get the height for a given cell
-    pub fn get_cell_height(&self, x: usize, y: usize) -> f32{
-        self.cells[x][y]
+    pub fn get_cell_height(&self, x: i32, y: i32) -> Option<f32>{
+
+        if (x > self.width || y > self.height){
+            println!("Warning - attempting to read from cell that doesnt exist!");
+            return None
+        }
+
+        Option::from(self.cells[x as usize][y as usize])
     }
 
     //Set the height of a given cell
-    pub fn set_cell_height(&mut self, x : usize, y: usize, new_height: f32){
-        self.cells[x][y] = new_height;
+    pub fn set_cell_height(&mut self, x : i32, y: i32, new_height: f32){
+
+        if (x > self.width || y > self.height){
+            println!("Warning - attempting to write to cell that doesnt exist!");
+            return
+        }
+
+        self.cells[x as usize][y as usize] = new_height;
     }
 
     //Set the height of all cells (utilising the set cell height function)
     pub fn set_map(&mut self, new_heights: Map){
         //Sweep through each cell and replace with the new map height
-        for x in 0..self.width{
-            for y in 0..self.height{
-                //Cast to usize here because can't access the vectors using i32
-                self.cells[x as usize][y as usize] = new_heights.cells[x as usize][y as usize]
+        for (x, row) in self.cells.iter_mut().enumerate(){
+            for (y, col) in row.iter_mut().enumerate(){
+
+                *col = new_heights.cells[x][y]
             }
         }
 
@@ -69,7 +81,7 @@ impl Map {
 pub fn comp_maps(curr_map: &Map, desired_map: &Map) -> Option<Map>{
 
     //Check the maps are the same size - if not exit
-    if(curr_map.height != desired_map.height || curr_map.width != curr_map.height){
+    if(curr_map.height != desired_map.height || curr_map.width != curr_map.width){
         println!("Warning - Maps are not the same size - cannot be compared");
         return None
     }
@@ -83,7 +95,15 @@ pub fn comp_maps(curr_map: &Map, desired_map: &Map) -> Option<Map>{
     //NOT ABSOLUTE - we want to know the over/under
     for x in 0..diff_map.width{
         for y in 0..diff_map.height{
-            diff_map.cells[x as usize][y as usize] = curr_map.cells[x as usize][y as usize] - desired_map.cells[x as usize][y as usize];
+
+        }
+    }
+
+    //Sweep through each cell and replace with the new map height
+    for (x, row) in diff_map.cells.iter_mut().enumerate(){
+        for (y, col) in row.iter_mut().enumerate(){
+            //Not entirely sure why y and x are the opposite way rounds but hey ho
+            *col= curr_map.cells[y][x] - desired_map.cells[y][x];
         }
     }
 
