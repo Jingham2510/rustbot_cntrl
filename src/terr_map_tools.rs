@@ -4,11 +4,13 @@
 pub struct Map {
 
     //Height and width of the terrain map
-    height: i32,
-    width: i32,
+    height: u32,
+    width: u32,
 
     //Indicates whether the grid is square or not
     square: bool,
+    
+    no_of_cells: u32,
 
     //the 2d vector representing the cells
     cells: Vec<Vec<f32>>
@@ -17,7 +19,7 @@ pub struct Map {
 //Map tools - including display and modification etc
 impl Map {
 
-    pub fn new( width: i32, height: i32) -> Self{
+    pub fn new( width: u32, height: u32) -> Self{
 
         //Initialise new variables for the object
         let mut square_check = false;
@@ -28,7 +30,7 @@ impl Map {
         }
 
         //Generate an empty cell bed of height*width size
-        Self{height, width, square: square_check, cells: vec![vec![0.0; height as usize]; width as usize]}
+        Self{height, width, square: square_check, no_of_cells: height*width ,cells: vec![vec![0.0; height as usize]; width as usize]}
     }
 
     pub fn print_cells(&self){
@@ -41,7 +43,7 @@ impl Map {
     }
 
     //Get the height for a given cell
-    pub fn get_cell_height(&self, x: i32, y: i32) -> Option<f32>{
+    pub fn get_cell_height(&self, x: u32, y: u32) -> Option<f32>{
 
         if (x > self.width || y > self.height){
             println!("Warning - attempting to read from cell that doesnt exist!");
@@ -52,7 +54,7 @@ impl Map {
     }
 
     //Set the height of a given cell
-    pub fn set_cell_height(&mut self, x : i32, y: i32, new_height: f32){
+    pub fn set_cell_height(&mut self, x : u32, y: u32, new_height: f32){
 
         if (x > self.width || y > self.height){
             println!("Warning - attempting to write to cell that doesnt exist!");
