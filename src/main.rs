@@ -26,9 +26,11 @@ fn main() {
 
 
     //test the map features
-    //let test: Map = Map::new(13, 6);
-
-    //test.print_cells();
+    let mut test: Map = Map::new(13, 6);
+    
+    test.set_cell_height(1,1, 23.0);
+    
+    test.print_cells();
 
 
     println!("Shutting down");
