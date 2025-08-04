@@ -159,7 +159,7 @@ impl Map {
 
     //Generates a pre-defined pattern - for testing purposes
     pub fn gen_test_pattern(&mut self) {
-        //Check every value to see if its the smallest
+        //Go through every cell and place a pre-defined value in
         for (x, row) in self.cells.iter_mut().enumerate() {
             for (y, col) in row.iter_mut().enumerate() {
                 *col = (x * y) as f32;
@@ -175,7 +175,7 @@ impl Map {
 
     //Generates a random pattern - for testing purposes
     pub fn gen_random_pattern(& mut self){
-        //Check every value to see if its the smallest
+        //Go through every cell and give it a random value
         for (_x, row) in self.cells.iter_mut().enumerate() {
             for (_y, col) in row.iter_mut().enumerate() {
                 *col = rand::rng().random_range(0..100) as f32;
