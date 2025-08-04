@@ -24,7 +24,7 @@ fn main() {
     //test the map features
     let mut test: Map = Map::new(1000, 1000);
 
-    test.gen_test_pattern();
+    test.gen_random_pattern();
 
     //let mut des_test: Map = Map::new(10, 5);
     
