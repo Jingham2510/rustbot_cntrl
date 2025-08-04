@@ -22,7 +22,7 @@ pub fn traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>>{
         "line" => {
             //Define all the starting points etc
             let line_x= 262.0;
-            let line_z = 125.0;
+            let line_z = 170.0;
             let start_y = 1650.0;
             let end_y = 2550.0;
             let start_pos  = (line_x, start_y, line_z);

@@ -21,26 +21,25 @@ const VER_NUM: &str = "V0.0.0";
 const TITLE: &str = "Rustbot Control";
 
 fn main() {
+    //test the map features
+    let mut test: Map = Map::new(10, 10);
+
+    //test.set_cell_height(1,1, 23.0);
+    //test.set_cell_height(3, 4, 5.0);
+
+    //let mut des_test: Map = Map::new(10, 5);
+    
+    //des_test.set_cell_height(1, 1, 25.0);
+    //des_test.set_cell_height(3, 4, 2.0);
+
+
+    //terr_map_tools::comp_maps(&test, &des_test).unwrap().print_cells();
+    
+    test.disp_map();
+
+
     //Run the command handler
     //core_cmd_handler();
-
-
-    //test the map features
-    let mut test: Map = Map::new(13, 6);
-
-    test.set_cell_height(1,1, 23.0);
-    test.set_cell_height(4, 5, 5.0);
-
-    let mut des_test: Map = Map::new(13, 6); 
-    
-    des_test.set_cell_height(1, 1, 25.0);
-    des_test.set_cell_height(4, 5, 2.0);
-
-
-    terr_map_tools::comp_maps(&test, &des_test).unwrap().print_cells();
-    
-   
-
 
     println!("Shutting down");
 }
