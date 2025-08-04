@@ -98,7 +98,13 @@ impl Map {
             }else if(new_height < self.min){
                 self.min = new_height;
                 self.min_pos = (x, y);
+            }else{
+                println!("{0} is not larger than {1}!", new_height, self.max);
             }
+
+
+
+
         }
 
 
@@ -113,6 +119,9 @@ impl Map {
             }
         }
 
+        self.max_updated = false;
+        self.min_updated = false;
+
         self.get_max();
         self.get_min();
     }
@@ -125,8 +134,8 @@ impl Map {
             let mut new_max : f32 = -999.0;
 
             //Check every value to see if its the largest
-            for (x, row) in self.cells.iter_mut().enumerate(){
-                for(y, col) in row.iter_mut().enumerate(){
+            for (_x, row) in self.cells.iter_mut().enumerate(){
+                for(_y, col) in row.iter_mut().enumerate(){
                     if col > &mut new_max {
                         new_max = *col;
                     }
@@ -151,8 +160,8 @@ impl Map {
             let mut new_min : f32 = 999.0;
 
             //Check every value to see if its the smallest
-            for (x, row) in self.cells.iter_mut().enumerate(){
-                for(y, col) in row.iter_mut().enumerate(){
+            for (_x, row) in self.cells.iter_mut().enumerate(){
+                for(_y, col) in row.iter_mut().enumerate(){
                     if col < &mut new_min {
                         new_min = *col;
                     }
@@ -168,7 +177,31 @@ impl Map {
     }
 
 
+    pub fn gen_test_pattern(&mut self){
+
+        //Check every value to see if its the smallest
+        for (x, row) in self.cells.iter_mut().enumerate(){
+            for(y, col) in row.iter_mut().enumerate(){
+                *col = (x * y) as f32;
+            }
+        }
+
+        //We can cheat - we precalc the minx and maxes
+        self.min = 0f32;
+        self.min_pos = (0, 0);
+        self.max = (self.width * self.height) as f32;
+        self.max_pos = (self.width, self.height);
+
+
+
+
+
+
+    }
+
+
     //Display the map as a grid
+    //TODO : ADD NON-RELATIVE COLOURING (I.E. BASED ON ACTUAL HEIGHT)
     pub fn disp_map(&mut self){
 
         //Calcualte grid sizes etc
@@ -189,7 +222,7 @@ impl Map {
         let grid_disp_height: f32 = WINDOW_HEIGHT * 0.8;
 
         //Line thickness
-        const LINE_THICKNESS : f32 = 5.0;
+        const LINE_THICKNESS : f32 = 3.0;
 
         //calculate the cell width
         let cell_width: f32 = (grid_disp_width - ((self.width as f32 + 2.0) * LINE_THICKNESS)) / (self.width as f32)  ;
@@ -231,24 +264,37 @@ impl Map {
             }
 
             //Fill in the cell colours based on height values -----
-            //Base colour gradient range on largest and minimum value
-            let col_step = 256.0/((self.max - self.min).abs());
+            //Base colour gradient range on largest and minimum value (with a median to act as a neutral value)
+            let median = (self.max + self.min) / 2.0;
 
             //Go through every cell and draw a coloured rectangle to represent it
             for (x, row) in self.cells.iter_mut().enumerate(){
 
                 //Calculate the start point of the rectangle
-                let curr_x = (WINDOW_WIDTH_START + LINE_THICKNESS) + (x as f32 * (cell_width + LINE_THICKNESS));
+                let curr_x = (WINDOW_WIDTH_START + (LINE_THICKNESS)) + (x as f32 * (cell_width + LINE_THICKNESS));
 
                 for(y, col) in row.iter_mut().enumerate(){
-                    //access cell height
-                    let cell_height = *col;
 
                     //Calc the starting height
-                    let curr_y = (WINDOW_HEIGHT_START + LINE_THICKNESS) + (y as f32 * (cell_height + LINE_THICKNESS));
+                    let curr_y = (WINDOW_HEIGHT_START + (LINE_THICKNESS)) + (y as f32 * (cell_height + LINE_THICKNESS));
+
+                    //Calculate the colour
+                    let cell_col : Color;
+
+                    //println!("{0}", self.max);
+
+                    //If the value in the cell is unknown - paint it black
+                    if col.is_nan(){
+                        cell_col = Color::BLACK;
+                    }else if (*col <= median){
+                        cell_col = Color::new((256.0 * (1.0 - ((*col - self.min)/(median - self.min)))) as u8, (256.0 * ((*col - self.min)/(median - self.min))) as u8, 0, 255);
+                    }else{
+                        cell_col = Color::new(0, (256.0 * (1.0 - ((*col - median)/(self.max - median)))) as u8, (256.0 * ((*col - median)/(self.max - median))) as u8, 255 );
+                    }
+
 
                     //Create the coloured rectangle in the grid
-                    //d.draw_rectangle(curr_x as i32, curr_y as i32, cell_width as i32, cell_height as i32, Color::new((256 * ), ,0,256))
+                    d.draw_rectangle(curr_x as i32, curr_y as i32, (cell_width + 2.0 * LINE_THICKNESS) as i32, (cell_height + 2.0 * LINE_THICKNESS) as i32, cell_col);
 
 
                 }

@@ -22,10 +22,9 @@ const TITLE: &str = "Rustbot Control";
 
 fn main() {
     //test the map features
-    let mut test: Map = Map::new(10, 10);
+    let mut test: Map = Map::new(1000, 1000);
 
-    //test.set_cell_height(1,1, 23.0);
-    //test.set_cell_height(3, 4, 5.0);
+    test.gen_test_pattern();
 
     //let mut des_test: Map = Map::new(10, 5);
     
