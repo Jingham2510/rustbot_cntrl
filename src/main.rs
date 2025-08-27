@@ -6,7 +6,8 @@
 use std::collections::HashMap;
 use std::io::stdin;
 use std::thread;
-use crate::terr_map_tools::Map;
+use crate::terr_map_gen::example;
+use crate::terr_map_vis::Map;
 
 mod abb_rob;
 mod angle_tools;
@@ -14,17 +15,23 @@ mod string_tools;
 mod tcp_sock;
 mod trajectory_planner;
 
-mod terr_map_tools;
+mod terr_map_gen;
+mod terr_map_vis;
 
 const VER_NUM: &str = "V0.0.0";
 //Program title
 const TITLE: &str = "Rustbot Control";
 
 fn main() {
-    //test the map features
-    let mut test: Map = Map::new(1000, 1000);
+    
+    //Test the map gen features
+    example().expect("TODO: panic message");
+    
+    
+    //test the map vis features
+    //let mut test: Map = Map::new(1000, 1000);
 
-    test.gen_random_pattern();
+    //test.gen_random_pattern();
 
     //let mut des_test: Map = Map::new(10, 5);
     
@@ -34,8 +41,10 @@ fn main() {
 
     //terr_map_tools::comp_maps(&test, &des_test).unwrap().print_cells();
     
-    test.disp_map();
+    //test.disp_map();
 
+    
+    
 
     //Run the command handler
     //core_cmd_handler();
