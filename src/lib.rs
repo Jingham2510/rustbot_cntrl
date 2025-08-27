@@ -7,5 +7,5 @@ pub mod string_tools;
 
 pub mod trajectory_planner;
 pub mod terr_map_vis;
-mod terr_map_gen;
+mod terr_map_sense;
 

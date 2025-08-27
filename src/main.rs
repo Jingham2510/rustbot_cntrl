@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::io::stdin;
 use std::thread;
-use crate::terr_map_gen::example;
+use crate::terr_map_sense::{example, RealsenseCam};
 use crate::terr_map_vis::Map;
 
 mod abb_rob;
@@ -15,7 +15,7 @@ mod string_tools;
 mod tcp_sock;
 mod trajectory_planner;
 
-mod terr_map_gen;
+mod terr_map_sense;
 mod terr_map_vis;
 
 const VER_NUM: &str = "V0.0.0";
@@ -24,9 +24,9 @@ const TITLE: &str = "Rustbot Control";
 
 fn main() {
     
-    //Test the map gen features
-    example().expect("TODO: panic message");
-    
+    //Test the map sense features
+    let mut cam = RealsenseCam::initialise().expect("Cam setup failed");
+    cam.get_depth_pnts().expect("FAILED TO READ CAMERA POINTS");
     
     //test the map vis features
     //let mut test: Map = Map::new(1000, 1000);
