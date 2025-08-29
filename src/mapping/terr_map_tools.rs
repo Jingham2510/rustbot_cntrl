@@ -163,15 +163,15 @@ impl Heightmap {
         self.cells[x as usize][y as usize] = new_height;
 
         //Check that the cell doesnt store the min or the max
-        if ((x, y) == self.max_pos) {
+        if (x, y) == self.max_pos {
             self.get_max();
         } else if (x, y) == self.min_pos {
             self.get_min();
         } else {
-            if (new_height > self.max) {
+            if new_height > self.max {
                 self.max = new_height;
                 self.max_pos = (x, y);
-            } else if (new_height < self.min) {
+            } else if new_height < self.min {
                 self.min = new_height;
                 self.min_pos = (x, y);
             } else {
@@ -199,7 +199,7 @@ impl Heightmap {
     //Get the maximum cell height
     fn get_max(&mut self) -> f32 {
         //Check whether a new maximum is required
-        if (!self.max_updated) {
+        if !self.max_updated {
             let mut new_max: f32 = -999.0;
 
             //Check every value to see if its the largest
@@ -314,12 +314,12 @@ impl Heightmap {
 
             //Draw the grid outline
             d.draw_rectangle_lines_ex(
-                (Rectangle::new(
-                    (WINDOW_WIDTH_START),
+                Rectangle::new(
+                    WINDOW_WIDTH_START,
                     WINDOW_HEIGHT_START,
                     grid_disp_width,
                     grid_disp_height,
-                )),
+                ),
                 LINE_THICKNESS,
                 Color::BLACK,
             );
@@ -371,7 +371,7 @@ impl Heightmap {
                     //If the value in the cell is unknown - paint it black
                     if col.is_nan() {
                         cell_col = Color::BLACK;
-                    } else if (*col <= median) {
+                    } else if *col <= median {
                         cell_col = Color::new(
                             (256.0 * (1.0 - ((*col - self.min) / (median - self.min)))) as u8,
                             (256.0 * ((*col - self.min) / (median - self.min))) as u8,
