@@ -1,9 +1,8 @@
 use std::fs::OpenOptions;
-use crate::tcp_sock::create_sock;
-use crate::{angle_tools, string_tools, tcp_sock, trajectory_planner};
+use crate::control::{tcp_sock, trajectory_planner};
+use crate::control::misc_tools::{angle_tools, string_tools};
 use std::io::{stdin, prelude::*};
 use std::time::SystemTime;
-
 
 pub struct AbbRob {
     socket: tcp_sock::TcpSock,
@@ -30,7 +29,7 @@ pub const IMPL_COMMDS: [&str; 8] = [
 impl AbbRob {
     pub fn create_rob(ip: String, port: u32) -> Option<AbbRob> {
         //Create the robots socket
-        let mut rob_sock = create_sock(ip, port);
+        let mut rob_sock = tcp_sock::create_sock(ip, port);
         //Attempt to connect to the robot
         if rob_sock.connect() == false {
             //Failed to connect

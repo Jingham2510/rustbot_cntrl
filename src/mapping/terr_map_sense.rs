@@ -6,39 +6,25 @@
 //! not help identify the underlying problem, i.e. the bandwidth of the connection.
 
 use anyhow::{bail, ensure, Result};
-use realsense_rust::{check_rs2_error, config::Config, context::Context, frame::{DepthFrame, GyroFrame}, kind::{Rs2CameraInfo, Rs2Format, Rs2ProductLine, Rs2StreamKind}, pipeline::InactivePipeline};
+use realsense_rust;
+use realsense_rust::frame::{PointsFrame};
+use realsense_rust::pipeline::ActivePipeline;
+use realsense_rust::{config::Config, context::Context, frame::DepthFrame, kind::{Rs2CameraInfo, Rs2Format, Rs2ProductLine, Rs2StreamKind}, pipeline::InactivePipeline};
 use std::{
     collections::HashSet,
     convert::TryFrom,
-    io::{self, Write},
     time::Duration,
 };
-use std::io::Error;
-use std::ptr::NonNull;
-use realsense_rust::frame::{FrameEx, PointsFrame};
-use realsense_rust::pipeline::ActivePipeline;
-use realsense_rust;
-use realsense_sys::{rs2_create_error, rs2_create_pointcloud, rs2_delete_processing_block, rs2_error, rs2_exception_type_RS2_EXCEPTION_TYPE_BACKEND, rs2_frame_callback, rs2_frame_queue, rs2_process_frame, rs2_processing_block};
 
-
-mod rs2_processing{
-    pub mod pointcloud;
-}
-use crate::terr_map_sense::rs2_processing::pointcloud;
-use crate::terr_map_sense::rs2_processing::pointcloud::PointCloudBlock;
+use crate::mapping::rs2_processing::pointcloud::PointCloudBlock;
 
 //The realsense camera
 //Contains the info about the camera
 pub struct RealsenseCam {
     pipeline : ActivePipeline,
-    pcl_block : pointcloud::PointCloudBlock
+    pcl_block : PointCloudBlock
 }
 
-pub struct Point{
-    x: f64,
-    y: f64,
-    z: f64
-}
 
 //The pointcloud object
 
@@ -116,7 +102,7 @@ impl RealsenseCam{
     }
 
     //Return a raw pointcloud - unsafe as it uses realsense-sys basecode
-    pub fn get_depth_pnts(&mut self) -> Result<Vec<(f64, f64, f64)>>{
+    pub fn get_depth_pnts(&mut self) -> Result<Vec<[f32; 3]>>{
 
         //Wait for a frame to arrive
         let frame = self.pipeline.wait(None)?;
@@ -128,29 +114,25 @@ impl RealsenseCam{
             bail!("No depth frame to read!");
         }
 
+        //Add the frame to the queue to extract the point cloud
+        self.pcl_block.queue(depth_frame.pop().unwrap()).expect("FAILED TO QUEUE DEPTH FRAME");
 
-        //UNSAFE HERE - hopefully a future realsense-rust patchwill fix this
-        //to make this safe - add a bunch of error checks that look at the errors
-        unsafe {
+        //Wait a maximum of 1000ms for the frame to be processed
+        let point_frame : PointsFrame = self.pcl_block.wait(Duration::from_millis(1000))?;
 
-            //Add the frame to the queue to extract the point cloud
-            self.pcl_block.queue(depth_frame.pop().unwrap()).expect("FAILED TO QUEUE DEPTH FRAME");
-
-            //Wait a maximum of 1000ms for the frame to be processed
-            let point_frame : PointsFrame = self.pcl_block.wait(Duration::from_millis(1000))?;
-
-            //Iterate and extract through every point in the depth frame
-            for point in point_frame.vertices(){
-                println!("{:?}", point);
-            }
-
+        //Iterate and extract through every point in the depth frame
+        for point in point_frame.vertices(){
+            println!("{:?}", point);
         }
 
 
-        //Return the unordered tuple
 
 
-        Ok(vec!((1.0, 1.0, 1.0)))
+        //Return the unordered points
+        Ok(vec!([1.0f32, 1.0, 1.0]))
+
+
+
     }
 
 

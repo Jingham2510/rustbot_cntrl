@@ -5,20 +5,16 @@
 
 use std::collections::HashMap;
 use std::io::stdin;
-use std::thread;
-use crate::terr_map_sense::{RealsenseCam};
-use crate::terr_map_tools::Map;
 
-mod abb_rob;
-mod angle_tools;
-mod string_tools;
-mod tcp_sock;
-mod trajectory_planner;
 
-mod terr_map_sense;
-mod terr_map_tools;
+mod control;
+use control::abb_rob;
 
-const VER_NUM: &str = "V0.1";
+mod mapping;
+use crate::mapping::terr_map_sense::RealsenseCam;
+
+
+const VER_NUM: &str = "V0.2";
 //Program title
 const TITLE: &str = "Rustbot Control";
 
@@ -89,8 +85,6 @@ fn core_cmd_handler() {
             }
             "quit" => break,
 
-            "ping" => spam_ping(),
-
             "connect" => rob_connect(),
 
             //Catch all else
@@ -99,32 +93,7 @@ fn core_cmd_handler() {
     }
 }
 
-//TODO - remove ping once ABB robot implemented
-//Test function just to check the TCP socket works - currently used to spam pings with a thread
-fn spam_ping() {
-    //Create the socket
-    let mut sock = tcp_sock::create_sock("127.0.0.1".parse().unwrap(), 8888);
 
-    //Connect to the socket
-    sock.connect();
-
-    //Spawn a thread - will use this as the basis for the robot control
-    thread::spawn(move || {
-        loop {
-            //Write the ping message to the socket
-            let s = sock.req("ECHO:ping");
-
-            if let Some(recv) = s {
-                println!("{}", recv);
-            } else {
-                println!("Connection lost!");
-                return;
-            }
-        }
-    });
-
-    //It auto closes because it leaves the scope - noone has ownership
-}
 
 //TODO - Robot spawner - checks if robot is connected to tcp before any instructions
 //Command line for logging into and controlling a robot

@@ -1,10 +1,2 @@
-pub mod tcp_sock;
-
-pub mod abb_rob;
-
-pub mod angle_tools;
-pub mod string_tools;
-
-pub mod trajectory_planner;
-pub mod terr_map_tools;
-mod terr_map_sense;
+pub mod control;
+pub mod mapping;
