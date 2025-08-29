@@ -34,7 +34,7 @@ impl PointCloud{
             
             let pnt = vertex.xyz;
             
-            //check if the point exists
+            //check if the point is valid - if not ignore it
             if pnt == [0.0, 0.0, 0.0]{
                 continue;
             }                  
@@ -53,8 +53,8 @@ impl PointCloud{
     
     //Print all points
     pub fn print_points(&mut self){
-        for i in 0..self.no_of_points{
-            println!("{:?}", self.points[i]);
+        for pnt in self.points.iter(){
+            println!("{:?}", pnt);
         }
     }
     
@@ -67,8 +67,25 @@ impl PointCloud{
         let mut y_min : f32 = 9999.0;
         let mut x_max : f32 = -9999.0;
         let mut y_max : f32 = -9999.0;
-        
-        
+
+        //Check each point to if it escapes the set bounds
+        //If points are sorted beforehand, no need! but sorting might take a while - and how do you sort?
+        for pnt in self.points.iter(){
+            
+            //Check x-bounds
+            if pnt[0] < x_min{
+                x_min = pnt[0];
+            }else if pnt[0] > x_max{
+                x_max = pnt[0];
+            }
+            
+            //Check y-bounds
+            if pnt[1] < y_min{
+                y_min = pnt[1];
+            }else if pnt[1] > y_max{
+                y_max = pnt[1];
+            }
+        }
         
 
         //Return the bounding coordinates of the rectangle
