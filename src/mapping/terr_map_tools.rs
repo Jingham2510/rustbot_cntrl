@@ -58,7 +58,26 @@ impl PointCloud{
         }
     }
     
-    //Calculate the bounds of a pointcloud
+    //Calculate the xy bounds of the pointcloud (rectangular)
+    //Assumes z is the height
+    pub fn get_bounds(&mut self) -> [f32; 4]{
+
+        //Predefine the values we are interested in
+        let mut x_min : f32 = 9999.0;
+        let mut y_min : f32 = 9999.0;
+        let mut x_max : f32 = -9999.0;
+        let mut y_max : f32 = -9999.0;
+        
+        
+        
+
+        //Return the bounding coordinates of the rectangle
+        [x_min, x_max, y_min, y_max]
+
+
+    }
+
+
 
     //Rotate a pointcloud
 
