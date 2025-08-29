@@ -16,13 +16,14 @@ use std::{
     time::Duration,
 };
 
-use crate::mapping::rs2_processing::pointcloud::PointCloudBlock;
+use crate::mapping::rs2_processing::pointcloud::PointCloudProcBlock;
+use crate::mapping::terr_map_tools::PointCloud;
 
 //The realsense camera
 //Contains the info about the camera
 pub struct RealsenseCam {
     pipeline : ActivePipeline,
-    pcl_block : PointCloudBlock
+    pcl_block : PointCloudProcBlock
 }
 
 
@@ -95,14 +96,14 @@ impl RealsenseCam{
             //Start the pipeline in the camera object
             //(This is done to get around the pipeline being consumed
             pipeline: pipeline.start(Some(config))?,
-            pcl_block: PointCloudBlock::new(3)?
+            pcl_block: PointCloudProcBlock::new(3)?
 
         })
 
     }
 
     //Return a raw pointcloud - unsafe as it uses realsense-sys basecode
-    pub fn get_depth_pnts(&mut self) -> Result<Vec<[f32; 3]>>{
+    pub fn get_depth_pnts(&mut self) -> Result<PointCloud>{
 
         //Wait for a frame to arrive
         let frame = self.pipeline.wait(None)?;
@@ -120,17 +121,7 @@ impl RealsenseCam{
         //Wait a maximum of 1000ms for the frame to be processed
         let point_frame : PointsFrame = self.pcl_block.wait(Duration::from_millis(1000))?;
 
-        //Iterate and extract through every point in the depth frame
-        for point in point_frame.vertices(){
-            println!("{:?}", point);
-        }
-
-
-
-
-        //Return the unordered points
-        Ok(vec!([1.0f32, 1.0, 1.0]))
-
+        Ok(PointCloud::create_from_iter(point_frame.vertices()))
 
 
     }

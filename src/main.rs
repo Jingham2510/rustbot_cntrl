@@ -22,7 +22,9 @@ fn main() {
     
     //Test the map sense features
     let mut cam = RealsenseCam::initialise().expect("Cam setup failed");
-    cam.get_depth_pnts().expect("FAILED TO READ CAMERA POINTS");
+    let mut pcl = cam.get_depth_pnts().expect("FAILED TO READ CAMERA POINTS");
+
+    pcl.print_points();
     
     //test the map vis features
     //let mut test: Map = Map::new(1000, 1000);

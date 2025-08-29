@@ -1,8 +1,90 @@
 use raylib::prelude::*;
 use rand::Rng;
+use realsense_sys::rs2_vertex;
+
+//Pointcloud structure - contains purely point information
+//Basically a fancy vector wrapper 
+pub struct PointCloud{
+    //List of the points stored in xyz format
+    points : Vec<[f32; 3]>,
+    //The number of points present 
+    no_of_points: usize
+}
+
+
+impl PointCloud{
+
+    //Create a pointcloud from a list of points
+    pub fn create_from_list(pnts:Vec<[f32; 3]>) -> Self{                
+        //Calculate the number of points
+        let no_of_points = pnts.len();
+        
+        Self{
+            points: pnts,
+            no_of_points
+        }        
+    }
+    
+    pub fn create_from_iter(rs2_vertex: &[rs2_vertex]) -> Self{
+        
+        let mut points : Vec<[f32; 3]> = vec![];
+        let mut no_of_points = 0;
+        
+        for vertex in rs2_vertex.iter(){
+            
+            let pnt = vertex.xyz;
+            
+            //check if the point exists
+            if pnt == [0.0, 0.0, 0.0]{
+                continue;
+            }                  
+            
+            points.push(pnt);
+            no_of_points = no_of_points + 1;
+        }        
+        
+        Self{
+            points,
+            no_of_points
+        }
+        
+        
+    }
+    
+    //Print all points
+    pub fn print_points(&mut self){
+        for i in 0..self.no_of_points{
+            println!("{:?}", self.points[i]);
+        }
+    }
+    
+    //Calculate the bounds of a pointcloud
+
+    //Rotate a pointcloud
+
+    //Translate a pointcloud
+
+    
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 //Map structure - contains the size and height information for each cell
-pub struct Map {
+pub struct Heightmap {
     //Height and width of the terrain map
     height: u32,
     width: u32,
@@ -26,7 +108,7 @@ pub struct Map {
 }
 
 //Map tools - including display and modification etc
-impl Map {
+impl Heightmap {
     pub fn new(width: u32, height: u32) -> Self {
         //Initialise new variables for the object
         let mut square_check = false;
@@ -99,7 +181,7 @@ impl Map {
     }
 
     //Set the height of all cells
-    pub fn set_map(&mut self, new_heights: Map) {
+    pub fn set_map(&mut self, new_heights: Heightmap) {
         //Sweep through each cell and replace with the new map height
         for (x, row) in self.cells.iter_mut().enumerate() {
             for (y, col) in row.iter_mut().enumerate() {
@@ -320,7 +402,7 @@ impl Map {
 }
 
 //Compares a given map with a desired map and outputs a map of height differences
-pub fn comp_maps(curr_map: &Map, desired_map: &Map) -> Option<Map> {
+pub fn comp_maps(curr_map: &Heightmap, desired_map: &Heightmap) -> Option<Heightmap> {
     //Check the maps are the same size - if not exit
     if curr_map.height != desired_map.height || curr_map.width != curr_map.width {
         println!("Warning - Maps are not the same size - cannot be compared");
@@ -328,7 +410,7 @@ pub fn comp_maps(curr_map: &Map, desired_map: &Map) -> Option<Map> {
     }
 
     //Create a new empty map that holds the difference
-    let mut diff_map: Map = Map::new(curr_map.height, curr_map.width);
+    let mut diff_map: Heightmap = Heightmap::new(curr_map.height, curr_map.width);
 
     //Sweep through each cell and replace with the new map height
     for (x, row) in diff_map.cells.iter_mut().enumerate() {
