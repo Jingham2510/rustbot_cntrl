@@ -25,10 +25,7 @@ mod rs2_processing{
     pub mod pointcloud;
 }
 use crate::terr_map_sense::rs2_processing::pointcloud;
-
-
-
-
+use crate::terr_map_sense::rs2_processing::pointcloud::PointCloudBlock;
 
 //The realsense camera
 //Contains the info about the camera
@@ -112,6 +109,7 @@ impl RealsenseCam{
             //Start the pipeline in the camera object
             //(This is done to get around the pipeline being consumed
             pipeline: pipeline.start(Some(config))?,
+            pcl_block: PointCloudBlock::new(3)?
 
         })
 
@@ -135,53 +133,16 @@ impl RealsenseCam{
         //to make this safe - add a bunch of error checks that look at the errors
         unsafe {
 
-            //extract the frame from the vector
-            let depth_frame_ptr =  depth_frame.pop().unwrap().get_owned_raw().as_ptr();
+            //Add the frame to the queue to extract the point cloud
+            self.pcl_block.queue(depth_frame.pop().unwrap()).expect("FAILED TO QUEUE DEPTH FRAME");
 
-
-            //Create an error for the processing block to alert
-            let mut err =  std::ptr::null_mut::<realsense_sys::rs2_error>();
-
-            //Create a processing block to generate the point cloud from the depth frame
-            let pcl_proc_block = rs2_create_pointcloud(&mut err);
-
-            //Create the point frame from the depth frame using the processing block
-            rs2_process_frame(pcl_proc_block, depth_frame_ptr, &mut err);
-
-            
-            
-
-
-            //println!("{:?}", depth_frame_ptr);
-
-
-            let nn_frame = NonNull::new(depth_frame_ptr);
-
-
-            /*
-            let dep_frame_test = DepthFrame::try_from(nn_frame.unwrap())?;
-            println!("Pointsframe - {:?}", dep_frame_test);
-            */
-            //CRASHES IN THE TRY FROM! seems like its not actually being converted!
-
-
-
-            let point_frame : PointsFrame = PointsFrame::try_from(nn_frame.unwrap())?;
-
-            println!("Pointsframe - {:?}", point_frame);
-
-
-
-
+            //Wait a maximum of 1000ms for the frame to be processed
+            let point_frame : PointsFrame = self.pcl_block.wait(Duration::from_millis(1000))?;
 
             //Iterate and extract through every point in the depth frame
             for point in point_frame.vertices(){
                 println!("{:?}", point);
             }
-
-
-            rs2_delete_processing_block(pcl_proc_block);
-
 
         }
 
