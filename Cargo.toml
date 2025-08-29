@@ -9,5 +9,6 @@ edition = "2024"
 [dependencies]
 raylib = {version = "5.5"}
 rand = "0.9.2"
-realsense-rust = "1.2.3"
+realsense-rust = { version = "1.2.3" }
+realsense-sys = "2.54.3"
 anyhow = "1.0.99"

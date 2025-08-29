@@ -6,8 +6,8 @@
 use std::collections::HashMap;
 use std::io::stdin;
 use std::thread;
-use crate::terr_map_sense::{example, RealsenseCam};
-use crate::terr_map_vis::Map;
+use crate::terr_map_sense::{RealsenseCam};
+use crate::terr_map_tools::Map;
 
 mod abb_rob;
 mod angle_tools;
@@ -16,9 +16,9 @@ mod tcp_sock;
 mod trajectory_planner;
 
 mod terr_map_sense;
-mod terr_map_vis;
+mod terr_map_tools;
 
-const VER_NUM: &str = "V0.0.0";
+const VER_NUM: &str = "V0.1";
 //Program title
 const TITLE: &str = "Rustbot Control";
 

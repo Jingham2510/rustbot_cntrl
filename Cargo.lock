@@ -357,6 +357,7 @@ dependencies = [
  "rand",
  "raylib",
  "realsense-rust",
+ "realsense-sys",
 ]
 
 [[package]]
