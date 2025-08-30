@@ -2,6 +2,7 @@ use raylib::prelude::*;
 use rand::Rng;
 use realsense_sys::rs2_vertex;
 
+
 //Pointcloud structure - contains purely point information
 //Basically a fancy vector wrapper 
 pub struct PointCloud{
@@ -96,9 +97,49 @@ impl PointCloud{
 
 
 
-    //Rotate a pointcloud
+    //Rotate a pointcloud - inplace
+    //Can cheat with the mat multiplication here, we know the predefined sizes already
+    pub fn rotate(&mut self, yaw :f32, pitch : f32, roll : f32){
 
-    //Translate a pointcloud
+        //Create the transform matrix rows
+        let x_rot = [roll.cos() * pitch.cos(), -((roll.sin()*yaw.cos()) + (roll.cos()*pitch.sin()*yaw.sin())), (roll.sin()*yaw.sin()) + (roll.cos()*pitch.sin()*yaw.cos())];
+        let y_rot = [roll.sin()*pitch.cos(), (roll.cos()*yaw.cos()) + (roll.sin()*pitch.sin()*yaw.sin()), -(roll.cos()*yaw.sin())+(roll.sin()*pitch.sin()*yaw.cos())];
+        let z_rot = [-pitch.sin(), pitch.cos()*yaw.sin(), pitch.cos()*yaw.cos()];
+
+        //Iterate through every point in the pointcloud
+        for pnt in self.points.iter_mut(){
+
+            //store the original points
+            let og_x = pnt[0];
+            let og_y = pnt[1];
+            let og_z = pnt[2];
+
+            //Rotate by multiplying the vector by the transform matrix
+            pnt[0] = x_rot[0]*og_x[0] + x_rot[1]*og_y + x_rot[2]*og_z;
+            pnt[1] = y_rot[0]*og_x[0] + y_rot[1]*og_y + y_rot[2]*og_z;
+            pnt[2] = z_rot[0]*og_x[0] + z_rot[1]*og_y + z_rot[2]*og_z;
+        }
+
+
+
+    }
+
+
+    //Translate a pointcloud with xyz coords - inplace
+    pub fn translate(&mut self, x: f32, y:f32, z : f32){
+
+        //Iterate through every point
+        for pnt in self.points.iter_mut(){
+
+            //Transform the points using addition
+            pnt[0] = pnt[0] + x;
+            pnt[1] = pnt[1] + y;
+            pnt[2] = pnt[2] + z;
+
+        }
+
+
+    }
 
     
 
