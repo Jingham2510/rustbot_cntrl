@@ -26,8 +26,14 @@ fn main() {
     let mut cam = RealsenseCam::initialise().expect("Cam setup failed");
     
     //Visually debug the cam stream
-    cam.debug_vis();
+    //cam.debug_vis();
 
+    //Save a test pointcloud
+    let mut pcl = cam.get_depth_pnts().unwrap();
+    
+    pcl.save("test");
+    
+    
     //test the map vis features
     //let mut test: Map = Map::new(1000, 1000);
 

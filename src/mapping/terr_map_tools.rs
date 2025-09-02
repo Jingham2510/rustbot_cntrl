@@ -1,7 +1,8 @@
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{Write};
-use chrono::{DateTime, Utc};
+use std::time::{SystemTime, UNIX_EPOCH};
+use chrono::{DateTime, Local, Utc};
 use raylib::prelude::*;
 use rand::Rng;
 use realsense_sys::rs2_vertex;
@@ -15,8 +16,10 @@ pub struct PointCloud{
     //The number of points present
     no_of_points: usize,
 
-    //The timestamp of when the pointcloud was captured
-    timestamp : f64
+    //The timestamp of when the pointcloud was captured (relative to when the camera started)
+    rel_timestamp: f64,
+
+    global_timestamp: DateTime<Local>
 
 
 }
@@ -32,7 +35,8 @@ impl PointCloud{
         Self{
             points: pnts,
             no_of_points,
-            timestamp
+            rel_timestamp: timestamp,
+            global_timestamp: Local::now()
         }
     }
 
@@ -61,7 +65,8 @@ impl PointCloud{
         Self{
             points,
             no_of_points,
-            timestamp
+            rel_timestamp: timestamp,
+            global_timestamp: Local::now()
         }
 
 
@@ -171,9 +176,8 @@ impl PointCloud{
         //Create a file
         let mut file = File::create( "dump/".to_owned() + filename + ".txt")?;
 
-        //Save the timestamp from the frame as the first line
-        let datetime: DateTime<Utc> = DateTime::from_timestamp(self.timestamp as i64, 0).unwrap();
-        let datetime_fmt = datetime.format("%Y-%m-%d %H:%M:%S\n").to_string();
+        //Save the timestamp from the frame as the first line;
+        let datetime_fmt = self.global_timestamp.format("%Y-%m-%d %H:%M:%S\n").to_string();
 
         file.write_all(datetime_fmt.as_bytes())?;
 
