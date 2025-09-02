@@ -1,64 +1,83 @@
+use std::fmt::Debug;
+use std::fs::File;
+use std::io::{Write};
+use chrono::{DateTime, Utc};
 use raylib::prelude::*;
 use rand::Rng;
 use realsense_sys::rs2_vertex;
 
 
 //Pointcloud structure - contains purely point information
-//Basically a fancy vector wrapper 
+//Basically a fancy vector wrapper
 pub struct PointCloud{
     //List of the points stored in xyz format
     points : Vec<[f32; 3]>,
-    //The number of points present 
-    no_of_points: usize
+    //The number of points present
+    no_of_points: usize,
+
+    //The timestamp of when the pointcloud was captured
+    timestamp : f64
+
+
 }
 
 
 impl PointCloud{
 
     //Create a pointcloud from a list of points
-    pub fn create_from_list(pnts:Vec<[f32; 3]>) -> Self{                
+    pub fn create_from_list(pnts:Vec<[f32; 3]>, timestamp:f64) -> Self{
         //Calculate the number of points
         let no_of_points = pnts.len();
-        
+
         Self{
             points: pnts,
-            no_of_points
-        }        
+            no_of_points,
+            timestamp
+        }
     }
-    
-    pub fn create_from_iter(rs2_vertex: &[rs2_vertex]) -> Self{
-        
+
+    pub fn create_from_iter(rs2_vertex: &[rs2_vertex], timestamp:f64) -> Self{
+
         let mut points : Vec<[f32; 3]> = vec![];
         let mut no_of_points = 0;
-        
+
         for vertex in rs2_vertex.iter(){
-            
+
             let pnt = vertex.xyz;
-            
+
             //check if the point is valid - if not ignore it
             if pnt == [0.0, 0.0, 0.0]{
                 continue;
-            }                  
-            
+            }
+            //Stopband filter (i.e. no point futher than 5 meters)
+            if pnt[2] > 5.0{
+                continue;
+            }
+
             points.push(pnt);
             no_of_points = no_of_points + 1;
-        }        
-        
+        }
+
         Self{
             points,
-            no_of_points
+            no_of_points,
+            timestamp
         }
-        
-        
+
+
     }
-    
+
+    pub fn points(&self) -> Vec<[f32; 3]>{
+        self.points.clone()
+    }
+
     //Print all points
     pub fn print_points(&mut self){
         for pnt in self.points.iter(){
             println!("{:?}", pnt);
         }
     }
-    
+
     //Calculate the xy bounds of the pointcloud (rectangular)
     //Assumes z is the height
     pub fn get_bounds(&mut self) -> [f32; 4]{
@@ -99,6 +118,9 @@ impl PointCloud{
 
     //Rotate a pointcloud - inplace
     //Can cheat with the mat multiplication here, we know the predefined sizes already
+    //Yaw - X
+    //Pitch - Y
+    //Roll - Z
     pub fn rotate(&mut self, yaw :f32, pitch : f32, roll : f32){
 
         //Create the transform matrix rows
@@ -115,9 +137,9 @@ impl PointCloud{
             let og_z = pnt[2];
 
             //Rotate by multiplying the vector by the transform matrix
-            pnt[0] = x_rot[0]*og_x[0] + x_rot[1]*og_y + x_rot[2]*og_z;
-            pnt[1] = y_rot[0]*og_x[0] + y_rot[1]*og_y + y_rot[2]*og_z;
-            pnt[2] = z_rot[0]*og_x[0] + z_rot[1]*og_y + z_rot[2]*og_z;
+            pnt[0] = x_rot[0]*og_x + x_rot[1]*og_y + x_rot[2]*og_z;
+            pnt[1] = y_rot[0]*og_x + y_rot[1]*og_y + y_rot[2]*og_z;
+            pnt[2] = z_rot[0]*og_x + z_rot[1]*og_y + z_rot[2]*og_z;
         }
 
 
@@ -141,7 +163,36 @@ impl PointCloud{
 
     }
 
-    
+
+    //Save the pointcloud to an ASCII file
+
+    pub fn save(&mut self,  filename: &str) -> Result<(), anyhow::Error>{
+
+        //Create a file
+        let mut file = File::create( "dump/".to_owned() + filename + ".txt")?;
+
+        //Save the timestamp from the frame as the first line
+        let datetime: DateTime<Utc> = DateTime::from_timestamp(self.timestamp as i64, 0).unwrap();
+        let datetime_fmt = datetime.format("%Y-%m-%d %H:%M:%S\n").to_string();
+
+        file.write_all(datetime_fmt.as_bytes())?;
+
+        //Save the cloud points on seperate lines
+        for i in 0..self.no_of_points{
+            
+            let pnt = format!("{:?},{:?},{:?}\n", self.points[i][0], self.points[i][1], self.points[i][2]);
+            
+            file.write_all(pnt.as_bytes())?;
+        }
+
+
+        //Return the all clear
+        Ok(())
+
+
+    }
+
+
 
 }
 

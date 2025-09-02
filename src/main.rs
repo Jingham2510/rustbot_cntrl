@@ -19,13 +19,15 @@ const VER_NUM: &str = "V0.2";
 const TITLE: &str = "Rustbot Control";
 
 fn main() {
+
+    println!("RUSTBOT_CNTRL STARTUP....");
     
     //Test the map sense features
     let mut cam = RealsenseCam::initialise().expect("Cam setup failed");
-    let mut pcl = cam.get_depth_pnts().expect("FAILED TO READ CAMERA POINTS");
-
-    pcl.print_points();
     
+    //Visually debug the cam stream
+    cam.debug_vis();
+
     //test the map vis features
     //let mut test: Map = Map::new(1000, 1000);
 

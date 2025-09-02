@@ -7,7 +7,7 @@
 
 use anyhow::{bail, ensure, Result};
 use realsense_rust;
-use realsense_rust::frame::{PointsFrame};
+use realsense_rust::frame::{FrameEx, PointsFrame};
 use realsense_rust::pipeline::ActivePipeline;
 use realsense_rust::{config::Config, context::Context, frame::DepthFrame, kind::{Rs2CameraInfo, Rs2Format, Rs2ProductLine, Rs2StreamKind}, pipeline::InactivePipeline};
 use std::{
@@ -18,6 +18,12 @@ use std::{
 
 use crate::mapping::rs2_processing::pointcloud::PointCloudProcBlock;
 use crate::mapping::terr_map_tools::PointCloud;
+
+use raylib;
+use raylib::drawing::{RaylibDraw, RaylibDraw3D, RaylibMode3DExt};
+use raylib::prelude::{Camera3D, Color};
+
+use raylib::math::Vector3;
 
 //The realsense camera
 //Contains the info about the camera
@@ -96,7 +102,7 @@ impl RealsenseCam{
             //Start the pipeline in the camera object
             //(This is done to get around the pipeline being consumed
             pipeline: pipeline.start(Some(config))?,
-            pcl_block: PointCloudProcBlock::new(3)?
+            pcl_block: PointCloudProcBlock::new(100)?
 
         })
 
@@ -121,13 +127,10 @@ impl RealsenseCam{
         //Wait a maximum of 1000ms for the frame to be processed
         let point_frame : PointsFrame = self.pcl_block.wait(Duration::from_millis(1000))?;
 
-        Ok(PointCloud::create_from_iter(point_frame.vertices()))
+        Ok(PointCloud::create_from_iter(point_frame.vertices(), point_frame.timestamp()))
 
 
     }
-
-
-    //Save a raw pointlcoud (use the time stamp in the frame)
 
 
     //Return a filtered pointcloud
@@ -135,6 +138,82 @@ impl RealsenseCam{
 
 
 
+    //Visualise the pointcloud stream - FOR DEBUGGING
+    pub fn debug_vis(&mut self){
+
+
+        //Create the window
+        let (mut rl, thread) = raylib::init()
+            .size(1280, 720)
+            .title("REALSENSE - DEBUG")
+            .build();
+
+        //Create a camera for the viewpoint
+        let cam = Camera3D::perspective(
+            //Position
+            Vector3::new(0.0, 3.0, -10.0),
+            //Target
+            Vector3::new(0.0, 2.5, 1.0),
+            //Up
+            Vector3::new(0.0, 1.0, 0.0),
+            //FOV
+            45.0
+        );
+
+
+
+
+        //Constantly stream the pointcloud data to a raylib 3d container
+        while !rl.window_should_close() {
+
+                rl.draw(&thread, |mut d| {
+
+                    //Set the background
+                    d.clear_background(Color::BLACK);
+
+
+                    //Wait for a frame to arrive
+                    let frame = self.pipeline.wait(None).expect("NO FRAME");
+                    //Extract the depth frame
+                    let mut depth_frame = frame.frames_of_type::<DepthFrame>();
+
+
+                    //Add the frame to the queue to extract the point cloud
+                    self.pcl_block.queue(depth_frame.pop().unwrap()).expect("FAILED TO QUEUE DEPTH FRAME");
+
+                    //Wait a maximum of 1000ms for the frame to be processed
+                    let point_frame : PointsFrame = self.pcl_block.wait(Duration::from_millis(1000)).expect("COULDNT GENERATE POINTS");
+
+
+                    //Read a frame - get a pointcloud and draw all the points
+                    for vert in point_frame.vertices().iter() {
+                        let pnt = vert.xyz;
+
+                        //Skip invalid points and points to ofar away
+                        if pnt == [0.0, 0.0, 0.0] || pnt[2] > 5.0{
+                            continue;
+                        }
+
+                        d.draw_mode3D(cam, |mut d2, cam| {
+                            d2.draw_sphere(Vector3::new(pnt[0], pnt[1], pnt[2]), 0.01, Color::WHITE);
+                        });
+                    }
+                });
+
+
+                rl.wait_time(0.0);
+
+            }
+    }
 }
+
+
+
+
+
+
+
+
+
 
 

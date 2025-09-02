@@ -331,7 +331,7 @@ impl AbbRob {
                             .read_line(&mut user_inp)
                             .expect("Failed to read line");
 
-                        let filename = format!("C:/Users/User/Documents/Results/rustbot_dumps/{}", user_inp);
+                        let filename = format!("dumps/{}.txt", user_inp);
 
                         //Move to a starting point - above the starting point
                         self.set_pos((traj[0].0, traj[0].1, traj[0].2 + 25.0));
