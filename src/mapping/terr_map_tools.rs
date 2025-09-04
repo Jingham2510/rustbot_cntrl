@@ -53,8 +53,8 @@ impl PointCloud{
             if pnt == [0.0, 0.0, 0.0]{
                 continue;
             }
-            //Stopband filter (i.e. no point futher than 5 meters)
-            if pnt[2] > 5.0{
+            //Stopband filter (i.e. no point futher than 3 meters)
+            if pnt[0] < -1.0 || pnt[0] > 1.0 || pnt[1] < -1.0 || pnt[1] > 1.0 || pnt[2] > 3.0{
                 continue;
             }
 
@@ -265,6 +265,125 @@ impl Heightmap {
             max_pos: (0, 0),
         }
     }
+
+
+    //Create a heightmap from a pointcloud (takes ownership of pcl object)
+    pub fn create_from_pcl(mut pcl : PointCloud, width : u32, height: u32, density :bool) -> Self{
+        //Get the bounds
+        let bounds = pcl.get_bounds();
+
+        //Calculate the real distance and height of the heightmap
+        let total_width = bounds[1] - bounds[0];
+        let total_height = bounds[3] - bounds[2];
+
+        //Calculate the grid spacing
+        let cell_width = total_width / width as f32;
+        let cell_height = total_height / height as f32;
+
+
+        //Create a matrix which tracks the number of points in each cell
+        let mut cell_pnt_cnt = vec![vec![0.0f32; height as usize]; width as usize];
+
+        //Create the empty cell matrix
+        //Defined as NaN so that empty spots can be identified
+        let mut cells = vec![vec![f32::NAN; height as usize]; width as usize];
+
+        //Check each points and direct it to a cell (updating the average height)
+        for pnt in pcl.points{
+
+
+            let mut n = 0;
+            let mut m = 0;
+
+            let mut n_fnd = false;
+            let mut m_fnd = false;
+
+            //Find the horizontal pos
+            while !n_fnd{
+
+                //Check if end pos
+                if n == width as usize{
+                    n_fnd = true;
+                }
+
+                //
+                if pnt[0] < (total_width / width as f32) * n as f32{
+                    n_fnd = true;
+                }else{
+                    n = n + 1;
+                }
+
+
+            }
+
+            //Find the vertical pos
+            while !m_fnd{
+
+                //Check if end pos
+                if m == height as usize{
+                    m_fnd = true;
+                }
+
+                if pnt[1] < (total_height / height as f32) * m as f32{
+                    m_fnd = true;
+                }else{
+                    m = m +1;
+                }
+
+            }
+
+            //Set the pcl to 0.0 at the start to avoid mem errors
+            if cell_pnt_cnt[n][m] == 0.0{
+                cells[n][m] = 0.0;
+            }
+
+            //Calculate the updated cumulitve average
+            cells[n][m] = (pnt[2] + cell_pnt_cnt[n][m] as f32 * cells[n][m])/(cell_pnt_cnt[n][m] + 1.0);
+            //Increase the point count
+            cell_pnt_cnt[n][m] = cell_pnt_cnt[n][m] + 1.0;
+
+        }
+
+        let square;
+        //check if the heightmap is square
+        if height == width{
+             square = true;
+        }else{
+            square = false;
+        }
+
+        if !density {
+            Self {
+                height,
+                width,
+                square,
+                no_of_cells: height * width,
+                min: 999.0,
+                max: -999.0,
+                min_updated: false,
+                max_updated: false,
+                min_pos: (0, 0),
+                max_pos: (0, 0),
+                cells
+            }
+        }else{
+            Self {
+                height,
+                width,
+                square,
+                no_of_cells: height * width,
+                min: 999.0,
+                max: -999.0,
+                min_updated: false,
+                max_updated: false,
+                min_pos: (0, 0),
+                max_pos: (0, 0),
+                cells : cell_pnt_cnt
+            }
+        }
+    }
+
+
 
     pub fn print_cells(&self) {
         for row in &self.cells {
@@ -482,6 +601,13 @@ impl Heightmap {
 
             //Fill in the cell colours based on height values -----
             //Base colour gradient range on largest and minimum value (with a median to act as a neutral value)
+            if !self.min_updated{
+                self.get_min();
+            }
+            if !self.max_updated{
+                self.get_max();
+            }
+
             let median = (self.max + self.min) / 2.0;
 
             //Go through every cell and draw a coloured rectangle to represent it

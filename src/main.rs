@@ -12,7 +12,7 @@ use control::abb_rob;
 
 mod mapping;
 use crate::mapping::terr_map_sense::RealsenseCam;
-
+use crate::mapping::terr_map_tools::Heightmap;
 
 const VER_NUM: &str = "V0.2";
 //Program title
@@ -24,16 +24,41 @@ fn main() {
     
     //Test the map sense features
     let mut cam = RealsenseCam::initialise().expect("Cam setup failed");
-    
+
     //Visually debug the cam stream
     //cam.debug_vis();
 
     //Save a test pointcloud
     let mut pcl = cam.get_depth_pnts().unwrap();
-    
+
     pcl.save("test");
-    
-    
+
+    let mut map1 = Heightmap::create_from_pcl(pcl, 250, 250, false);
+
+    map1.disp_map();
+
+
+
+    //Save a test pointcloud
+    let mut pcl = cam.get_depth_pnts().unwrap();
+
+    pcl.save("test_2");
+
+    let mut map1 = Heightmap::create_from_pcl(pcl, 250, 250, true);
+
+    map1.disp_map();
+
+
+    //Save a test pointcloud
+    let mut pcl = cam.get_depth_pnts().unwrap();
+
+    pcl.save("test_3");
+
+    let mut map1 = Heightmap::create_from_pcl(pcl, 250, 250, false);
+
+    map1.disp_map();
+
+
     //test the map vis features
     //let mut test: Map = Map::new(1000, 1000);
 
