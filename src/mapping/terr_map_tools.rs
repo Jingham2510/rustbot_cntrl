@@ -54,7 +54,7 @@ impl PointCloud{
                 continue;
             }
             //Stopband filter (i.e. no point futher than 3 meters)
-            if pnt[0] < -1.0 || pnt[0] > 1.0 || pnt[1] < -1.0 || pnt[1] > 1.0 || pnt[2] > 3.0{
+            if pnt[0] < -1.5 || pnt[0] > 1.5 || pnt[1] < -1.5 || pnt[1] > 1.5 || pnt[2] > 4.0{
                 continue;
             }
 
@@ -301,35 +301,30 @@ impl Heightmap {
             //Find the horizontal pos
             while !n_fnd{
 
-                //Check if end pos
-                if n == width as usize{
-                    n_fnd = true;
-                }
-
-                //
-                if pnt[0] < (total_width / width as f32) * n as f32{
+                if pnt[0] < ((total_width / width as f32) * n as f32) + bounds[0] {
                     n_fnd = true;
                 }else{
                     n = n + 1;
                 }
 
-
+                //Check if end pos
+                if n == (width-1) as usize{
+                    n_fnd = true;
+                }
             }
 
             //Find the vertical pos
             while !m_fnd{
 
-                //Check if end pos
-                if m == height as usize{
-                    m_fnd = true;
-                }
-
-                if pnt[1] < (total_height / height as f32) * m as f32{
+                if pnt[1] < ((total_height / height as f32) * m as f32) + bounds[2]{
                     m_fnd = true;
                 }else{
                     m = m +1;
                 }
-
+                //Check if end pos
+                if m == (height - 1) as usize{
+                    m_fnd = true;
+                }
             }
 
             //Set the pcl to 0.0 at the start to avoid mem errors

@@ -30,10 +30,11 @@ fn main() {
 
     //Save a test pointcloud
     let mut pcl = cam.get_depth_pnts().unwrap();
+    pcl.rotate(-std::f32::consts::PI / 4.0, 0.0, 0.0); // - testbed rotation
 
     pcl.save("test");
 
-    let mut map1 = Heightmap::create_from_pcl(pcl, 250, 250, false);
+    let mut map1 = Heightmap::create_from_pcl(pcl, 25, 25, false);
 
     map1.disp_map();
 
@@ -41,20 +42,22 @@ fn main() {
 
     //Save a test pointcloud
     let mut pcl = cam.get_depth_pnts().unwrap();
+    pcl.rotate(std::f32::consts::PI / 4.0, 0.0, 0.0); // - testbed rotation
 
     pcl.save("test_2");
 
-    let mut map1 = Heightmap::create_from_pcl(pcl, 250, 250, true);
+    let mut map1 = Heightmap::create_from_pcl(pcl, 250, 250, false);
 
     map1.disp_map();
 
 
     //Save a test pointcloud
     let mut pcl = cam.get_depth_pnts().unwrap();
+    pcl.rotate(std::f32::consts::PI / 4.0, 0.0, 0.0); // - testbed rotation
 
     pcl.save("test_3");
 
-    let mut map1 = Heightmap::create_from_pcl(pcl, 250, 250, false);
+    let mut map1 = Heightmap::create_from_pcl(pcl, 1000, 1000, false);
 
     map1.disp_map();
 
