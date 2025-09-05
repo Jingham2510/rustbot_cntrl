@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 use std::fs::File;
-use std::io::{Write};
+use std::io::{BufRead, BufReader, Write};
 use anyhow::bail;
 use chrono::{DateTime, Local};
 use raylib::prelude::*;
@@ -171,7 +171,7 @@ impl PointCloud{
 
     //Save the pointcloud to an ASCII file
 
-    pub fn save(&mut self,  filename: &str) -> Result<(), anyhow::Error>{
+    pub fn save_to_file(&mut self, filename: &str) -> Result<(), anyhow::Error>{
 
         //Create a file
         let mut file = File::create( "dump/".to_owned() + filename + ".txt")?;
@@ -247,7 +247,6 @@ impl Heightmap {
 
         if height == width {
             square_check = true;
-            println!("Map is square");
         }
 
         //Generate an empty cell bed of height*width size
@@ -374,6 +373,80 @@ impl Heightmap {
     }
 
 
+    //Creates a heightmap from a hmap file
+    //TODO: Handle file nout found error
+    pub fn create_from_file(filename : &str) -> Result<Self, anyhow::Error>{
+
+        //Create the filepath
+        let filepath = format!("dump/{}.txt", filename.to_string());
+
+        //Open the file and create a buffer to read the lines
+        let file = File::open(filepath)?;
+        let line_reader = BufReader::new(file);
+
+
+        let mut height = 0;
+        let mut width = 0;
+        let mut width_set = false;
+
+
+        let mut cells : Vec<Vec<f32>> = vec![];
+
+        //Go through each cell and update the
+        for line in line_reader.lines(){
+           //Create the empty row
+            let mut row : Vec<f32> = vec![];
+
+            //Split via comma then iterate
+            for token in line?.split(","){
+
+                if !width_set{
+                    width = width + 1;
+                }
+
+                //Check the slot isnt empty
+                if !token.is_empty(){
+                    row.push(token.parse::<f32>()?);
+                }
+
+            }
+
+            if !width_set{
+                width_set = true;
+            }
+
+            //Store the row
+            cells.push(row);
+            height = height + 1;
+        }
+
+        //TODO - Do some checks (i.e. every row is the same length)
+
+
+
+        //Check to see if the grid is square
+        let mut square= false;
+        if height == width{
+            square = true;
+        }
+
+
+        Ok(Self{
+            height,
+            width,
+            square,
+            no_of_cells: height*width,
+            min: 999.0,
+            max: -999.0,
+            min_updated: false,
+            max_updated: false,
+            min_pos: (0, 0),
+            max_pos: (0, 0),
+            cells
+        })
+    }
+
+
 
     pub fn print_cells(&self) {
         for row in &self.cells {
@@ -385,7 +458,7 @@ impl Heightmap {
     }
 
     //Get the height for a given cell
-    pub fn get_cell_height(&self, x: u32, y: u32) -> Result<f32, anyhow::Error()> {
+    pub fn get_cell_height(&self, x: u32, y: u32) -> Result<f32, anyhow::Error> {
         if x > self.width || y > self.height {
             bail!("Warning - attempting to read from cell that doesnt exist!");
         }
@@ -512,6 +585,9 @@ impl Heightmap {
     //Display the map as a grid - colouring in cells based on the height
     //TODO : ADD NON-RELATIVE COLOURING (I.E. BASED ON ACTUAL HEIGHT)
     pub fn disp_map(&mut self) {
+
+
+
         //Calcualte grid sizes etc
         //Square grid could be awkward if rectangular map but unlikely event
 
@@ -543,6 +619,8 @@ impl Heightmap {
         let (mut rl, thread) = raylib::init()
             .size(WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32)
             .title("Terrain map")
+            //Set log report level
+            .log_level(TraceLogLevel::LOG_WARNING)
             .build();
 
         while !rl.window_should_close() {
@@ -646,6 +724,32 @@ impl Heightmap {
             }
         }
     }
+
+
+    pub fn save_to_file(&mut self, filename : &str) -> Result<(), anyhow::Error>{
+
+
+        //Create a file
+        let mut file = File::create( "dump/".to_owned() + filename + ".txt")?;
+
+        //Iterate thorugh each row
+        for row in self.cells.iter(){
+            for cell in row{
+                let cell_val = format!("{:?},", cell);
+                file.write_all(cell_val.as_bytes())?
+            }
+
+            file.write("\n".as_ref())?;
+        }
+
+
+
+        Ok(())
+
+    }
+
+
+
 }
 
 //Compares a given map with a desired map and outputs a map of height differences
@@ -661,8 +765,12 @@ pub fn comp_maps(curr_map: &Heightmap, desired_map: &Heightmap) -> Result<Height
     //Sweep through each cell and replace with the new map height
     for (x, row) in diff_map.cells.iter_mut().enumerate() {
         for (y, col) in row.iter_mut().enumerate() {
+
+            let diff = curr_map.cells[y][x] - desired_map.cells[y][x];
+
+
             //Not entirely sure why y and x are the opposite way rounds but hey ho
-            *col = curr_map.cells[y][x] - desired_map.cells[y][x];
+            *col = diff;
         }
     }
 
