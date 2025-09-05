@@ -1,6 +1,7 @@
 use core::time::Duration;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Shutdown, TcpStream};
+use anyhow::bail;
 
 //TCP socket structure
 pub struct TcpSock {
@@ -60,7 +61,7 @@ impl TcpSock {
     }
 
     //Reads from the TCP input buffer - returns the info as a string
-    fn read(&mut self) -> Option<String> {
+    fn read(&mut self) -> Result<String, anyhow::Error> {
         //Create buffer for the message
         let mut recv = vec![];
 
@@ -71,19 +72,18 @@ impl TcpSock {
         if let Ok(_size) = reader.read_until(b'!', &mut recv) {
             //println!("{:?}", String::from_utf8(Vec::from(recv)));
 
-            Option::from(
-                String::from_utf8(Vec::from(recv)).expect("FAILED TO CONVERT RECEIVE STRING"),
+            Ok(String::from_utf8(Vec::from(recv))?,
             )
         } else {
             println!("Failed to read TCP stream");
             self.last_error = Option::from(String::from("TCP Read Error"));
             self.connected = false;
-            None
+            bail!("Failed to read TCP stream");
         }
     }
 
     //Public interface for requesting for a TCP connection
-    pub fn req(&mut self, msg: &str) -> Option<String> {
+    pub fn req(&mut self, msg: &str) -> Result<String, anyhow::Error> {
         self.write(msg);
 
         let s = self.read();
@@ -91,9 +91,9 @@ impl TcpSock {
             Some(mut s) => {
                 //Remove the ! character
                 s.pop();
-                Option::from(s)
+                Ok(s)
             }
-            None => None,
+            None => bail!("Failed to read from TCP stream"),
         }
     }
 
