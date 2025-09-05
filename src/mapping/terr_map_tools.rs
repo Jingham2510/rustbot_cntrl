@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{Write};
-use std::time::{SystemTime, UNIX_EPOCH};
-use chrono::{DateTime, Local, Utc};
+use anyhow::bail;
+use chrono::{DateTime, Local};
 use raylib::prelude::*;
 use rand::Rng;
 use realsense_sys::rs2_vertex;
@@ -276,11 +276,6 @@ impl Heightmap {
         let total_width = bounds[1] - bounds[0];
         let total_height = bounds[3] - bounds[2];
 
-        //Calculate the grid spacing
-        let cell_width = total_width / width as f32;
-        let cell_height = total_height / height as f32;
-
-
         //Create a matrix which tracks the number of points in each cell
         let mut cell_pnt_cnt = vec![vec![0.0f32; height as usize]; width as usize];
 
@@ -390,13 +385,12 @@ impl Heightmap {
     }
 
     //Get the height for a given cell
-    pub fn get_cell_height(&self, x: u32, y: u32) -> Option<f32> {
+    pub fn get_cell_height(&self, x: u32, y: u32) -> Result<f32, anyhow::Error()> {
         if x > self.width || y > self.height {
-            println!("Warning - attempting to read from cell that doesnt exist!");
-            return None;
+            bail!("Warning - attempting to read from cell that doesnt exist!");
         }
 
-        Option::from(self.cells[x as usize][y as usize])
+        Ok(self.cells[x as usize][y as usize])
     }
 
     //Set the height of a given cell
@@ -655,11 +649,10 @@ impl Heightmap {
 }
 
 //Compares a given map with a desired map and outputs a map of height differences
-pub fn comp_maps(curr_map: &Heightmap, desired_map: &Heightmap) -> Option<Heightmap> {
+pub fn comp_maps(curr_map: &Heightmap, desired_map: &Heightmap) -> Result<Heightmap, anyhow::Error> {
     //Check the maps are the same size - if not exit
     if curr_map.height != desired_map.height || curr_map.width != curr_map.width {
-        println!("Warning - Maps are not the same size - cannot be compared");
-        return None;
+        bail!("Warning - Maps are not the same size - cannot be compared");
     }
 
     //Create a new empty map that holds the difference
@@ -673,5 +666,5 @@ pub fn comp_maps(curr_map: &Heightmap, desired_map: &Heightmap) -> Option<Height
         }
     }
 
-    Option::from(diff_map)
+    Ok(diff_map)
 }

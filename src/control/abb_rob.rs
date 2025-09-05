@@ -3,13 +3,14 @@ use crate::control::{tcp_sock, trajectory_planner};
 use crate::control::misc_tools::{angle_tools, string_tools};
 use std::io::{stdin, prelude::*};
 use std::time::SystemTime;
+use anyhow::bail;
 
 pub struct AbbRob {
     socket: tcp_sock::TcpSock,
-    pos: Option<(f32, f32, f32)>,
-    ori: Option<(f32, f32, f32)>,
-    jnt_angles: Option<(f32, f32, f32, f32, f32, f32)>,
-    force: Option<(f32, f32, f32, f32, f32, f32)>,
+    pos: (f32, f32, f32),
+    ori: (f32, f32, f32),
+    jnt_angles: (f32, f32, f32, f32, f32, f32),
+    force: (f32, f32, f32, f32, f32, f32),
     move_flag: bool,
     traj_done_flag: bool,
     disconnected : bool,
@@ -27,27 +28,27 @@ pub const IMPL_COMMDS: [&str; 8] = [
 ];
 
 impl AbbRob {
-    pub fn create_rob(ip: String, port: u32) -> Option<AbbRob> {
+    pub fn create_rob(ip: String, port: u32) -> Result<AbbRob, anyhow::Error> {
         //Create the robots socket
         let mut rob_sock = tcp_sock::create_sock(ip, port);
         //Attempt to connect to the robot
         if rob_sock.connect() == false {
             //Failed to connect
-            println!("Robot not connected");
-            None
+            bail!("Robot not connected")
+
         } else {
             let new_rob = AbbRob {
                 socket: rob_sock,
-                pos: None,
-                ori: None,
-                jnt_angles: None,
-                force: None,
+                pos: (f32::NAN, f32::NAN, f32::NAN),
+                ori: (f32::NAN, f32::NAN, f32::NAN),
+                jnt_angles: (f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN),
+                force: (f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN),
                 move_flag: false,
                 traj_done_flag: false,
                 disconnected : false
             };
 
-            Option::from(new_rob)
+            Ok(new_rob)
         }
     }
 
@@ -267,27 +268,27 @@ impl AbbRob {
     }
 
     //Requests robot state of trajectory
-    fn get_traj_done_flag(&mut self) -> Option<bool> {
+    fn get_traj_done_flag(&mut self) -> Result<bool, anyhow::Error> {
         //Safe socket read - incase the socket crashes
         match self.socket.req("TJDN:?") {
             Some(recv) => {
                 if recv == "TRUE" {
                     self.traj_done_flag = true;
-                    Option::from(true)
+                    Ok(true)
                 }else if recv == "FALSE"{
                     self.traj_done_flag = false;
-                    Option::from(false)
+                    Ok(false)
                 }
                 else {
                     println!("Warning - Trajectory flag error! - Unknown state!");
                     println!("Got response - `{recv}`");
-                    None
+                    bail!("Trajectory flag error");
                 }
             }
             None => {
                 println!("WARNING ROBOT DISCONNECTED");
                 self.disconnected = true;
-                None
+                bail!("ROBOT DISCONNECTED");
             }
         }
     }
@@ -397,16 +398,17 @@ impl AbbRob {
             //Check that the vector is the right length
             if xyz_vec.len() != 3 {
                 println!("XYZ pos read error!");
-                return;
+                self.pos = (f32::NAN, f32::NAN, f32::NAN);
+                return
             } else {
                 //Store the pos in the robot info
-                self.pos = Option::from((xyz_vec[0], xyz_vec[1], xyz_vec[2]));
+                self.pos = (xyz_vec[0], xyz_vec[1], xyz_vec[2]);
             }
         } else {
             //If the socket request returns nothing
             println!("WARNING ROBOT DISCONNECTED");
             self.disconnected = true;
-            return;
+            return
         }
     }
 
@@ -421,10 +423,11 @@ impl AbbRob {
             //Check that the vector is the right length
             if ori_vec.len() != 3 {
                 println!("ORI pos read error!");
+                self.ori = (f32::NAN, f32::NAN, f32::NAN);
                 return;
             } else {
                 //Store the pos in the robot info
-                self.ori = Option::from((ori_vec[0], ori_vec[1], ori_vec[2]));
+                self.ori = (ori_vec[0], ori_vec[1], ori_vec[2]);
             }
         } else {
             //If the socket request returns nothing
@@ -446,17 +449,18 @@ impl AbbRob {
             if jtang_vec.len() != 6 {
                 println!("joint angle read error!");
                 println!("Expected: 6. Actual: {}", jtang_vec.len());
+                self.jnt_angles = (f32::NAN, f32::NAN,f32::NAN, f32::NAN,f32::NAN, f32::NAN);
                 return;
             } else {
                 //Store the pos in the robot info
-                self.jnt_angles = Option::from((
+                self.jnt_angles = (
                     jtang_vec[0],
                     jtang_vec[1],
                     jtang_vec[2],
                     jtang_vec[3],
                     jtang_vec[4],
                     jtang_vec[5],
-                ));
+                );
             }
         } else {
             //If the socket request returns nothing
@@ -478,12 +482,13 @@ impl AbbRob {
             if fc_vec.len() != 6 {
                 println!("joint angle read error!");
                 println!("Expected: 6. Actual: {}", fc_vec.len());
+                self.force = (f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN);
                 return;
             } else {
                 //Store the pos in the robot info
-                self.force = Option::from((
+                self.force = (
                     fc_vec[0], fc_vec[1], fc_vec[2], fc_vec[3], fc_vec[4], fc_vec[5],
-                ));
+                );
             }
         } else {
             //If the socket request returns nothing
@@ -570,19 +575,18 @@ impl AbbRob {
                            i,
                             SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs_f64(),
                             //Make sure that you dont print a lack of information in the data
-                            //TODO - Create formatting function - that can print blank spots
-                           self.pos.expect("Err - reading pos - x").0,
-                           self.pos.expect("Err - reading pos - y").1,
-                           self.pos.expect("Err - reading pos - z").2,
-                           self.ori.expect("Err - reading ori - x").0,
-                           self.ori.expect("Err - reading ori - y").1,
-                           self.ori.expect("Err - reading pos - z").2,
-                           self.force.expect("Err - reading force - x").0,
-                           self.force.expect("Err - reading force - y").1,
-                           self.force.expect("Err - reading force - z").2,
-                           self.force.expect("Err - reading moment - x").3,
-                           self.force.expect("Err - reading moment - y").4,
-                           self.force.expect("Err - reading moment - z").5,
+                           self.pos.0,
+                           self.pos.1,
+                           self.pos.2,
+                           self.ori.0,
+                           self.ori.1,
+                           self.ori.2,
+                           self.force.0,
+                           self.force.1,
+                           self.force.2,
+                           self.force.3,
+                           self.force.4,
+                           self.force.5,
         );
 
         //Write to the file - indicating if writing failed (but don't worry about it!)
