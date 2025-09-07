@@ -72,6 +72,65 @@ impl PointCloud{
 
     }
 
+    //Load a pointcloud file and create 
+    pub fn create_from_file(filename: &str) -> Result<Self, anyhow::Error>{
+        
+        //Create the filepath
+        let filepath = format!("dump/{}.txt", filename.to_string());
+
+        //Open the file and create a buffer to read the lines
+        let file = File::open(filepath)?;
+        let mut line_reader = BufReader::new(file);
+        
+        
+        
+        //Read the first line to get the date
+        let timestamp_str :&mut String = &mut "".to_string();
+        line_reader.read_line(timestamp_str)?;
+        
+        //Convert the string to the datetime f64
+        //let global_timestamp : DateTime<Local> = timestamp_str.parse()?;
+        
+        let mut no_of_points = 0;
+        
+        //Setup the empty points
+        let mut points = vec![];
+        
+        
+        
+        for line in line_reader.lines(){
+            
+            //Create empty point
+            let mut pnt: [f32; 3] = [f32::NAN, f32::NAN, f32::NAN];            
+            
+            let mut cnt = 0;
+            
+            //Delimit the line based on commas
+            for token in line?.split(","){               
+                
+                pnt[cnt] = token.parse()?;
+                
+                cnt = cnt + 1;
+                
+            }
+            
+            points.push(pnt);
+            no_of_points = no_of_points + 1;
+        }
+        
+        Ok(Self{
+            points,
+            no_of_points: 0,
+            //Relative timestamp is -1.0 because there is no reference start time
+            rel_timestamp: -1.0,
+            global_timestamp : Default::default(),
+        })
+        
+        
+        
+        
+    }
+
     pub fn points(&self) -> Vec<[f32; 3]>{
         self.points.clone()
     }
@@ -195,6 +254,8 @@ impl PointCloud{
 
 
     }
+    
+
 
 
 

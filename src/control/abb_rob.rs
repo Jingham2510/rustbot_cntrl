@@ -2,6 +2,8 @@ use std::fs::OpenOptions;
 use crate::control::{tcp_sock, trajectory_planner};
 use crate::control::misc_tools::{angle_tools, string_tools};
 use std::io::{stdin, prelude::*};
+use std::thread;
+use std::thread::Thread;
 use std::time::SystemTime;
 use anyhow::bail;
 
@@ -296,7 +298,6 @@ impl AbbRob {
     //Essentially another command line handler - just for running specific tests
     fn run_test(&mut self){
 
-
         println!("Specifiy the trajectory you wish to run");
 
         //Loop until command given
@@ -342,6 +343,9 @@ impl AbbRob {
                         for pnt in traj{
                             self.traj_queue_add_trans(pnt);
                         }
+                        
+                        //Create a depth camera thread
+                        
 
 
 
