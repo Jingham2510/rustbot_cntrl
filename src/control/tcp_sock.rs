@@ -88,12 +88,12 @@ impl TcpSock {
 
         let s = self.read();
         match s {
-            Some(mut s) => {
+            Ok(mut s) => {
                 //Remove the ! character
                 s.pop();
                 Ok(s)
             }
-            None => bail!("Failed to read from TCP stream"),
+            Err(e) => bail!("Failed to read from TCP stream - {e}"),
         }
     }
 
