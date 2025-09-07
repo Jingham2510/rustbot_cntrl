@@ -32,7 +32,7 @@ fn main() {
     let mut pcl = cam.get_depth_pnts().unwrap();
     pcl.rotate(-std::f32::consts::PI / 4.0, 0.0, 0.0); // - testbed rotation
 
-    pcl.save("test");
+    pcl.save_to_file("test");
 
     let mut map1 = Heightmap::create_from_pcl(pcl, 25, 25, false);
 
@@ -44,7 +44,7 @@ fn main() {
     let mut pcl = cam.get_depth_pnts().unwrap();
     pcl.rotate(std::f32::consts::PI / 4.0, 0.0, 0.0); // - testbed rotation
 
-    pcl.save("test_2");
+    pcl.save_to_file("test_2");
 
     let mut map1 = Heightmap::create_from_pcl(pcl, 250, 250, false);
 
@@ -55,7 +55,7 @@ fn main() {
     let mut pcl = cam.get_depth_pnts().unwrap();
     pcl.rotate(std::f32::consts::PI / 4.0, 0.0, 0.0); // - testbed rotation
 
-    pcl.save("test_3");
+    pcl.save_to_file("test_3");
 
     let mut map1 = Heightmap::create_from_pcl(pcl, 1000, 1000, false);
 
