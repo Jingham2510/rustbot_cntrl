@@ -177,7 +177,7 @@ fn rob_connect() {
     println!("Logging into robot on : {}:{}", profile[0], profile[1]);
 
     //If connected - create the robot and keep it in scope to keep the connection open
-    if let Some(mut curr_rob) =
+    if let Ok(mut curr_rob) =
         abb_rob::AbbRob::create_rob(profile[0].parse().unwrap(), profile[1].parse().unwrap())
     {
         println!("Connected!");
