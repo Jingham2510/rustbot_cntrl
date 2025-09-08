@@ -12,7 +12,7 @@ use control::abb_rob;
 
 mod mapping;
 use crate::mapping::terr_map_sense::RealsenseCam;
-use crate::mapping::terr_map_tools::Heightmap;
+use crate::mapping::terr_map_tools::{Heightmap, PointCloud};
 
 const VER_NUM: &str = "V0.2";
 //Program title
@@ -21,6 +21,10 @@ const TITLE: &str = "Rustbot Control";
 fn main() {
 
     println!("RUSTBOT_CNTRL STARTUP....");
+    
+    
+    
+    
     
     //Test the map sense features
     let mut cam = RealsenseCam::initialise().expect("Cam setup failed");
@@ -33,6 +37,10 @@ fn main() {
     pcl.rotate(-std::f32::consts::PI / 4.0, 0.0, 0.0); // - testbed rotation
 
     pcl.save_to_file("test");
+
+
+    let test_load = PointCloud::create_from_file("test");
+    test_load.unwrap().print_points();
 
     let mut map1 = Heightmap::create_from_pcl(pcl, 25, 25, false);
 

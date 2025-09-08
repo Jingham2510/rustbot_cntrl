@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use anyhow::bail;
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, Utc};
 use raylib::prelude::*;
 use rand::Rng;
 use realsense_sys::rs2_vertex;
@@ -19,7 +19,7 @@ pub struct PointCloud{
     //The timestamp of when the pointcloud was captured (relative to when the camera started)
     rel_timestamp: f64,
 
-    global_timestamp: DateTime<Local>
+    global_timestamp: DateTime<Utc>
 
 
 }
@@ -36,7 +36,7 @@ impl PointCloud{
             points: pnts,
             no_of_points,
             rel_timestamp: timestamp,
-            global_timestamp: Local::now()
+            global_timestamp: Utc::now()
         }
     }
 
@@ -66,7 +66,7 @@ impl PointCloud{
             points,
             no_of_points,
             rel_timestamp: timestamp,
-            global_timestamp: Local::now()
+            global_timestamp: Utc::now()
         }
 
 
@@ -87,9 +87,11 @@ impl PointCloud{
         //Read the first line to get the date
         let timestamp_str :&mut String = &mut "".to_string();
         line_reader.read_line(timestamp_str)?;
-        
+
+        println!("{}", timestamp_str);
+
         //Convert the string to the datetime f64
-        //let global_timestamp : DateTime<Local> = timestamp_str.parse()?;
+        let global_timestamp : DateTime<Utc> = timestamp_str.parse()?;
         
         let mut no_of_points = 0;
         
@@ -123,7 +125,7 @@ impl PointCloud{
             no_of_points: 0,
             //Relative timestamp is -1.0 because there is no reference start time
             rel_timestamp: -1.0,
-            global_timestamp : Default::default(),
+            global_timestamp,
         })
         
         
@@ -236,7 +238,8 @@ impl PointCloud{
         let mut file = File::create( "dump/".to_owned() + filename + ".txt")?;
 
         //Save the timestamp from the frame as the first line;
-        let datetime_fmt = self.global_timestamp.format("%Y-%m-%d %H:%M:%S\n").to_string();
+        let datetime_fmt = format!("{}\n", self.global_timestamp);
+
 
         file.write_all(datetime_fmt.as_bytes())?;
 
