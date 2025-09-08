@@ -189,7 +189,7 @@ impl RealsenseCam{
                     for vert in point_frame.vertices().iter() {
                         let pnt = vert.xyz;
 
-                        //Skip invalid points and points to ofar away
+                        //Skip invalid points and points too far away
                         if pnt == [0.0, 0.0, 0.0] || pnt[2] > 5.0{
                             continue;
                         }

@@ -1,11 +1,11 @@
+use anyhow::bail;
+use chrono::{DateTime, Utc};
+use rand::Rng;
+use raylib::prelude::*;
+use realsense_sys::rs2_vertex;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
-use anyhow::bail;
-use chrono::{DateTime, Local, Utc};
-use raylib::prelude::*;
-use rand::Rng;
-use realsense_sys::rs2_vertex;
 
 
 //Pointcloud structure - contains purely point information
@@ -53,10 +53,7 @@ impl PointCloud{
             if pnt == [0.0, 0.0, 0.0]{
                 continue;
             }
-            //Stopband filter (i.e. no point futher than 3 meters)
-            if pnt[0] < -1.5 || pnt[0] > 1.5 || pnt[1] < -1.5 || pnt[1] > 1.5 || pnt[2] > 4.0{
-                continue;
-            }
+
 
             points.push(pnt);
             no_of_points = no_of_points + 1;
@@ -225,7 +222,33 @@ impl PointCloud{
             pnt[2] = pnt[2] + z;
 
         }
+    }
 
+
+    //Filter a pointcloud by specifying the bounds (bounds inclusive of points on the bound)
+    pub fn passband_filter(&mut self, min_x :f32, max_x :f32, min_y :f32, max_y :f32, min_z :f32, max_z :f32){
+
+
+
+        let mut pnts = self.points();
+
+        let mut new_pnts : Vec<[f32; 3]> = vec![];
+
+
+        for pnt in pnts{
+            //Drop all the points that sit outside the bounds
+            if pnt[0] < min_x || pnt[0] > max_x || pnt[1] < min_y || pnt[1] > max_y || pnt[2] < min_z || pnt[2] > max_z{
+                continue
+            }else{
+                new_pnts.push(pnt);
+
+            }
+        }
+
+        //Store the passbanded poimnts
+        self.points = new_pnts;
+        //Update the point count
+        self.no_of_points = self.points.len();
 
     }
 

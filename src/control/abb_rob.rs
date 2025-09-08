@@ -1,11 +1,14 @@
-use std::fs::OpenOptions;
-use crate::control::{tcp_sock, trajectory_planner};
 use crate::control::misc_tools::{angle_tools, string_tools};
-use std::io::{stdin, prelude::*};
-use std::thread;
-use std::thread::Thread;
-use std::time::SystemTime;
+use crate::control::{tcp_sock, trajectory_planner};
+use crate::mapping::terr_map_sense;
+use crate::mapping::terr_map_tools::Heightmap;
 use anyhow::bail;
+use std::fs::OpenOptions;
+use std::io::{prelude::*, stdin};
+use std::sync::mpsc;
+use std::sync::mpsc::Receiver;
+use std::thread;
+use std::time::SystemTime;
 
 pub struct AbbRob {
     socket: tcp_sock::TcpSock,
@@ -233,7 +236,7 @@ impl AbbRob {
             .socket
             .req(&format!("TQAD:[{},{},{}]", xyz.0, xyz.1, xyz.2))
         {
-            println!("trans traj added");
+            //println!("trans traj added");
         } else {
             println!("Warning - no response - trajectory may differ from expected!");
         }
@@ -333,7 +336,7 @@ impl AbbRob {
                             .read_line(&mut user_inp)
                             .expect("Failed to read line");
 
-                        let filename = format!("dumps/{}.txt", user_inp);
+                        let filename = format!("dump/{}.txt", user_inp.trim());
 
                         //Move to a starting point - above the starting point
                         self.set_pos((traj[0].0, traj[0].1, traj[0].2 + 25.0));
@@ -344,10 +347,12 @@ impl AbbRob {
                             self.traj_queue_add_trans(pnt);
                         }
                         
-                        //Create a depth camera thread
-                        
+                        //Create a threading channel
+                        let (tx, rx) = mpsc::channel();
 
-
+                        //Create the thread that handles the depth camera
+                        let cam_thread = thread::spawn( move ||
+                            Self::depth_sensing(rx, &*user_inp.trim(), true));
 
                         //Start the trajectory
                         self.traj_queue_go();
@@ -357,6 +362,8 @@ impl AbbRob {
 
                         let mut cnt = 0;
 
+                        const DEPTH_FREQ : i32 = 500;
+
                         //Read the values until the trajectory is reported as done
                         while !self.traj_done_flag{
                             self.update_rob_info();
@@ -364,6 +371,16 @@ impl AbbRob {
 
                             //Increase the count
                             cnt = cnt + 1;
+
+                            if cnt % DEPTH_FREQ == 0{
+                                if let Ok(_) = tx.send(true){
+                                    //Do nothing here - normal operation
+                                    println!("trigger sent")
+                                }else{
+                                    println!("Warning - Cam thread dead!");
+                                }
+                            }
+
 
 
 
@@ -388,6 +405,59 @@ impl AbbRob {
 
 
         }
+    }
+
+    //Function which repeatedly takes depth measurements on trigger from another thread
+    fn depth_sensing(rx : Receiver<bool>, test_name : &str, hmap : bool){
+
+        //Create a camera
+        let mut cam = terr_map_sense::RealsenseCam::initialise().expect("Failed to create camera");
+
+        let mut cnt = 0;
+
+        //Loop forever - will be killed once the test ends automatically
+        loop {
+
+            //Block until the trigger is recieved
+            rx.recv().expect("recieve thread error");
+
+            println!("Taking depth measure");
+
+            //Create a pointcloud
+            let mut curr_pcl = cam.get_depth_pnts().expect("Failed to get get pointcloud");
+
+            //For now - rotate and filter the cloud automatically - assume that we are working with the terrain box in the TRL
+            curr_pcl.rotate(-std::f32::consts::PI / 4.0, 0.0, 0.0);
+            curr_pcl.passband_filter(-1.1, 1.1, 1.0, 3.1, -100.0, 0.6);
+
+            //Save the pointcloud
+            let filename = format!("{test_name}_{cnt}");
+            println!("{}", filename);
+
+            curr_pcl.save_to_file(&*filename).unwrap();
+
+
+            if hmap{
+                //Create a heightmap from the pointcloud
+                let mut curr_hmap = Heightmap::create_from_pcl(curr_pcl, 250, 250, false);
+
+
+                //Save the heightmap
+                let filename = format!("{test_name}_hmap_{cnt}");
+                curr_hmap.save_to_file(&*filename).unwrap()
+
+            }
+
+            //Increase the loop count
+            cnt = cnt + 1;
+
+
+        }
+
+
+
+
+
     }
 
 

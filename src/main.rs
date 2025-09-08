@@ -11,8 +11,6 @@ mod control;
 use control::abb_rob;
 
 mod mapping;
-use crate::mapping::terr_map_sense::RealsenseCam;
-use crate::mapping::terr_map_tools::{Heightmap, PointCloud};
 
 const VER_NUM: &str = "V0.2";
 //Program title
@@ -21,76 +19,10 @@ const TITLE: &str = "Rustbot Control";
 fn main() {
 
     println!("RUSTBOT_CNTRL STARTUP....");
-    
-    
-    
-    
-    
-    //Test the map sense features
-    let mut cam = RealsenseCam::initialise().expect("Cam setup failed");
 
-    //Visually debug the cam stream
-    //cam.debug_vis();
-
-    //Save a test pointcloud
-    let mut pcl = cam.get_depth_pnts().unwrap();
-    pcl.rotate(-std::f32::consts::PI / 4.0, 0.0, 0.0); // - testbed rotation
-
-    pcl.save_to_file("test");
-
-
-    let test_load = PointCloud::create_from_file("test");
-    test_load.unwrap().print_points();
-
-    let mut map1 = Heightmap::create_from_pcl(pcl, 25, 25, false);
-
-    map1.disp_map();
-
-
-
-    //Save a test pointcloud
-    let mut pcl = cam.get_depth_pnts().unwrap();
-    pcl.rotate(std::f32::consts::PI / 4.0, 0.0, 0.0); // - testbed rotation
-
-    pcl.save_to_file("test_2");
-
-    let mut map1 = Heightmap::create_from_pcl(pcl, 250, 250, false);
-
-    map1.disp_map();
-
-
-    //Save a test pointcloud
-    let mut pcl = cam.get_depth_pnts().unwrap();
-    pcl.rotate(std::f32::consts::PI / 4.0, 0.0, 0.0); // - testbed rotation
-
-    pcl.save_to_file("test_3");
-
-    let mut map1 = Heightmap::create_from_pcl(pcl, 1000, 1000, false);
-
-    map1.disp_map();
-    
-
-
-    //test the map vis features
-    //let mut test: Map = Map::new(1000, 1000);
-
-    //test.gen_random_pattern();
-
-    //let mut des_test: Map = Map::new(10, 5);
-    
-    //des_test.set_cell_height(1, 1, 25.0);
-    //des_test.set_cell_height(3, 4, 2.0);
-
-
-    //terr_map_tools::comp_maps(&test, &des_test).unwrap().print_cells();
-    
-    //test.disp_map();
-
-    
-    
 
     //Run the command handler
-    //core_cmd_handler();
+    core_cmd_handler();
 
     println!("Shutting down");
 }
