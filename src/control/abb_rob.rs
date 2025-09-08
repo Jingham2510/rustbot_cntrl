@@ -10,6 +10,7 @@ use std::sync::mpsc::Receiver;
 use std::thread;
 use std::time::SystemTime;
 
+
 pub struct AbbRob {
     socket: tcp_sock::TcpSock,
     pos: (f32, f32, f32),
@@ -427,8 +428,9 @@ impl AbbRob {
             let mut curr_pcl = cam.get_depth_pnts().expect("Failed to get get pointcloud");
 
             //For now - rotate and filter the cloud automatically - assume that we are working with the terrain box in the TRL
-            curr_pcl.rotate(-std::f32::consts::PI / 4.0, 0.0, 0.0);
-            curr_pcl.passband_filter(-1.1, 1.1, 1.0, 3.1, -100.0, 0.6);
+            curr_pcl.rotate(std::f32::consts::PI / 4.0, 0.0, 0.0);
+            //Empirically calculated passband to isolate terrain bed
+            curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, -0.0, 1.3);
 
             //Save the pointcloud
             let filename = format!("{test_name}_{cnt}");

@@ -90,7 +90,6 @@ impl PointCloud{
         //Convert the string to the datetime f64
         let global_timestamp : DateTime<Utc> = timestamp_str.parse()?;
         
-        let mut no_of_points = 0;
         
         //Setup the empty points
         let mut points = vec![];
@@ -114,12 +113,13 @@ impl PointCloud{
             }
             
             points.push(pnt);
-            no_of_points = no_of_points + 1;
         }
+        
+        let no_of_points = points.len();
         
         Ok(Self{
             points,
-            no_of_points: 0,
+            no_of_points ,
             //Relative timestamp is -1.0 because there is no reference start time
             rel_timestamp: -1.0,
             global_timestamp,
@@ -230,7 +230,7 @@ impl PointCloud{
 
 
 
-        let mut pnts = self.points();
+        let pnts = self.points();
 
         let mut new_pnts : Vec<[f32; 3]> = vec![];
 

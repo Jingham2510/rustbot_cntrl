@@ -8,6 +8,7 @@ use std::io::stdin;
 
 
 mod control;
+use crate::mapping::terr_map_tools::{Heightmap, PointCloud};
 use control::abb_rob;
 
 mod mapping;
@@ -20,9 +21,22 @@ fn main() {
 
     println!("RUSTBOT_CNTRL STARTUP....");
 
+    let mut pcl = PointCloud::create_from_file("baseline_comp").unwrap();
+
+
+
+    pcl.rotate(0.10, 0.0, 0.0);
+
+    pcl.save_to_file("rot_6ish_deg");
+
+    let mut heightmap = Heightmap::create_from_pcl(pcl, 250, 250, false);
+    heightmap.disp_map();
+
+
+
 
     //Run the command handler
-    core_cmd_handler();
+    //core_cmd_handler();
 
     println!("Shutting down");
 }

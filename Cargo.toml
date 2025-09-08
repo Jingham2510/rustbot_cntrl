@@ -13,4 +13,3 @@ realsense-rust = { version = "1.2.3" }
 realsense-sys = "2.54.3"
 anyhow = "1.0.99"
 chrono = "0.4.41"
-
