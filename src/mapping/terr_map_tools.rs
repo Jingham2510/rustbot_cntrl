@@ -804,7 +804,19 @@ impl Heightmap {
                     );
                 }
             }
+            
+            //Check if the mouse is clicked
+            if d.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT){
+                println!("Clicked");
+            }
+
+
+
         }
+
+
+
+
     }
 
 

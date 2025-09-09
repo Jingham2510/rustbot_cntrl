@@ -365,7 +365,7 @@ impl AbbRob {
                         self.update_rob_info();
 
                         let mut cnt = 0;
-                        const DEPTH_FREQ : i32 = 500;
+                        const DEPTH_FREQ : i32 = 250;
 
                         //Read the values until the trajectory is reported as done
                         while !self.traj_done_flag{
@@ -435,7 +435,7 @@ impl AbbRob {
                 //For now - rotate and filter the cloud automatically - assume that we are working with the terrain box in the TRL
                 curr_pcl.rotate((std::f32::consts::PI / 4.0) + 0.12, 0.0, 0.0);
                 //Empirically calculated passband to isolate terrain bed
-                curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, -0.0, 1.3);
+                curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
 
                 //Save the pointcloud
                 let filepath = format!("dump/{test_name}/pcl_{test_name}_{cnt}");
