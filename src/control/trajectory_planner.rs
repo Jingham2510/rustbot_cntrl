@@ -8,6 +8,8 @@ use std::io::{stdin, BufRead};
 
 const IMPL_TRAJS : [&str; 4] = ["line", "circle", "slidedown", "custom"];
 
+const DEFAULT_Z : f32 = 155.0;
+
 
 //Selects a trajectory bsaed on string input from user
 pub fn traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>>{
@@ -21,9 +23,9 @@ pub fn traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>>{
         //Line trajectory
         "line" => {
             //Define all the starting points etc
-            let line_x= 262.0;
-            let line_z = 170.0;
-            let start_y = 1650.0;
+            let line_x= -273.0;
+            let line_z = DEFAULT_Z;
+            let start_y = 1550.0;
             let end_y = 2550.0;
             let start_pos  = (line_x, start_y, line_z);
             let end_pos = (line_x, end_y, line_z);
@@ -33,7 +35,7 @@ pub fn traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>>{
 
         "circle" =>{
             //Define all characteristics of the circle
-            let centre = (200.0, 2160.0, 125.0);
+            let centre = (200.0, 2160.0, DEFAULT_Z);
             //Number of times the circle goes round
             let loops = 3;
             //"size" of circle
@@ -49,8 +51,8 @@ pub fn traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>>{
         "slidedown" =>{
 
             let line_x = 262.0;
-            let start_z = 150.0;
-            let end_z = 100.0;
+            let start_z = DEFAULT_Z;
+            let end_z = start_z - 50.0;
             let start_y = 1650.0;
             let end_y = 2100.0;
             let start_pos  = (line_x, start_y, start_z);

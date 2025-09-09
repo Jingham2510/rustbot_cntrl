@@ -58,7 +58,6 @@ impl AbbRob {
         }
     }
 
-    //TODO - Implement robot reconnect function
 
     //Disconnect from the robot - don't change any robot info, chances are the robot is going out of scope after this
     pub fn disconnect_rob(&mut self) {
@@ -329,7 +328,7 @@ impl AbbRob {
                     if let Some(traj) = trajectory_planner::traj_gen(other) {
 
                         //Create the filename
-                        println!("Please provide a filename");
+                        println!("Please provide a test name");
 
                         //Get user input
                         let mut user_inp = String::new();
@@ -337,7 +336,7 @@ impl AbbRob {
                             .read_line(&mut user_inp)
                             .expect("Failed to read line");
 
-                        let filename = format!("dump/{}.txt", user_inp.trim());
+                        let filename = format!("dump/data_{}.txt", user_inp.trim());
 
                         //Move to a starting point - above the starting point
                         self.set_pos((traj[0].0, traj[0].1, traj[0].2 + 25.0));
@@ -352,7 +351,7 @@ impl AbbRob {
                         let (tx, rx) = mpsc::channel();
 
                         //Create the thread that handles the depth camera
-                        let cam_thread = thread::spawn( move ||
+                        thread::spawn( move ||
                             Self::depth_sensing(rx, &*user_inp.trim(), true));
 
                         //Start the trajectory
@@ -428,12 +427,12 @@ impl AbbRob {
             let mut curr_pcl = cam.get_depth_pnts().expect("Failed to get get pointcloud");
 
             //For now - rotate and filter the cloud automatically - assume that we are working with the terrain box in the TRL
-            curr_pcl.rotate(std::f32::consts::PI / 4.0, 0.0, 0.0);
+            curr_pcl.rotate((std::f32::consts::PI / 4.0) + 0.12, 0.0, 0.0);
             //Empirically calculated passband to isolate terrain bed
             curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, -0.0, 1.3);
 
             //Save the pointcloud
-            let filename = format!("{test_name}_{cnt}");
+            let filename = format!("pcl_{test_name}_{cnt}");
             println!("{}", filename);
 
             curr_pcl.save_to_file(&*filename).unwrap();
@@ -445,7 +444,7 @@ impl AbbRob {
 
 
                 //Save the heightmap
-                let filename = format!("{test_name}_hmap_{cnt}");
+                let filename = format!("hmap_{test_name}_{cnt}");
                 curr_hmap.save_to_file(&*filename).unwrap()
 
             }
@@ -608,7 +607,6 @@ impl AbbRob {
 
     //Helper function that requests all the update information from the robot
     //Returns early from the function if the robot has disconnected
-    //TODO - Check to see if there is a cleaner way to check if disconnected?
     fn update_rob_info(&mut self) {
         self.req_xyz();        
         if self.disconnected{

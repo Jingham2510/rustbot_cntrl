@@ -8,7 +8,6 @@ use std::io::stdin;
 
 
 mod control;
-use crate::mapping::terr_map_tools::{Heightmap, PointCloud};
 use control::abb_rob;
 
 mod mapping;
@@ -21,22 +20,9 @@ fn main() {
 
     println!("RUSTBOT_CNTRL STARTUP....");
 
-    let mut pcl = PointCloud::create_from_file("baseline_comp").unwrap();
-
-
-
-    pcl.rotate(0.10, 0.0, 0.0);
-
-    pcl.save_to_file("rot_6ish_deg");
-
-    let mut heightmap = Heightmap::create_from_pcl(pcl, 250, 250, false);
-    heightmap.disp_map();
-
-
-
 
     //Run the command handler
-    //core_cmd_handler();
+    core_cmd_handler();
 
     println!("Shutting down");
 }
@@ -44,12 +30,13 @@ fn main() {
 //Handles commands given by the user - without a robot
 fn core_cmd_handler() {
     //Array of implemented commands
-    const VALID_CMDS: [&str; 5] = [
+    const VALID_CMDS: [&str; 6] = [
         "info - get title and version number",
         "quit - close the program",
         "cmds - list the currently implemented commands",
         "ping - TEST - connect to and ping the robot studio",
         "connect - connect to a robot on a given ip and port (if successful unlocks robot specific commands",
+        "display - iterate through a tests produced heightmaps"
     ];
 
     println!("{TITLE} - {VER_NUM}");
@@ -79,6 +66,8 @@ fn core_cmd_handler() {
             "quit" => break,
 
             "connect" => rob_connect(),
+            
+            "display" => display(),
 
             //Catch all else
             _ => println!("Unknown command - see CMDs for list of commands"),
@@ -88,7 +77,6 @@ fn core_cmd_handler() {
 
 
 
-//TODO - Robot spawner - checks if robot is connected to tcp before any instructions
 //Command line for logging into and controlling a robot
 fn rob_connect() {
     //Not const because you cant make constant hashmaps
@@ -143,4 +131,17 @@ fn rob_connect() {
         println!("{TITLE} - {VER_NUM}");
         return;
     }
+}
+
+//Iterates through a tests generated heightmaps and displays them one by one
+fn display() {
+    
+    //Print and number the list of tests in the DEPTH_TESTS folder (ignoring _archive)
+    
+    //Ask the user
+    
+    
+    
+    
+    todo!()
 }

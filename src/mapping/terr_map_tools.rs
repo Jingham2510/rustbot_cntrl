@@ -507,10 +507,6 @@ impl Heightmap {
             height = height + 1;
         }
 
-        //TODO - Do some checks (i.e. every row is the same length)
-
-
-
         //Check to see if the grid is square
         let mut square= false;
         if height == width{
@@ -672,7 +668,6 @@ impl Heightmap {
     //Display the map as a grid - colouring in cells based on the height
     //TODO : ADD NON-RELATIVE COLOURING (I.E. BASED ON ACTUAL HEIGHT)
     pub fn disp_map(&mut self) {
-
 
 
         //Calcualte grid sizes etc
