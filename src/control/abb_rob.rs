@@ -361,7 +361,6 @@ impl AbbRob {
                         self.update_rob_info();
 
                         let mut cnt = 0;
-
                         const DEPTH_FREQ : i32 = 500;
 
                         //Read the values until the trajectory is reported as done
@@ -369,10 +368,10 @@ impl AbbRob {
                             self.update_rob_info();
                             self.store_state(&filename, cnt);
 
-                            //Increase the count
-                            cnt = cnt + 1;
 
-                            if cnt % DEPTH_FREQ == 0{
+
+                            //Trigger at the start - or at a specified interval
+                            if cnt % DEPTH_FREQ == 0 || cnt == 0{
                                 if let Ok(_) = tx.send(true){
                                     //Do nothing here - normal operation
                                     println!("trigger sent")
@@ -381,7 +380,8 @@ impl AbbRob {
                                 }
                             }
 
-
+                            //Increase the count
+                            cnt = cnt + 1;
 
 
                             if self.disconnected{
