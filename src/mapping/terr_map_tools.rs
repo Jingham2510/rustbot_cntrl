@@ -807,7 +807,18 @@ impl Heightmap {
             
             //Check if the mouse is clicked
             if d.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT){
-                println!("Clicked");
+
+                let m_pos = d.get_mouse_position();
+
+                //Check if inside the bounds of the heightmap graphics
+                if m_pos.x < WINDOW_WIDTH_START|| m_pos.x > WINDOW_WIDTH_END|| m_pos.y < WINDOW_HEIGHT_START|| m_pos.y > WINDOW_HEIGHT_END{
+                    continue
+                }
+
+                println!("INSIDE");
+
+
+
             }
 
 
