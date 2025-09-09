@@ -7,7 +7,7 @@ use std::fs::OpenOptions;
 use std::io::{prelude::*, stdin};
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
-use std::thread;
+use std::{fs, thread};
 use std::time::SystemTime;
 
 
@@ -336,7 +336,11 @@ impl AbbRob {
                             .read_line(&mut user_inp)
                             .expect("Failed to read line");
 
-                        let filename = format!("dump/data_{}.txt", user_inp.trim());
+                        //Create a folder to hold the test data
+                        let new_fp = format!("dump/{}", user_inp.trim());
+                        fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
+
+                        let filename = format!("{}/data_{}.txt", new_fp, user_inp.trim());
 
                         //Move to a starting point - above the starting point
                         self.set_pos((traj[0].0, traj[0].1, traj[0].2 + 25.0));
@@ -386,11 +390,14 @@ impl AbbRob {
 
                             if self.disconnected{
                                 println!("Warning - disconnected during test");
+                                tx.send(false);
                                 return;
                             }
 
                         }
 
+                        //No point error handling - if this fails the test is done anyways
+                        tx.send(false);
                         println!("Trajectory done!");
 
                         return
@@ -419,46 +426,41 @@ impl AbbRob {
         loop {
 
             //Block until the trigger is recieved
-            rx.recv().expect("recieve thread error");
+            if rx.recv().expect("recieve thread error") {
+                println!("Taking depth measure");
 
-            println!("Taking depth measure");
+                //Create a pointcloud
+                let mut curr_pcl = cam.get_depth_pnts().expect("Failed to get get pointcloud");
 
-            //Create a pointcloud
-            let mut curr_pcl = cam.get_depth_pnts().expect("Failed to get get pointcloud");
+                //For now - rotate and filter the cloud automatically - assume that we are working with the terrain box in the TRL
+                curr_pcl.rotate((std::f32::consts::PI / 4.0) + 0.12, 0.0, 0.0);
+                //Empirically calculated passband to isolate terrain bed
+                curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, -0.0, 1.3);
 
-            //For now - rotate and filter the cloud automatically - assume that we are working with the terrain box in the TRL
-            curr_pcl.rotate((std::f32::consts::PI / 4.0) + 0.12, 0.0, 0.0);
-            //Empirically calculated passband to isolate terrain bed
-            curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, -0.0, 1.3);
+                //Save the pointcloud
+                let filepath = format!("dump/{test_name}/pcl_{test_name}_{cnt}");
+                println!("{}", filepath);
 
-            //Save the pointcloud
-            let filename = format!("pcl_{test_name}_{cnt}");
-            println!("{}", filename);
-
-            curr_pcl.save_to_file(&*filename).unwrap();
-
-
-            if hmap{
-                //Create a heightmap from the pointcloud
-                let mut curr_hmap = Heightmap::create_from_pcl(curr_pcl, 250, 250, false);
+                curr_pcl.save_to_file(&*filepath).unwrap();
 
 
-                //Save the heightmap
-                let filename = format!("hmap_{test_name}_{cnt}");
-                curr_hmap.save_to_file(&*filename).unwrap()
+                if hmap {
+                    //Create a heightmap from the pointcloud
+                    let mut curr_hmap = Heightmap::create_from_pcl(curr_pcl, 250, 250, false);
 
+
+                    //Save the heightmap
+                    let filepath = format!("dump/{test_name}/hmap_{test_name}_{cnt}");
+                    curr_hmap.save_to_file(&*filepath).unwrap()
+                }
+
+                //Increase the loop count
+                cnt = cnt + 1;
+            }else{
+                println!("Closing cam thread");
+                return;
             }
-
-            //Increase the loop count
-            cnt = cnt + 1;
-
-
         }
-
-
-
-
-
     }
 
 

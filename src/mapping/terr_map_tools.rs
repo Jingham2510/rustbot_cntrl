@@ -255,10 +255,10 @@ impl PointCloud{
 
     //Save the pointcloud to an ASCII file
 
-    pub fn save_to_file(&mut self, filename: &str) -> Result<(), anyhow::Error>{
+    pub fn save_to_file(&mut self, filepath: &str) -> Result<(), anyhow::Error>{
 
         //Create a file
-        let mut file = File::create( "dump/".to_owned() + filename + ".txt")?;
+        let mut file = File::create(filepath.to_owned() + ".txt")?;
 
         //Save the timestamp from the frame as the first line;
         let datetime_fmt = format!("{}\n", self.global_timestamp);
@@ -808,11 +808,11 @@ impl Heightmap {
     }
 
 
-    pub fn save_to_file(&mut self, filename : &str) -> Result<(), anyhow::Error>{
+    pub fn save_to_file(&mut self, filepath : &str) -> Result<(), anyhow::Error>{
 
 
         //Create a file
-        let mut file = File::create( "dump/".to_owned() + filename + ".txt")?;
+        let mut file = File::create( filepath.to_owned() + ".txt")?;
 
         //Iterate thorugh each row
         for row in self.cells.iter(){
