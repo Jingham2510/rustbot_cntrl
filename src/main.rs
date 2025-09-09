@@ -4,11 +4,13 @@
 //Author - Joe Ingham
 
 use std::collections::HashMap;
+use std::fs;
 use std::io::stdin;
 
 
 mod control;
 use control::abb_rob;
+use crate::mapping::terr_map_tools::Heightmap;
 
 mod mapping;
 
@@ -66,8 +68,9 @@ fn core_cmd_handler() {
             "quit" => break,
 
             "connect" => rob_connect(),
-            
-            "display" => display(),
+
+            "display" => {if let Ok(_) = display(){}
+                            else {println!("DISPLAY ERROR");}},
 
             //Catch all else
             _ => println!("Unknown command - see CMDs for list of commands"),
@@ -134,14 +137,93 @@ fn rob_connect() {
 }
 
 //Iterates through a tests generated heightmaps and displays them one by one
-fn display() {
-    
+fn display() -> Result<(), anyhow::Error>{
+
     //Print and number the list of tests in the DEPTH_TESTS folder (ignoring _archive)
-    
-    //Ask the user
-    
-    
-    
-    
-    todo!()
+    const DEPTH_TEST_FP : &str = "C:/Users/User/Documents/Results/DEPTH_TESTS";
+
+    let paths = fs::read_dir(DEPTH_TEST_FP)?;
+
+    //Test enumeration holder
+    let mut test_enum : Vec<(i32, String)> = vec![];
+
+    let mut test_cnt = 0;
+
+    for path in paths{
+        //Convert the path to a string
+        let folder_str = path?.file_name().into_string().expect("FAILED TO CONVERT PATH TO STRING");
+
+        //Ignore all folders starting with '_'
+        if folder_str.starts_with("_"){
+            continue
+        }
+
+
+
+        test_enum.push((test_cnt, folder_str));
+
+        test_cnt = test_cnt + 1;
+
+    }
+    //Ask the user to pick  the numbered tests they want to view
+    let mut user_sel : usize;
+
+    loop {
+
+        //Display all the test options
+        for test in test_enum.iter(){
+            println!("{} - {}", test.0, test.1);
+        }
+
+        println!("Please select a test number:");
+        //Get user input
+        let mut user_inp = String::new();
+        stdin()
+            .read_line(&mut user_inp)
+            .expect("Failed to read line");
+
+        //check if the user selection is valid
+        if let Ok(sel) = user_inp.trim().parse(){
+            user_sel = sel;
+            //If valid break
+            if user_sel < test_enum.len(){
+                break;
+            }
+        }else{
+            continue;
+        }
+    }
+
+
+    //Go through each file in the test directory
+    let test_dir = format!("{}/{}", DEPTH_TEST_FP, test_enum[user_sel].1);
+
+    let test_dir_files = fs::read_dir(test_dir)?;
+
+    for path in test_dir_files{
+
+        let path_str = path?.file_name().into_string().expect("FAILED TO CONVERT PATH TO STRING");
+
+        //Only read the hmap files
+        if !path_str.starts_with("hmap"){
+            continue;
+        }
+        else {
+            //Go through each hmap
+            println!("{:?}", path_str);
+
+            let full_fp = format!("{}/{}/{}", DEPTH_TEST_FP, test_enum[user_sel].1, path_str);
+
+            let mut curr_hmap = Heightmap::create_from_file(&*full_fp)?;
+
+            curr_hmap.disp_map();
+        }
+    }
+
+
+
+
+    Ok(())
+
+
 }

@@ -462,10 +462,10 @@ impl Heightmap {
 
     //Creates a heightmap from a hmap file
     //TODO: Handle file nout found error
-    pub fn create_from_file(filename : &str) -> Result<Self, anyhow::Error>{
+    pub fn create_from_file(filepath : &str) -> Result<Self, anyhow::Error>{
 
         //Create the filepath
-        let filepath = format!("dump/{}.txt", filename.to_string());
+        let filepath = format!("{}", filepath.to_string());
 
         //Open the file and create a buffer to read the lines
         let file = File::open(filepath)?;
@@ -491,7 +491,7 @@ impl Heightmap {
                     width = width + 1;
                 }
 
-                //Check the slot isnt empty
+                //Check the slot isn't empty
                 if !token.is_empty(){
                     row.push(token.parse::<f32>()?);
                 }
