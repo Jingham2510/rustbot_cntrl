@@ -378,7 +378,7 @@ impl AbbRob {
                             if cnt % DEPTH_FREQ == 0 || cnt == 0{
                                 if let Ok(_) = tx.send(true){
                                     //Do nothing here - normal operation
-                                    println!("trigger sent")
+                                    //println!("trigger sent")
                                 }else{
                                     println!("Warning - Cam thread dead!");
                                 }
