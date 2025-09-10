@@ -705,6 +705,11 @@ impl Heightmap {
             .log_level(TraceLogLevel::LOG_WARNING)
             .build();
 
+
+        let mut data_height = f32::NAN;
+
+
+
         while !rl.window_should_close() {
             //Create the drawing tool
             let mut d = rl.begin_drawing(&thread);
@@ -802,11 +807,18 @@ impl Heightmap {
                         (cell_height + 2.0 * LINE_THICKNESS) as i32,
                         cell_col,
                     );
+
+
+                    //Draw the text info
+                    let data_str = format!("Height: {}", data_height);
+                    d.draw_text(&*data_str, WINDOW_WIDTH_START as i32, WINDOW_HEIGHT_END as i32 + 25, 42, Color::BLACK);
+
+
                 }
             }
             
             //Check if the mouse is clicked
-            if d.is_mouse_button_pressed(MouseButton::MOUSE_BUTTON_LEFT){
+            if d.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT){
 
                 let m_pos = d.get_mouse_position();
 
@@ -815,7 +827,17 @@ impl Heightmap {
                     continue
                 }
 
-                println!("INSIDE");
+                //Remove window placement offset, then take the percentage across the screen
+                let perc_x = (m_pos.x - WINDOW_WIDTH_START)/(WINDOW_WIDTH_END - WINDOW_WIDTH_START);
+                let perc_y = (m_pos.y - WINDOW_HEIGHT_START)/(WINDOW_HEIGHT_END - WINDOW_HEIGHT_START);
+
+                //Calculate which cell the position corresponds to
+                let x_cell = (perc_x * self.width as f32).floor() as usize;
+                let y_cell = (perc_y * self.height as f32).floor() as usize;
+                data_height = self.cells[x_cell][y_cell];
+
+
+
 
 
 

@@ -7,20 +7,20 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::stdin;
 
-
 mod control;
-use control::abb_rob;
 use crate::mapping::terr_map_tools::Heightmap;
+use control::abb_rob;
 
 mod mapping;
 
-const VER_NUM: &str = "V0.2";
+const VER_NUM: &str = "V0.3";
 //Program title
 const TITLE: &str = "Rustbot Control";
 
 fn main() {
 
     println!("RUSTBOT_CNTRL STARTUP....");
+
 
 
     //Run the command handler
