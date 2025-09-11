@@ -1,6 +1,6 @@
 use crate::analysis::data_handler::DataHandler;
 use crate::mapping::terr_map_tools;
-use crate::mapping::terr_map_tools::Heightmap;
+use crate::mapping::terr_map_tools::{Heightmap, PointCloud};
 use anyhow::bail;
 use std::fs;
 
@@ -214,4 +214,68 @@ impl Analyser {
         }
         Ok(heightmaps)
     }
+
+    fn load_all_pcl(&mut self) -> Result<Vec<PointCloud>, anyhow::Error>{
+        println!("LOADING POINTCLOUDS ----------");
+
+        let mut pcls: Vec<PointCloud> = vec![];
+
+        //Iterate through each file
+        for path in fs::read_dir(&self.test_fp)? {
+            let path_str = path?.file_name();
+            let path_str = path_str.to_str().unwrap();
+
+            //Identify the hmap files
+            if path_str.starts_with("pcl_") {
+                let fp = format!("{}/{}", self.test_fp, path_str);
+
+                //Load the heightmap file
+                pcls.push(PointCloud::create_from_file(fp)?)
+            }
+        }
+        Ok(pcls)
+
+
+    }
+
+
+    //Isolates the region in each pointcloud that is potenitally affected by the trajectory
+    //Turns it into a heightmap and displays it
+    pub fn disp_iso_traj_path(&mut self, iso_x_radius : f32, iso_y_radius : f32){
+
+        //Load every pointcloud taken during the test
+        let pcls = self.load_all_pcl().unwrap();
+
+        //Get the bounds of the trajectory
+        let mut traj_bounds = self.get_traj_bounds();
+
+        //Stretch the bounds by the iso radius
+        traj_bounds[0] = traj_bounds[0] - iso_x_radius;
+        traj_bounds[1] = traj_bounds[1] + iso_x_radius;
+        traj_bounds[2] = traj_bounds[2] - iso_y_radius;
+        traj_bounds[3] = traj_bounds[3] + iso_y_radius;
+
+        //Transform the iso-radius bounds into the camera frame
+
+        let iso_passband : [f32;4] = [f32::NAN, f32::NAN, f32::NAN, f32::NAN];
+
+        todo!("Haven't got the transformation yet!");
+
+        //Apply the iso-radius bounds as a pass-band filter to each pointcloud
+        for mut pcl in pcls{
+            pcl.passband_filter(iso_passband[0], iso_passband[1], iso_passband[2], iso_passband[3], -999.0, 999.0)
+
+
+            //Transform the pointcloud to a heightmap and display it
+            let mut curr_hmap = Heightmap::create_from_pcl(pcl, 250, 250, false);
+            curr_hmap.disp_map();
+       
+        }
+
+
+
+    }
+
+
+
 }
