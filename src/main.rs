@@ -7,21 +7,18 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::stdin;
 
+mod analysis;
 mod control;
 mod mapping;
-mod analysis;
-use crate::mapping::terr_map_tools::Heightmap;
-use control::abb_rob;
 use crate::analysis::analyser::Analyser;
+use control::abb_rob;
 
 const VER_NUM: &str = "V0.3";
 //Program title
 const TITLE: &str = "Rustbot Control";
 
 fn main() {
-
-    println!("RUSTBOT_CNTRL STARTUP....");    
-
+    println!("RUSTBOT_CNTRL STARTUP....");
 
     //Run the command handler
     core_cmd_handler();
@@ -38,7 +35,7 @@ fn core_cmd_handler() {
         "cmds - list the currently implemented commands",
         "ping - TEST - connect to and ping the robot studio",
         "connect - connect to a robot on a given ip and port (if successful unlocks robot specific commands",
-        "analyse - analyse a previous tests data"
+        "analyse - analyse a previous tests data",
     ];
 
     println!("{TITLE} - {VER_NUM}");
@@ -69,16 +66,18 @@ fn core_cmd_handler() {
 
             "connect" => rob_connect(),
 
-            "analyse" => {if let Ok(_) = analyse(){}
-                            else {println!("ANALYSE ERROR");}},
+            "analyse" => {
+                if let Ok(_) = analyse() {
+                } else {
+                    println!("ANALYSE ERROR");
+                }
+            }
 
             //Catch all else
             _ => println!("Unknown command - see CMDs for list of commands"),
         }
     }
 }
-
-
 
 //Command line for logging into and controlling a robot
 fn rob_connect() {
@@ -137,38 +136,38 @@ fn rob_connect() {
 }
 
 //Iterates through a tests generated heightmaps and displays them one by one
-fn analyse() -> Result<(), anyhow::Error>{
-
+fn analyse() -> Result<(), anyhow::Error> {
     //Print and number the list of tests in the DEPTH_TESTS folder (ignoring _archive)
-    const DEPTH_TEST_FP : &str = "C:/Users/User/Documents/Results/DEPTH_TESTS";
+    const DEPTH_TEST_FP: &str = "C:/Users/User/Documents/Results/DEPTH_TESTS";
 
     let paths = fs::read_dir(DEPTH_TEST_FP)?;
 
     //Test enumeration holder
-    let mut test_enum : Vec<(i32, String)> = vec![];
+    let mut test_enum: Vec<(i32, String)> = vec![];
 
     let mut test_cnt = 0;
 
-    for path in paths{
+    for path in paths {
         //Convert the path to a string
-        let folder_str = path?.file_name().into_string().expect("FAILED TO CONVERT PATH TO STRING");
+        let folder_str = path?
+            .file_name()
+            .into_string()
+            .expect("FAILED TO CONVERT PATH TO STRING");
 
         //Ignore all folders starting with '_'
-        if folder_str.starts_with("_"){
-            continue
+        if folder_str.starts_with("_") {
+            continue;
         }
         test_enum.push((test_cnt, folder_str));
 
         test_cnt = test_cnt + 1;
-
     }
     //Ask the user to pick  the numbered tests they want to view
-    let mut user_sel : usize;
+    let mut user_sel: usize;
 
     loop {
-
         //Display all the test options
-        for test in test_enum.iter(){
+        for test in test_enum.iter() {
             println!("{} - {}", test.0, test.1);
         }
 
@@ -180,27 +179,22 @@ fn analyse() -> Result<(), anyhow::Error>{
             .expect("Failed to read line");
 
         //check if the user selection is valid
-        if let Ok(sel) = user_inp.trim().parse(){
+        if let Ok(sel) = user_inp.trim().parse() {
             user_sel = sel;
             //If valid break
-            if user_sel < test_enum.len(){
+            if user_sel < test_enum.len() {
                 break;
             }
-        }else{
+        } else {
             continue;
         }
     }
-    
-    
+
     //Create analysis tool from chosen test
     let mut analyser = Analyser::init(test_enum[user_sel].1.clone())?;
-    
-    
-    println!("{:?}", analyser.calc_coverage()); 
+
+    println!("{:?}", analyser.calc_coverage());
     analyser.display();
-    
 
     Ok(())
-
-
 }

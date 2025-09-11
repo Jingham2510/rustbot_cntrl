@@ -7,71 +7,60 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 
-
 //Pointcloud structure - contains purely point information
 //Basically a fancy vector wrapper
-pub struct PointCloud{
+pub struct PointCloud {
     //List of the points stored in xyz format
-    points : Vec<[f32; 3]>,
+    points: Vec<[f32; 3]>,
     //The number of points present
     no_of_points: usize,
 
     //The timestamp of when the pointcloud was captured (relative to when the camera started)
     rel_timestamp: f64,
 
-    global_timestamp: DateTime<Utc>
-
-
+    global_timestamp: DateTime<Utc>,
 }
 
-
-impl PointCloud{
-
+impl PointCloud {
     //Create a pointcloud from a list of points
-    pub fn create_from_list(pnts:Vec<[f32; 3]>, timestamp:f64) -> Self{
+    pub fn create_from_list(pnts: Vec<[f32; 3]>, timestamp: f64) -> Self {
         //Calculate the number of points
         let no_of_points = pnts.len();
 
-        Self{
+        Self {
             points: pnts,
             no_of_points,
             rel_timestamp: timestamp,
-            global_timestamp: Utc::now()
+            global_timestamp: Utc::now(),
         }
     }
 
-    pub fn create_from_iter(rs2_vertex: &[rs2_vertex], timestamp:f64) -> Self{
-
-        let mut points : Vec<[f32; 3]> = vec![];
+    pub fn create_from_iter(rs2_vertex: &[rs2_vertex], timestamp: f64) -> Self {
+        let mut points: Vec<[f32; 3]> = vec![];
         let mut no_of_points = 0;
 
-        for vertex in rs2_vertex.iter(){
-
+        for vertex in rs2_vertex.iter() {
             let pnt = vertex.xyz;
 
             //check if the point is valid - if not ignore it
-            if pnt == [0.0, 0.0, 0.0]{
+            if pnt == [0.0, 0.0, 0.0] {
                 continue;
             }
-
 
             points.push(pnt);
             no_of_points = no_of_points + 1;
         }
 
-        Self{
+        Self {
             points,
             no_of_points,
             rel_timestamp: timestamp,
-            global_timestamp: Utc::now()
+            global_timestamp: Utc::now(),
         }
-
-
     }
 
     //Load a pointcloud file and create
-    pub fn create_from_file(filename: String) -> Result<Self, anyhow::Error>{
-
+    pub fn create_from_file(filename: String) -> Result<Self, anyhow::Error> {
         //Create the filepath
         let filepath = format!("dump/{}.txt", filename.to_string());
 
@@ -79,37 +68,29 @@ impl PointCloud{
         let file = File::open(filepath)?;
         let mut line_reader = BufReader::new(file);
 
-
-
         //Read the first line to get the date
-        let timestamp_str :&mut String = &mut "".to_string();
+        let timestamp_str: &mut String = &mut "".to_string();
         line_reader.read_line(timestamp_str)?;
 
         println!("{}", timestamp_str);
 
         //Convert the string to the datetime f64
-        let global_timestamp : DateTime<Utc> = timestamp_str.parse()?;
-
+        let global_timestamp: DateTime<Utc> = timestamp_str.parse()?;
 
         //Setup the empty points
         let mut points = vec![];
 
-
-
-        for line in line_reader.lines(){
-
+        for line in line_reader.lines() {
             //Create empty point
             let mut pnt: [f32; 3] = [f32::NAN, f32::NAN, f32::NAN];
 
             let mut cnt = 0;
 
             //Delimit the line based on commas
-            for token in line?.split(","){
-
+            for token in line?.split(",") {
                 pnt[cnt] = token.parse()?;
 
                 cnt = cnt + 1;
-
             }
 
             points.push(pnt);
@@ -117,131 +98,131 @@ impl PointCloud{
 
         let no_of_points = points.len();
 
-        Ok(Self{
+        Ok(Self {
             points,
-            no_of_points ,
+            no_of_points,
             //Relative timestamp is -1.0 because there is no reference start time
             rel_timestamp: -1.0,
             global_timestamp,
         })
-
-
-
-
     }
 
-    pub fn points(&self) -> Vec<[f32; 3]>{
+    pub fn points(&self) -> Vec<[f32; 3]> {
         self.points.clone()
     }
 
     //Print all points
-    pub fn print_points(&mut self){
-        for pnt in self.points.iter(){
+    pub fn print_points(&mut self) {
+        for pnt in self.points.iter() {
             println!("{:?}", pnt);
         }
     }
 
     //Calculate the xy bounds of the pointcloud (rectangular)
     //Assumes z is the height
-    pub fn get_bounds(&mut self) -> [f32; 4]{
-
+    pub fn get_bounds(&mut self) -> [f32; 4] {
         //Predefine the values we are interested in
-        let mut x_min : f32 = 9999.0;
-        let mut y_min : f32 = 9999.0;
-        let mut x_max : f32 = -9999.0;
-        let mut y_max : f32 = -9999.0;
+        let mut x_min: f32 = 9999.0;
+        let mut y_min: f32 = 9999.0;
+        let mut x_max: f32 = -9999.0;
+        let mut y_max: f32 = -9999.0;
 
         //Check each point to if it escapes the set bounds
         //If points are sorted beforehand, no need! but sorting might take a while - and how do you sort?
-        for pnt in self.points.iter(){
-
+        for pnt in self.points.iter() {
             //Check x-bounds
-            if pnt[0] < x_min{
+            if pnt[0] < x_min {
                 x_min = pnt[0];
-            }else if pnt[0] > x_max{
+            } else if pnt[0] > x_max {
                 x_max = pnt[0];
             }
 
             //Check y-bounds
-            if pnt[1] < y_min{
+            if pnt[1] < y_min {
                 y_min = pnt[1];
-            }else if pnt[1] > y_max{
+            } else if pnt[1] > y_max {
                 y_max = pnt[1];
             }
         }
 
-
         //Return the bounding coordinates of the rectangle
         [x_min, x_max, y_min, y_max]
-
-
     }
-
-
 
     //Rotate a pointcloud - inplace
     //Can cheat with the mat multiplication here, we know the predefined sizes already
     //Yaw - X
     //Pitch - Y
     //Roll - Z
-    pub fn rotate(&mut self, yaw :f32, pitch : f32, roll : f32){
-
+    pub fn rotate(&mut self, yaw: f32, pitch: f32, roll: f32) {
         //Create the transform matrix rows
-        let x_rot = [roll.cos() * pitch.cos(), -((roll.sin()*yaw.cos()) + (roll.cos()*pitch.sin()*yaw.sin())), (roll.sin()*yaw.sin()) + (roll.cos()*pitch.sin()*yaw.cos())];
-        let y_rot = [roll.sin()*pitch.cos(), (roll.cos()*yaw.cos()) + (roll.sin()*pitch.sin()*yaw.sin()), -(roll.cos()*yaw.sin())+(roll.sin()*pitch.sin()*yaw.cos())];
-        let z_rot = [-pitch.sin(), pitch.cos()*yaw.sin(), pitch.cos()*yaw.cos()];
+        let x_rot = [
+            roll.cos() * pitch.cos(),
+            -((roll.sin() * yaw.cos()) + (roll.cos() * pitch.sin() * yaw.sin())),
+            (roll.sin() * yaw.sin()) + (roll.cos() * pitch.sin() * yaw.cos()),
+        ];
+        let y_rot = [
+            roll.sin() * pitch.cos(),
+            (roll.cos() * yaw.cos()) + (roll.sin() * pitch.sin() * yaw.sin()),
+            -(roll.cos() * yaw.sin()) + (roll.sin() * pitch.sin() * yaw.cos()),
+        ];
+        let z_rot = [
+            -pitch.sin(),
+            pitch.cos() * yaw.sin(),
+            pitch.cos() * yaw.cos(),
+        ];
 
         //Iterate through every point in the pointcloud
-        for pnt in self.points.iter_mut(){
-
+        for pnt in self.points.iter_mut() {
             //store the original points
             let og_x = pnt[0];
             let og_y = pnt[1];
             let og_z = pnt[2];
 
             //Rotate by multiplying the vector by the transform matrix
-            pnt[0] = x_rot[0]*og_x + x_rot[1]*og_y + x_rot[2]*og_z;
-            pnt[1] = y_rot[0]*og_x + y_rot[1]*og_y + y_rot[2]*og_z;
-            pnt[2] = z_rot[0]*og_x + z_rot[1]*og_y + z_rot[2]*og_z;
+            pnt[0] = x_rot[0] * og_x + x_rot[1] * og_y + x_rot[2] * og_z;
+            pnt[1] = y_rot[0] * og_x + y_rot[1] * og_y + y_rot[2] * og_z;
+            pnt[2] = z_rot[0] * og_x + z_rot[1] * og_y + z_rot[2] * og_z;
         }
-
-
-
     }
 
-
     //Translate a pointcloud with xyz coords - inplace
-    pub fn translate(&mut self, x: f32, y:f32, z : f32){
-
+    pub fn translate(&mut self, x: f32, y: f32, z: f32) {
         //Iterate through every point
-        for pnt in self.points.iter_mut(){
-
+        for pnt in self.points.iter_mut() {
             //Transform the points using addition
             pnt[0] = pnt[0] + x;
             pnt[1] = pnt[1] + y;
             pnt[2] = pnt[2] + z;
-
         }
     }
 
-
     //Filter a pointcloud by specifying the bounds (bounds inclusive of points on the bound)
-    pub fn passband_filter(&mut self, min_x :f32, max_x :f32, min_y :f32, max_y :f32, min_z :f32, max_z :f32){
-
-
-
+    pub fn passband_filter(
+        &mut self,
+        min_x: f32,
+        max_x: f32,
+        min_y: f32,
+        max_y: f32,
+        min_z: f32,
+        max_z: f32,
+    ) {
         let pnts = self.points();
 
-        let mut new_pnts : Vec<[f32; 3]> = vec![];
+        let mut new_pnts: Vec<[f32; 3]> = vec![];
 
-
-        for pnt in pnts{
+        for pnt in pnts {
             //Drop all the points that sit outside the bounds
-            if pnt[0] < min_x || pnt[0] > max_x || pnt[1] < min_y || pnt[1] > max_y || pnt[2] < min_z || pnt[2] > max_z{
-                continue
-            }else{
+            if pnt[0] < min_x
+                || pnt[0] > max_x
+                || pnt[1] < min_y
+                || pnt[1] > max_y
+                || pnt[2] < min_z
+                || pnt[2] > max_z
+            {
+                continue;
+            } else {
                 new_pnts.push(pnt);
-
             }
         }
 
@@ -249,58 +230,33 @@ impl PointCloud{
         self.points = new_pnts;
         //Update the point count
         self.no_of_points = self.points.len();
-
     }
-
 
     //Save the pointcloud to an ASCII file
 
-    pub fn save_to_file(&mut self, filepath: &str) -> Result<(), anyhow::Error>{
-
+    pub fn save_to_file(&mut self, filepath: &str) -> Result<(), anyhow::Error> {
         //Create a file
         let mut file = File::create(filepath.to_owned() + ".txt")?;
 
         //Save the timestamp from the frame as the first line;
         let datetime_fmt = format!("{}\n", self.global_timestamp);
 
-
         file.write_all(datetime_fmt.as_bytes())?;
 
         //Save the cloud points on seperate lines
-        for i in 0..self.no_of_points{
-
-            let pnt = format!("{:?},{:?},{:?}\n", self.points[i][0], self.points[i][1], self.points[i][2]);
+        for i in 0..self.no_of_points {
+            let pnt = format!(
+                "{:?},{:?},{:?}\n",
+                self.points[i][0], self.points[i][1], self.points[i][2]
+            );
 
             file.write_all(pnt.as_bytes())?;
         }
 
-
         //Return the all clear
         Ok(())
-
-
     }
-
-
-
-
-
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 //Map structure - contains the size and height information for each cell
 pub struct Heightmap {
@@ -326,15 +282,12 @@ pub struct Heightmap {
     cells: Vec<Vec<f32>>,
 }
 
-
-
-impl Default for Heightmap{
+impl Default for Heightmap {
     //Default heightmap is a blank 250x250
-    fn default () -> Heightmap{
+    fn default() -> Heightmap {
         Heightmap::new(250, 250)
     }
 }
-
 
 //Map tools - including display and modification etc
 impl Heightmap {
@@ -362,9 +315,8 @@ impl Heightmap {
         }
     }
 
-
     //Create a heightmap from a pointcloud (takes ownership of pcl object)
-    pub fn create_from_pcl(mut pcl : PointCloud, width : u32, height: u32, density :bool) -> Self{
+    pub fn create_from_pcl(mut pcl: PointCloud, width: u32, height: u32, density: bool) -> Self {
         //Get the bounds
         let bounds = pcl.get_bounds();
 
@@ -380,9 +332,7 @@ impl Heightmap {
         let mut cells = vec![vec![f32::NAN; height as usize]; width as usize];
 
         //Check each points and direct it to a cell (updating the average height)
-        for pnt in pcl.points{
-
-
+        for pnt in pcl.points {
             let mut n = 0;
             let mut m = 0;
 
@@ -390,51 +340,49 @@ impl Heightmap {
             let mut m_fnd = false;
 
             //Find the horizontal pos
-            while !n_fnd{
-
+            while !n_fnd {
                 if pnt[0] < ((total_width / width as f32) * n as f32) + bounds[0] {
                     n_fnd = true;
-                }else{
+                } else {
                     n = n + 1;
                 }
 
                 //Check if end pos
-                if n == (width-1) as usize{
+                if n == (width - 1) as usize {
                     n_fnd = true;
                 }
             }
 
             //Find the vertical pos
-            while !m_fnd{
-
-                if pnt[1] < ((total_height / height as f32) * m as f32) + bounds[2]{
+            while !m_fnd {
+                if pnt[1] < ((total_height / height as f32) * m as f32) + bounds[2] {
                     m_fnd = true;
-                }else{
-                    m = m +1;
+                } else {
+                    m = m + 1;
                 }
                 //Check if end pos
-                if m == (height - 1) as usize{
+                if m == (height - 1) as usize {
                     m_fnd = true;
                 }
             }
 
             //Set the pcl to 0.0 at the start to avoid mem errors
-            if cell_pnt_cnt[n][m] == 0.0{
+            if cell_pnt_cnt[n][m] == 0.0 {
                 cells[n][m] = 0.0;
             }
 
             //Calculate the updated cumulitve average
-            cells[n][m] = (pnt[2] + cell_pnt_cnt[n][m] as f32 * cells[n][m])/(cell_pnt_cnt[n][m] + 1.0);
+            cells[n][m] =
+                (pnt[2] + cell_pnt_cnt[n][m] as f32 * cells[n][m]) / (cell_pnt_cnt[n][m] + 1.0);
             //Increase the point count
             cell_pnt_cnt[n][m] = cell_pnt_cnt[n][m] + 1.0;
-
         }
 
         let square;
         //check if the heightmap is square
-        if height == width{
-             square = true;
-        }else{
+        if height == width {
+            square = true;
+        } else {
             square = false;
         }
 
@@ -450,9 +398,9 @@ impl Heightmap {
                 max_updated: false,
                 min_pos: (0, 0),
                 max_pos: (0, 0),
-                cells
+                cells,
             }
-        }else{
+        } else {
             Self {
                 height,
                 width,
@@ -464,15 +412,13 @@ impl Heightmap {
                 max_updated: false,
                 min_pos: (0, 0),
                 max_pos: (0, 0),
-                cells : cell_pnt_cnt
+                cells: cell_pnt_cnt,
             }
         }
     }
 
-
     //Creates a heightmap from a hmap file
-    pub fn create_from_file(filepath : String) -> Result<Self, anyhow::Error>{
-
+    pub fn create_from_file(filepath: String) -> Result<Self, anyhow::Error> {
         //Create the filepath
         let filepath = format!("{}", filepath.to_string());
 
@@ -480,34 +426,30 @@ impl Heightmap {
         let file = File::open(filepath)?;
         let line_reader = BufReader::new(file);
 
-
         let mut height = 0;
         let mut width = 0;
         let mut width_set = false;
 
-
-        let mut cells : Vec<Vec<f32>> = vec![];
+        let mut cells: Vec<Vec<f32>> = vec![];
 
         //Go through each cell and update the
-        for line in line_reader.lines(){
-           //Create the empty row
-            let mut row : Vec<f32> = vec![];
+        for line in line_reader.lines() {
+            //Create the empty row
+            let mut row: Vec<f32> = vec![];
 
             //Split via comma then iterate
-            for token in line?.split(","){
-
-                if !width_set{
+            for token in line?.split(",") {
+                if !width_set {
                     width = width + 1;
                 }
 
                 //Check the slot isn't empty
-                if !token.is_empty(){
+                if !token.is_empty() {
                     row.push(token.parse::<f32>()?);
                 }
-
             }
 
-            if !width_set{
+            if !width_set {
                 width_set = true;
             }
 
@@ -517,40 +459,39 @@ impl Heightmap {
         }
 
         //Check to see if the grid is square
-        let mut square= false;
-        if height == width{
+        let mut square = false;
+        if height == width {
             square = true;
         }
 
-
-        Ok(Self{
+        Ok(Self {
             height,
             width,
             square,
-            no_of_cells: height*width,
+            no_of_cells: height * width,
             min: 999.0,
             max: -999.0,
             min_updated: false,
             max_updated: false,
             min_pos: (0, 0),
             max_pos: (0, 0),
-            cells
+            cells,
         })
     }
 
-
     //Creates a heightmap from a given pcl file
-    pub fn create_from_pcl_file(filepath : String, width : u32, height: u32, density :bool) -> Result<Self, anyhow::Error>{
-
+    pub fn create_from_pcl_file(
+        filepath: String,
+        width: u32,
+        height: u32,
+        density: bool,
+    ) -> Result<Self, anyhow::Error> {
         //Load the pcl file
         let pcl = PointCloud::create_from_file(filepath)?;
 
         //Turn the pcl into a heightmap and return it
         Ok(Heightmap::create_from_pcl(pcl, width, height, density))
-
     }
-
-
 
     pub fn print_cells(&self) {
         for row in &self.cells {
@@ -673,7 +614,7 @@ impl Heightmap {
     }
 
     //Generates a random pattern - for testing purposes
-    pub fn gen_random_pattern(& mut self){
+    pub fn gen_random_pattern(&mut self) {
         //Go through every cell and give it a random value
         for (_x, row) in self.cells.iter_mut().enumerate() {
             for (_y, col) in row.iter_mut().enumerate() {
@@ -683,14 +624,11 @@ impl Heightmap {
 
         self.get_max();
         self.get_min();
-
     }
 
     //Display the map as a grid - colouring in cells based on the height
     //TODO : ADD NON-RELATIVE COLOURING (I.E. BASED ON ACTUAL HEIGHT)
     pub fn disp_map(&mut self) {
-
-
         //Calcualte grid sizes etc
         //Square grid could be awkward if rectangular map but unlikely event
 
@@ -726,10 +664,7 @@ impl Heightmap {
             .log_level(TraceLogLevel::LOG_WARNING)
             .build();
 
-
         let mut data_height = f32::NAN;
-
-
 
         while !rl.window_should_close() {
             //Create the drawing tool
@@ -776,10 +711,10 @@ impl Heightmap {
 
             //Fill in the cell colours based on height values -----
             //Base colour gradient range on largest and minimum value (with a median to act as a neutral value)
-            if !self.min_updated{
+            if !self.min_updated {
                 self.get_min();
             }
-            if !self.max_updated{
+            if !self.max_updated {
                 self.get_max();
             }
 
@@ -829,70 +764,66 @@ impl Heightmap {
                         cell_col,
                     );
 
-
                     //Draw the text info
                     let data_str = format!("Height: {}", data_height);
-                    d.draw_text(&*data_str, WINDOW_WIDTH_START as i32, WINDOW_HEIGHT_END as i32 + 25, 42, Color::BLACK);
-
-
+                    d.draw_text(
+                        &*data_str,
+                        WINDOW_WIDTH_START as i32,
+                        WINDOW_HEIGHT_END as i32 + 25,
+                        42,
+                        Color::BLACK,
+                    );
                 }
             }
 
             //Check if the mouse is clicked
-            if d.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT){
-
+            if d.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT) {
                 let m_pos = d.get_mouse_position();
 
                 //Check if inside the bounds of the heightmap graphics
-                if m_pos.x < WINDOW_WIDTH_START|| m_pos.x > WINDOW_WIDTH_END|| m_pos.y < WINDOW_HEIGHT_START|| m_pos.y > WINDOW_HEIGHT_END{
-                    continue
+                if m_pos.x < WINDOW_WIDTH_START
+                    || m_pos.x > WINDOW_WIDTH_END
+                    || m_pos.y < WINDOW_HEIGHT_START
+                    || m_pos.y > WINDOW_HEIGHT_END
+                {
+                    continue;
                 }
 
                 //Remove window placement offset, then take the percentage across the screen
-                let perc_x = (m_pos.x - WINDOW_WIDTH_START)/(WINDOW_WIDTH_END - WINDOW_WIDTH_START);
-                let perc_y = (m_pos.y - WINDOW_HEIGHT_START)/(WINDOW_HEIGHT_END - WINDOW_HEIGHT_START);
+                let perc_x =
+                    (m_pos.x - WINDOW_WIDTH_START) / (WINDOW_WIDTH_END - WINDOW_WIDTH_START);
+                let perc_y =
+                    (m_pos.y - WINDOW_HEIGHT_START) / (WINDOW_HEIGHT_END - WINDOW_HEIGHT_START);
 
                 //Calculate which cell the position corresponds to
                 let x_cell = (perc_x * self.width as f32).floor() as usize;
                 let y_cell = (perc_y * self.height as f32).floor() as usize;
                 data_height = self.cells[x_cell][y_cell];
-
-
             }
-
         }
-
     }
 
-
     //Returns the flattened cells (i.e. every single cell)
-    pub fn get_flattened_cells(&mut self) -> Result<Vec<f32>, anyhow::Error>{
+    pub fn get_flattened_cells(&mut self) -> Result<Vec<f32>, anyhow::Error> {
+        let mut cell_list: Vec<f32> = vec![];
 
-        let mut cell_list : Vec<f32> = vec![];
-
-        for x in 0..(self.width -1) as usize{
-            for y in 0..(self.height -1) as usize{
+        for x in 0..(self.width - 1) as usize {
+            for y in 0..(self.height - 1) as usize {
                 cell_list.push(self.cells[x][y]);
             }
         }
 
-
         Ok(cell_list)
-
     }
 
-
-
     //Saves the heightmap to a text file
-    pub fn save_to_file(&mut self, filepath : &str) -> Result<(), anyhow::Error>{
-
-
+    pub fn save_to_file(&mut self, filepath: &str) -> Result<(), anyhow::Error> {
         //Create a file
-        let mut file = File::create( filepath.to_owned() + ".txt")?;
+        let mut file = File::create(filepath.to_owned() + ".txt")?;
 
         //Iterate thorugh each row
-        for row in self.cells.iter(){
-            for cell in row{
+        for row in self.cells.iter() {
+            for cell in row {
                 let cell_val = format!("{:?},", cell);
                 file.write_all(cell_val.as_bytes())?
             }
@@ -901,13 +832,14 @@ impl Heightmap {
         }
 
         Ok(())
-
     }
-
 }
 
 //Compares a given map with a desired map and outputs a map of height differences
-pub fn comp_maps(curr_map: &Heightmap, desired_map: &Heightmap) -> Result<Heightmap, anyhow::Error> {
+pub fn comp_maps(
+    curr_map: &Heightmap,
+    desired_map: &Heightmap,
+) -> Result<Heightmap, anyhow::Error> {
     //Check the maps are the same size - if not exit
     if curr_map.height != desired_map.height || curr_map.width != curr_map.width {
         bail!("Warning - Maps are not the same size - cannot be compared");
@@ -918,22 +850,19 @@ pub fn comp_maps(curr_map: &Heightmap, desired_map: &Heightmap) -> Result<Height
 
     //Sweep through each cell and replace with the new map height
     for (x, row) in diff_map.cells.iter_mut().enumerate() {
-
         //Ignore the final enumerator (outside range of the map?)
         if x == diff_map.height as usize {
-          continue
+            continue;
         }
 
-    for (y, col) in row.iter_mut().enumerate() {
-
+        for (y, col) in row.iter_mut().enumerate() {
             //Ignore the final enumerator (outside range of the map?)
-            if y == diff_map.width as usize{
-                continue
+            if y == diff_map.width as usize {
+                continue;
             }
 
             //First index is the row number (i.e. the height)
             let diff = curr_map.cells[x][y] - desired_map.cells[x][y];
-
 
             //Not entirely sure why y and x are the opposite way rounds but hey ho
             *col = diff;

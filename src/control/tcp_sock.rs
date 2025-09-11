@@ -1,7 +1,7 @@
+use anyhow::bail;
 use core::time::Duration;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Shutdown, TcpStream};
-use anyhow::bail;
 
 //TCP socket structure
 pub struct TcpSock {
@@ -72,8 +72,7 @@ impl TcpSock {
         if let Ok(_size) = reader.read_until(b'!', &mut recv) {
             //println!("{:?}", String::from_utf8(Vec::from(recv)));
 
-            Ok(String::from_utf8(Vec::from(recv))?,
-            )
+            Ok(String::from_utf8(Vec::from(recv))?)
         } else {
             println!("Failed to read TCP stream");
             self.last_error = Option::from(String::from("TCP Read Error"));

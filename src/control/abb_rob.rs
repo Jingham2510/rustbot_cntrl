@@ -7,9 +7,8 @@ use std::fs::OpenOptions;
 use std::io::{prelude::*, stdin};
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
-use std::{fs, thread};
 use std::time::SystemTime;
-
+use std::{fs, thread};
 
 pub struct AbbRob {
     socket: tcp_sock::TcpSock,
@@ -19,7 +18,7 @@ pub struct AbbRob {
     force: (f32, f32, f32, f32, f32, f32),
     move_flag: bool,
     traj_done_flag: bool,
-    disconnected : bool,
+    disconnected: bool,
 }
 
 pub const IMPL_COMMDS: [&str; 8] = [
@@ -41,7 +40,6 @@ impl AbbRob {
         if rob_sock.connect() == false {
             //Failed to connect
             bail!("Robot not connected")
-
         } else {
             let new_rob = AbbRob {
                 socket: rob_sock,
@@ -51,13 +49,12 @@ impl AbbRob {
                 force: (f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN),
                 move_flag: false,
                 traj_done_flag: false,
-                disconnected : false
+                disconnected: false,
             };
 
             Ok(new_rob)
         }
     }
-
 
     //Disconnect from the robot - don't change any robot info, chances are the robot is going out of scope after this
     pub fn disconnect_rob(&mut self) {
@@ -100,7 +97,7 @@ impl AbbRob {
                     self.req_ori();
                 }
 
-                "trajectory" =>{
+                "trajectory" => {
                     self.run_test();
                 }
 
@@ -115,14 +112,11 @@ impl AbbRob {
                     self.traj_queue_add_trans((790.0, 2300.0, 1400.0));
 
                     self.traj_queue_go();
-                    
-                    
                 }
 
                 "home" => {
                     self.go_home_pos();
                 }
-
 
                 _ => println!("Unknown command - see CMDs for list of commands"),
             }
@@ -151,30 +145,28 @@ impl AbbRob {
         }
     }
 
-    fn go_home_pos(&mut self){
+    fn go_home_pos(&mut self) {
         //Define the home point
         let home_pos = (177.77, 1777.27, 350.0);
-        
-        //Define the home orientation
-        let home_ori = angle_tools::Quartenion{
-            w : 0.02607,
-            x : -0.76666,
-            y : 0.64128,
-            z : 0.01799
-        };
 
+        //Define the home orientation
+        let home_ori = angle_tools::Quartenion {
+            w: 0.02607,
+            x: -0.76666,
+            y: 0.64128,
+            z: 0.01799,
+        };
 
         self.set_speed(500.0);
 
         //Set the pos and ori
         self.set_pos(home_pos);
-        
+
         self.set_ori(home_ori);
 
         self.set_speed(50.0);
 
         println!("Home!");
-
     }
 
     //Set the orientation of the robots tcp
@@ -280,11 +272,10 @@ impl AbbRob {
                 if recv == "TRUE" {
                     self.traj_done_flag = true;
                     Ok(true)
-                }else if recv == "FALSE"{
+                } else if recv == "FALSE" {
                     self.traj_done_flag = false;
                     Ok(false)
-                }
-                else {
+                } else {
                     println!("Warning - Trajectory flag error! - Unknown state!");
                     println!("Got response - `{recv}`");
                     bail!("Trajectory flag error");
@@ -299,8 +290,7 @@ impl AbbRob {
     }
 
     //Essentially another command line handler - just for running specific tests
-    fn run_test(&mut self){
-
+    fn run_test(&mut self) {
         println!("Specifiy the trajectory you wish to run");
 
         //Loop until command given
@@ -317,16 +307,12 @@ impl AbbRob {
                     println!("Specify the trajectory you wish to run");
                 }
                 //Print out the commands in the valid commands list
-
-                "exit" => {
-                    return
-                }
+                "exit" => return,
 
                 //Capture all other
                 other => {
                     //If the trajectory is valid - i.e. it has been programmed
                     if let Some(traj) = trajectory_planner::traj_gen(other) {
-
                         //Create the filename
                         println!("Please provide a test name");
 
@@ -345,18 +331,16 @@ impl AbbRob {
                         //Move to a starting point - above the starting point
                         self.set_pos((traj[0].0, traj[0].1, traj[0].2 + 25.0));
 
-
                         //Place all the trajectories in the queue
-                        for pnt in traj{
+                        for pnt in traj {
                             self.traj_queue_add_trans(pnt);
                         }
-                        
+
                         //Create a threading channel
                         let (tx, rx) = mpsc::channel();
 
                         //Create the thread that handles the depth camera
-                        thread::spawn( move ||
-                            Self::depth_sensing(rx, &*user_inp.trim(), true));
+                        thread::spawn(move || Self::depth_sensing(rx, &*user_inp.trim(), true));
 
                         //Start the trajectory
                         self.traj_queue_go();
@@ -365,21 +349,19 @@ impl AbbRob {
                         self.update_rob_info();
 
                         let mut cnt = 0;
-                        const DEPTH_FREQ : i32 = 250;
+                        const DEPTH_FREQ: i32 = 250;
 
                         //Read the values until the trajectory is reported as done
-                        while !self.traj_done_flag{
+                        while !self.traj_done_flag {
                             self.update_rob_info();
                             self.store_state(&filename, cnt);
 
-
-
                             //Trigger at the start - or at a specified interval
-                            if cnt % DEPTH_FREQ == 0 || cnt == 0{
-                                if let Ok(_) = tx.send(true){
+                            if cnt % DEPTH_FREQ == 0 || cnt == 0 {
+                                if let Ok(_) = tx.send(true) {
                                     //Do nothing here - normal operation
                                     //println!("trigger sent")
-                                }else{
+                                } else {
                                     println!("Warning - Cam thread dead!");
                                 }
                             }
@@ -387,36 +369,28 @@ impl AbbRob {
                             //Increase the count
                             cnt = cnt + 1;
 
-
-                            if self.disconnected{
+                            if self.disconnected {
                                 println!("Warning - disconnected during test");
                                 tx.send(false);
                                 return;
                             }
-
                         }
 
                         //No point error handling - if this fails the test is done anyways
                         tx.send(false);
                         println!("Trajectory done!");
 
-                        return
-
-
-                    }else{
+                        return;
+                    } else {
                         return;
                     }
                 }
-
             }
-
-
         }
     }
 
     //Function which repeatedly takes depth measurements on trigger from another thread
-    fn depth_sensing(rx : Receiver<bool>, test_name : &str, hmap : bool){
-
+    fn depth_sensing(rx: Receiver<bool>, test_name: &str, hmap: bool) {
         //Create a camera
         let mut cam = terr_map_sense::RealsenseCam::initialise().expect("Failed to create camera");
 
@@ -424,7 +398,6 @@ impl AbbRob {
 
         //Loop forever - will be killed once the test ends automatically
         loop {
-
             //Block until the trigger is recieved
             if rx.recv().expect("recieve thread error") {
                 println!("Taking depth measure");
@@ -443,11 +416,9 @@ impl AbbRob {
 
                 curr_pcl.save_to_file(&*filepath).unwrap();
 
-
                 if hmap {
                     //Create a heightmap from the pointcloud
                     let mut curr_hmap = Heightmap::create_from_pcl(curr_pcl, 250, 250, false);
-
 
                     //Save the heightmap
                     let filepath = format!("dump/{test_name}/hmap_{test_name}_{cnt}");
@@ -456,13 +427,12 @@ impl AbbRob {
 
                 //Increase the loop count
                 cnt = cnt + 1;
-            }else{
+            } else {
                 println!("Closing cam thread");
                 return;
             }
         }
     }
-
 
     //Requests the xyz position of the TCP from the robot and stores it in the robot info
     fn req_xyz(&mut self) {
@@ -476,7 +446,7 @@ impl AbbRob {
             if xyz_vec.len() != 3 {
                 println!("XYZ pos read error!");
                 self.pos = (f32::NAN, f32::NAN, f32::NAN);
-                return
+                return;
             } else {
                 //Store the pos in the robot info
                 self.pos = (xyz_vec[0], xyz_vec[1], xyz_vec[2]);
@@ -485,7 +455,7 @@ impl AbbRob {
             //If the socket request returns nothing
             println!("WARNING ROBOT DISCONNECTED");
             self.disconnected = true;
-            return
+            return;
         }
     }
 
@@ -526,7 +496,7 @@ impl AbbRob {
             if jtang_vec.len() != 6 {
                 println!("joint angle read error!");
                 println!("Expected: 6. Actual: {}", jtang_vec.len());
-                self.jnt_angles = (f32::NAN, f32::NAN,f32::NAN, f32::NAN,f32::NAN, f32::NAN);
+                self.jnt_angles = (f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN);
                 return;
             } else {
                 //Store the pos in the robot info
@@ -610,35 +580,31 @@ impl AbbRob {
     //Helper function that requests all the update information from the robot
     //Returns early from the function if the robot has disconnected
     fn update_rob_info(&mut self) {
-        self.req_xyz();        
-        if self.disconnected{
+        self.req_xyz();
+        if self.disconnected {
             return;
-        }          
+        }
         self.req_ori();
 
-        if self.disconnected{
+        if self.disconnected {
             return;
         }
         self.req_force();
 
-        if self.disconnected{
+        if self.disconnected {
             return;
         }
         self.req_rob_mov_state();
 
-        if self.disconnected{
+        if self.disconnected {
             return;
         }
-        
-        self.get_traj_done_flag();
 
+        self.get_traj_done_flag();
     }
 
-
     //Appends relevant test information to the provided filename
-    fn store_state(&mut self, filename : &String, i : i32){
-
-
+    fn store_state(&mut self, filename: &String, i: i32) {
         //Open the file (or create if it doesn't exist)
         let mut file = OpenOptions::new()
             .append(true)
@@ -647,31 +613,31 @@ impl AbbRob {
             .unwrap();
 
         //Format the line to write
-        let line = format!("{},{:?},[{},{},{}],[{},{},{}],[{},{},{},{},{},{}]",
-                           i,
-                            SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs_f64(),
-                            //Make sure that you dont print a lack of information in the data
-                           self.pos.0,
-                           self.pos.1,
-                           self.pos.2,
-                           self.ori.0,
-                           self.ori.1,
-                           self.ori.2,
-                           self.force.0,
-                           self.force.1,
-                           self.force.2,
-                           self.force.3,
-                           self.force.4,
-                           self.force.5,
+        let line = format!(
+            "{},{:?},[{},{},{}],[{},{},{}],[{},{},{},{},{},{}]",
+            i,
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs_f64(),
+            //Make sure that you dont print a lack of information in the data
+            self.pos.0,
+            self.pos.1,
+            self.pos.2,
+            self.ori.0,
+            self.ori.1,
+            self.ori.2,
+            self.force.0,
+            self.force.1,
+            self.force.2,
+            self.force.3,
+            self.force.4,
+            self.force.5,
         );
 
         //Write to the file - indicating if writing failed (but don't worry about it!)
-        if let Err(e) = writeln!(file, "{}", line){
-                eprint!("Couldn't write to file: {}", e);
-            }
+        if let Err(e) = writeln!(file, "{}", line) {
+            eprint!("Couldn't write to file: {}", e);
         }
-
-
-
     }
-
+}
