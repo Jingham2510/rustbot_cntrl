@@ -13,7 +13,7 @@ impl DataHandler{
 
     //Create a data handler by associating a data file with it
     //Do not store all the data in the object for now - can just read it when necessary
-    pub fn read_data_from_file(filepath : &str) -> Result<Self, anyhow::Error>{
+    pub fn read_data_from_file(filepath : String) -> Result<Self, anyhow::Error>{
 
         let file = File::open(filepath)?;
 
@@ -68,22 +68,19 @@ impl DataHandler{
         let mut max_y = -999.0;
 
         //Go through each piece of trajectory information
-        for pos in pos_list.iter(){
-            
-            if pos[0] < min_x{
+        for pos in pos_list.iter() {
+            if pos[0] < min_x {
                 min_x = pos[0];
-            }else if pos[0] > max_x{
+            } else if pos[0] > max_x {
                 max_x = pos[0];
             }
-            
-            if pos[1] < min_y{
-                min_y = pos[1];
-            }else if pos[1] > max_y{
-                max_y = pos[1];
-            }        
-            
-        }
 
+            if pos[1] < min_y {
+                min_y = pos[1];
+            } else if pos[1] > max_y {
+                max_y = pos[1];
+            }
+        }
 
         //Return the bounds
         [min_x, max_x, min_y, max_y]

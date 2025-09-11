@@ -70,7 +70,7 @@ impl PointCloud{
     }
 
     //Load a pointcloud file and create 
-    pub fn create_from_file(filename: &str) -> Result<Self, anyhow::Error>{
+    pub fn create_from_file(filename: String) -> Result<Self, anyhow::Error>{
         
         //Create the filepath
         let filepath = format!("dump/{}.txt", filename.to_string());
@@ -326,6 +326,16 @@ pub struct Heightmap {
     cells: Vec<Vec<f32>>,
 }
 
+
+
+impl Default for Heightmap{
+    //Default heightmap is a blank 250x250
+    fn default () -> Heightmap{
+        Heightmap::new(250, 250)
+    }
+}
+
+
 //Map tools - including display and modification etc
 impl Heightmap {
     pub fn new(width: u32, height: u32) -> Self {
@@ -461,8 +471,7 @@ impl Heightmap {
 
 
     //Creates a heightmap from a hmap file
-    //TODO: Handle file nout found error
-    pub fn create_from_file(filepath : &str) -> Result<Self, anyhow::Error>{
+    pub fn create_from_file(filepath : String) -> Result<Self, anyhow::Error>{
 
         //Create the filepath
         let filepath = format!("{}", filepath.to_string());
@@ -887,13 +896,25 @@ pub fn comp_maps(curr_map: &Heightmap, desired_map: &Heightmap) -> Result<Height
     }
 
     //Create a new empty map that holds the difference
-    let mut diff_map: Heightmap = Heightmap::new(curr_map.height, curr_map.width);
+    let mut diff_map: Heightmap = Heightmap::new(curr_map.width, curr_map.height);
 
     //Sweep through each cell and replace with the new map height
     for (x, row) in diff_map.cells.iter_mut().enumerate() {
-        for (y, col) in row.iter_mut().enumerate() {
 
-            let diff = curr_map.cells[y][x] - desired_map.cells[y][x];
+        //Ignore the final enumerator (outside range of the map?)
+        if x == diff_map.height as usize {
+          continue
+        }
+
+    for (y, col) in row.iter_mut().enumerate() {
+
+            //Ignore the final enumerator (outside range of the map?)
+            if y == diff_map.width as usize{
+                continue
+            }
+
+            //First index is the row number (i.e. the height)
+            let diff = curr_map.cells[x][y] - desired_map.cells[x][y];
 
 
             //Not entirely sure why y and x are the opposite way rounds but hey ho

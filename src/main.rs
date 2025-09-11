@@ -12,9 +12,7 @@ mod mapping;
 mod analysis;
 use crate::mapping::terr_map_tools::Heightmap;
 use control::abb_rob;
-use analysis::data_handler::DataHandler;
-
-
+use crate::analysis::analyser::Analyser;
 
 const VER_NUM: &str = "V0.3";
 //Program title
@@ -24,10 +22,11 @@ fn main() {
 
     println!("RUSTBOT_CNTRL STARTUP....");
 
-
-    let mut d_handle: DataHandler = DataHandler::read_data_from_file("C:/Users/User/Documents/Results/DEPTH_TESTS/line_depth_insert_09_09/data_line_depth_insert.txt").expect("FILE ERROR");
+    let mut d_analyser = Analyser::init("line_depth_insert_09_09").unwrap();
     
-    println!("{:?}",d_handle.get_traj_rect_bnds());
+    d_analyser.disp_overall_change();
+
+    
 
 
     //Run the command handler
@@ -221,7 +220,7 @@ fn display() -> Result<(), anyhow::Error>{
 
             let full_fp = format!("{}/{}/{}", DEPTH_TEST_FP, test_enum[user_sel].1, path_str);
 
-            let mut curr_hmap = Heightmap::create_from_file(&*full_fp)?;
+            let mut curr_hmap = Heightmap::create_from_file(full_fp)?;
 
             curr_hmap.disp_map();
         }
