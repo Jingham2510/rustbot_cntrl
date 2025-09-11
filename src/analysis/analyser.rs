@@ -20,10 +20,10 @@ const DEFAULT_TEST_FP : &str = "C:/Users/User/Documents/Results/DEPTH_TESTS";
 impl Analyser{
 
     //Create a data analyser
-    pub fn init(test_name : &str) -> Result<Self, anyhow::Error>{
+    pub fn init(test_name : String) -> Result<Self, anyhow::Error>{
 
         //Check that the test exists
-        if !fs::read_dir(DEFAULT_TEST_FP)?.any( |e| e.unwrap().file_name() == test_name){
+        if !fs::read_dir(DEFAULT_TEST_FP)?.any( |e| e.unwrap().file_name().into_string().unwrap() == test_name){
             bail!("Test {} does not exist!", test_name);
         }
 
@@ -87,7 +87,6 @@ impl Analyser{
         //If the heightmaps haven't been genereated - generate them now
         if hmap_cnt < self.no_of_pcl{
 
-
             let first_fp = format!("{}/pcl_{}_0.txt", self.test_fp, self.test_name);
 
             let first_pcl = PointCloud::create_from_file(first_fp)?;
@@ -99,7 +98,8 @@ impl Analyser{
             let last_pcl = PointCloud::create_from_file(last_fp)?;
 
             last_hmap = Heightmap::create_from_pcl(last_pcl, 250, 250, false);
-        }else{
+        }//If the hmaps already exist, just load them
+        else{
 
             let first_fp = format!("{}/hmap_{}_0.txt", self.test_fp, self.test_name);
 
@@ -123,10 +123,35 @@ impl Analyser{
 
 
     }
+    
+    
+    //Displays all of the heightmaps associated with a test
+    pub fn display(&mut self) -> Result<(), anyhow::Error> {
 
+        //Go through each file in the test directory
+        for path in fs::read_dir(&self.test_fp)? {
+            let path_str = path?.file_name().into_string().expect("FAILED TO CONVERT PATH TO STRING");
 
+            //Only read the hmap files
+            if !path_str.starts_with("hmap") {
+                continue;
+            } else {
+                //Go through each hmap
+                println!("{:?}", path_str);
 
+                let full_fp = format!("{}/{}", self.test_fp, path_str);
+                
+                println!("{full_fp}");
 
+                let mut curr_hmap = Heightmap::create_from_file(full_fp)?;
 
-
+                curr_hmap.disp_map();
+            }
+        }
+        Ok(())
+    }
+    
+    
+  
+    
 }

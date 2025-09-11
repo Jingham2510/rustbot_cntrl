@@ -20,17 +20,11 @@ const TITLE: &str = "Rustbot Control";
 
 fn main() {
 
-    println!("RUSTBOT_CNTRL STARTUP....");
-
-    let mut d_analyser = Analyser::init("line_depth_insert_09_09").unwrap();
-    
-    d_analyser.disp_overall_change();
-
-    
+    println!("RUSTBOT_CNTRL STARTUP....");    
 
 
     //Run the command handler
-    //core_cmd_handler();
+    core_cmd_handler();
 
     println!("Shutting down");
 }
@@ -44,7 +38,7 @@ fn core_cmd_handler() {
         "cmds - list the currently implemented commands",
         "ping - TEST - connect to and ping the robot studio",
         "connect - connect to a robot on a given ip and port (if successful unlocks robot specific commands",
-        "display - iterate through a tests produced heightmaps"
+        "analyse - analyse a previous tests data"
     ];
 
     println!("{TITLE} - {VER_NUM}");
@@ -75,8 +69,8 @@ fn core_cmd_handler() {
 
             "connect" => rob_connect(),
 
-            "display" => {if let Ok(_) = display(){}
-                            else {println!("DISPLAY ERROR");}},
+            "analyse" => {if let Ok(_) = analyse(){}
+                            else {println!("ANALYSE ERROR");}},
 
             //Catch all else
             _ => println!("Unknown command - see CMDs for list of commands"),
@@ -143,7 +137,7 @@ fn rob_connect() {
 }
 
 //Iterates through a tests generated heightmaps and displays them one by one
-fn display() -> Result<(), anyhow::Error>{
+fn analyse() -> Result<(), anyhow::Error>{
 
     //Print and number the list of tests in the DEPTH_TESTS folder (ignoring _archive)
     const DEPTH_TEST_FP : &str = "C:/Users/User/Documents/Results/DEPTH_TESTS";
@@ -163,9 +157,6 @@ fn display() -> Result<(), anyhow::Error>{
         if folder_str.starts_with("_"){
             continue
         }
-
-
-
         test_enum.push((test_cnt, folder_str));
 
         test_cnt = test_cnt + 1;
@@ -199,35 +190,14 @@ fn display() -> Result<(), anyhow::Error>{
             continue;
         }
     }
-
-
-    //Go through each file in the test directory
-    let test_dir = format!("{}/{}", DEPTH_TEST_FP, test_enum[user_sel].1);
-
-    let test_dir_files = fs::read_dir(test_dir)?;
-
-    for path in test_dir_files{
-
-        let path_str = path?.file_name().into_string().expect("FAILED TO CONVERT PATH TO STRING");
-
-        //Only read the hmap files
-        if !path_str.starts_with("hmap"){
-            continue;
-        }
-        else {
-            //Go through each hmap
-            println!("{:?}", path_str);
-
-            let full_fp = format!("{}/{}/{}", DEPTH_TEST_FP, test_enum[user_sel].1, path_str);
-
-            let mut curr_hmap = Heightmap::create_from_file(full_fp)?;
-
-            curr_hmap.disp_map();
-        }
-    }
-
-
-
+    
+    
+    //Create analysis tool from chosen test
+    let analyser = Analyser::init(test_enum[user_sel].1.clone());
+    
+    
+    analyser?.display();    
+    
 
     Ok(())
 
