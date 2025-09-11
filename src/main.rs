@@ -193,10 +193,11 @@ fn analyse() -> Result<(), anyhow::Error>{
     
     
     //Create analysis tool from chosen test
-    let analyser = Analyser::init(test_enum[user_sel].1.clone());
+    let mut analyser = Analyser::init(test_enum[user_sel].1.clone())?;
     
     
-    analyser?.display();    
+    println!("{:?}", analyser.calc_coverage()); 
+    analyser.display();
     
 
     Ok(())

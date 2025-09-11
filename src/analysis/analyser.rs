@@ -33,7 +33,7 @@ impl Analyser{
         let mut no_of_pcl = 0;
         for path in fs::read_dir(&test_fp)?{
 
-            if path.unwrap().file_name().to_str().unwrap().starts_with("pcl_"){
+            if path?.file_name().to_str().unwrap().starts_with("pcl_"){
                 no_of_pcl = no_of_pcl + 1;
             }
         }
@@ -72,32 +72,21 @@ impl Analyser{
         }
 
 
-        //Count the number of heightmaps saved in the test
-        let mut hmap_cnt = 0;
-
-        for path in fs::read_dir(&self.test_fp)?{
-            if path?.file_name().to_str().unwrap().starts_with("hmap_"){
-                hmap_cnt = hmap_cnt + 1;
-            }
-        }
+        let hmap_cnt = self.get_hmap_cnt();
 
         let mut first_hmap : Heightmap = Default::default();
         let mut last_hmap : Heightmap = Default::default();
 
         //If the heightmaps haven't been genereated - generate them now
-        if hmap_cnt < self.no_of_pcl{
+        if self.no_of_pcl > hmap_cnt?{
 
             let first_fp = format!("{}/pcl_{}_0.txt", self.test_fp, self.test_name);
 
-            let first_pcl = PointCloud::create_from_file(first_fp)?;
-
-            first_hmap = Heightmap::create_from_pcl(first_pcl, 250, 250, false);
+            first_hmap = Heightmap::create_from_pcl_file(first_fp, 250, 250, false)?;
 
             let last_fp = format!("{}/pcl_{}_{}.txt", self.test_fp, self.test_name, self.no_of_pcl - 1);
 
-            let last_pcl = PointCloud::create_from_file(last_fp)?;
-
-            last_hmap = Heightmap::create_from_pcl(last_pcl, 250, 250, false);
+            last_hmap = Heightmap::create_from_pcl_file(last_fp, 250, 250, false)?;
         }//If the hmaps already exist, just load them
         else{
 
@@ -123,35 +112,138 @@ impl Analyser{
 
 
     }
-    
-    
-    //Displays all of the heightmaps associated with a test
+
+    //Displays all of heightmaps associated with a test
+    //TODO: Check if hmaps havent been genereated, then generate and display from pcl
     pub fn display(&mut self) -> Result<(), anyhow::Error> {
 
-        //Go through each file in the test directory
-        for path in fs::read_dir(&self.test_fp)? {
-            let path_str = path?.file_name().into_string().expect("FAILED TO CONVERT PATH TO STRING");
 
-            //Only read the hmap files
-            if !path_str.starts_with("hmap") {
-                continue;
-            } else {
-                //Go through each hmap
-                println!("{:?}", path_str);
+        let mut heightmaps: Vec<Heightmap> = vec![];
 
-                let full_fp = format!("{}/{}", self.test_fp, path_str);
-                
-                println!("{full_fp}");
-
-                let mut curr_hmap = Heightmap::create_from_file(full_fp)?;
-
-                curr_hmap.disp_map();
-            }
+        //Check if the hmaps have been generated
+        if self.no_of_pcl > self.get_hmap_cnt()?{
+            //If not generate them
+            heightmaps = self.gen_all_hmaps(250, 250)?;
+        }else{
+            heightmaps = self.load_all_genned_hmaps()?
         }
+
+
+        //Go through every heightmap and display it
+        for mut hmap in heightmaps{
+            hmap.disp_map();
+        }
+
         Ok(())
     }
-    
-    
-  
-    
+
+
+    //Calculates the total coverage of a measured area (i.e. how much unknown space there is)
+    pub fn calc_coverage(&mut self) -> Result<Vec<f32>, anyhow::Error>{
+
+        let mut hmaps : Vec<Heightmap> = vec![];
+
+        //Check if the hmaps have been generated
+        if self.no_of_pcl > self.get_hmap_cnt()?{
+            //If not generate them
+            hmaps = self.gen_all_hmaps(250, 250)?;
+        }else{
+            hmaps = self.load_all_genned_hmaps()?
+        }
+
+
+        let mut coverages : Vec<f32> = vec![];
+
+        //Check each map
+        for mut map in hmaps{
+
+            let mut filled_cells = 0;
+            for cell in map.get_flattened_cells()?{
+                if f32::is_nan(cell){
+                    filled_cells = filled_cells + 1;
+                }
+            }            
+            coverages.push(filled_cells as f32/(map.no_of_cells as f32))
+        }
+
+
+
+        Ok(coverages)
+
+    }
+
+
+    //Counts the numbre of generated hmaps saved in the test dir
+    fn get_hmap_cnt(&mut self) -> Result<i32, anyhow::Error>{
+
+        //Count the number of heightmaps saved in the test
+        let mut hmap_cnt = 0;
+
+        for path in fs::read_dir(&self.test_fp)?{
+            if path?.file_name().to_str().unwrap().starts_with("hmap_"){
+                hmap_cnt = hmap_cnt + 1;
+            }
+        }
+
+        Ok(hmap_cnt)
+    }
+
+    //Generates all the heightmaps for each pcl in the test directory
+    fn gen_all_hmaps(&mut self, width : u32, height : u32) -> Result<Vec<Heightmap>, anyhow::Error>{
+
+
+        println!("GENERATING HEIGHTMAPS ---------");
+
+        let mut heightmaps: Vec<Heightmap> = vec![];
+
+        //Iterate through each file
+        for path in fs::read_dir(&self.test_fp)?{
+
+            let path_str = path?.file_name();
+            let path_str = path_str.to_str().unwrap();
+
+            //Identify the pcl files
+            if path_str.starts_with("pcl_"){
+
+                let fp = format!("{}/{}", self.test_fp, path_str);
+
+                //Create the heightmaps from the pcl
+                heightmaps.push(Heightmap::create_from_pcl_file(fp, width, height, false).unwrap())
+            }
+        }
+        Ok(heightmaps)
+    }
+
+    //Load all the hmaps saved to a test directory
+    fn load_all_genned_hmaps(&mut self) -> Result<Vec<Heightmap>, anyhow::Error>{
+
+        println!("LOADING HEIGHTMAPS ---------");
+
+
+        let mut heightmaps: Vec<Heightmap> = vec![];
+
+        //Iterate through each file
+        for path in fs::read_dir(&self.test_fp)?{
+
+            let path_str = path?.file_name();
+            let path_str = path_str.to_str().unwrap();
+
+            //Identify the hmap files
+            if path_str.starts_with("hmap_"){
+
+                let fp = format!("{}/{}", self.test_fp, path_str);
+
+                //Load the heightmap file
+                heightmaps.push(Heightmap::create_from_file(fp)?)
+            }
+        }
+        Ok(heightmaps)
+
+
+
+    }
+
+
+
+
 }

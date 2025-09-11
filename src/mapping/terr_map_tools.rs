@@ -69,18 +69,18 @@ impl PointCloud{
 
     }
 
-    //Load a pointcloud file and create 
+    //Load a pointcloud file and create
     pub fn create_from_file(filename: String) -> Result<Self, anyhow::Error>{
-        
+
         //Create the filepath
         let filepath = format!("dump/{}.txt", filename.to_string());
 
         //Open the file and create a buffer to read the lines
         let file = File::open(filepath)?;
         let mut line_reader = BufReader::new(file);
-        
-        
-        
+
+
+
         //Read the first line to get the date
         let timestamp_str :&mut String = &mut "".to_string();
         line_reader.read_line(timestamp_str)?;
@@ -89,34 +89,34 @@ impl PointCloud{
 
         //Convert the string to the datetime f64
         let global_timestamp : DateTime<Utc> = timestamp_str.parse()?;
-        
-        
+
+
         //Setup the empty points
         let mut points = vec![];
-        
-        
-        
+
+
+
         for line in line_reader.lines(){
-            
+
             //Create empty point
-            let mut pnt: [f32; 3] = [f32::NAN, f32::NAN, f32::NAN];            
-            
+            let mut pnt: [f32; 3] = [f32::NAN, f32::NAN, f32::NAN];
+
             let mut cnt = 0;
-            
+
             //Delimit the line based on commas
-            for token in line?.split(","){               
-                
+            for token in line?.split(","){
+
                 pnt[cnt] = token.parse()?;
-                
+
                 cnt = cnt + 1;
-                
+
             }
-            
+
             points.push(pnt);
         }
-        
+
         let no_of_points = points.len();
-        
+
         Ok(Self{
             points,
             no_of_points ,
@@ -124,10 +124,10 @@ impl PointCloud{
             rel_timestamp: -1.0,
             global_timestamp,
         })
-        
-        
-        
-        
+
+
+
+
     }
 
     pub fn points(&self) -> Vec<[f32; 3]>{
@@ -154,14 +154,14 @@ impl PointCloud{
         //Check each point to if it escapes the set bounds
         //If points are sorted beforehand, no need! but sorting might take a while - and how do you sort?
         for pnt in self.points.iter(){
-            
+
             //Check x-bounds
             if pnt[0] < x_min{
                 x_min = pnt[0];
             }else if pnt[0] > x_max{
                 x_max = pnt[0];
             }
-            
+
             //Check y-bounds
             if pnt[1] < y_min{
                 y_min = pnt[1];
@@ -169,7 +169,7 @@ impl PointCloud{
                 y_max = pnt[1];
             }
         }
-        
+
 
         //Return the bounding coordinates of the rectangle
         [x_min, x_max, y_min, y_max]
@@ -268,9 +268,9 @@ impl PointCloud{
 
         //Save the cloud points on seperate lines
         for i in 0..self.no_of_points{
-            
+
             let pnt = format!("{:?},{:?},{:?}\n", self.points[i][0], self.points[i][1], self.points[i][2]);
-            
+
             file.write_all(pnt.as_bytes())?;
         }
 
@@ -280,7 +280,7 @@ impl PointCloud{
 
 
     }
-    
+
 
 
 
@@ -310,7 +310,7 @@ pub struct Heightmap {
 
     //Indicates whether the grid is square or not
     square: bool,
-    no_of_cells: u32,
+    pub no_of_cells: u32,
 
     //The min and max cell heights
     min: f32,
@@ -536,6 +536,18 @@ impl Heightmap {
             max_pos: (0, 0),
             cells
         })
+    }
+
+
+    //Creates a heightmap from a given pcl file
+    pub fn create_from_pcl_file(filepath : String, width : u32, height: u32, density :bool) -> Result<Self, anyhow::Error>{
+
+        //Load the pcl file
+        let pcl = PointCloud::create_from_file(filepath)?;
+
+        //Turn the pcl into a heightmap and return it
+        Ok(Heightmap::create_from_pcl(pcl, width, height, density))
+
     }
 
 
@@ -825,7 +837,7 @@ impl Heightmap {
 
                 }
             }
-            
+
             //Check if the mouse is clicked
             if d.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT){
 
@@ -846,22 +858,32 @@ impl Heightmap {
                 data_height = self.cells[x_cell][y_cell];
 
 
-
-
-
-
             }
 
-
-
         }
-
-
-
 
     }
 
 
+    //Returns the flattened cells (i.e. every single cell)
+    pub fn get_flattened_cells(&mut self) -> Result<Vec<f32>, anyhow::Error>{
+
+        let mut cell_list : Vec<f32> = vec![];
+
+        for x in 0..(self.width -1) as usize{
+            for y in 0..(self.height -1) as usize{
+                cell_list.push(self.cells[x][y]);
+            }
+        }
+
+
+        Ok(cell_list)
+
+    }
+
+
+
+    //Saves the heightmap to a text file
     pub fn save_to_file(&mut self, filepath : &str) -> Result<(), anyhow::Error>{
 
 
@@ -878,13 +900,9 @@ impl Heightmap {
             file.write("\n".as_ref())?;
         }
 
-
-
         Ok(())
 
     }
-
-
 
 }
 
