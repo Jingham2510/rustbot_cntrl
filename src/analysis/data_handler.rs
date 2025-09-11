@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 
 //Object associated with completing data handling tasks
-struct DataHandler{
+pub struct DataHandler{
     file : File
 }
 
@@ -13,7 +13,7 @@ impl DataHandler{
 
     //Create a data handler by associating a data file with it
     //Do not store all the data in the object for now - can just read it when necessary
-    pub fn read_data_from_file(filepath : String) -> Result<Self, anyhow::Error>{
+    pub fn read_data_from_file(filepath : &str) -> Result<Self, anyhow::Error>{
 
         let file = File::open(filepath)?;
 
@@ -25,6 +25,7 @@ impl DataHandler{
 
 
     //Function which gets the rectangular bounds of a trajectory
+    //Z pos currently unused
     pub fn get_traj_rect_bnds(&mut self) -> [f32; 4]{
 
         //First create a line reader
@@ -36,22 +37,28 @@ impl DataHandler{
         //Read every line
         for line in line_reader.lines(){
 
-            if line.is_ok(){
+            let line = line.unwrap();
+            
+                //We know the data starts with ',[' so we can jump right to it
+                let line_split = line.split(",[");
 
-                let line_split = line.unwrap().split(",");
+                //Extract the pos information (index - 1)
+                //Remove the final square bracket
+                let curr_pos_string = line_split.collect::<Vec<&str>>()[1].replace("]", "");
 
-                //Extract the pos information (index - 2)
-                let curr_pos_string = line_split.collect::<Vec<&str>>()[2];
+
+                let mut curr_pos :[f32; 3] = [f32::NAN, f32::NAN, f32::NAN];
+                let mut cnt = 0;
 
                 //Extract the individual numbers from the pos string and feed them into a pos array
-                todo!()
+                for token in curr_pos_string.split(","){
+                    curr_pos[cnt] = token.parse().unwrap();
+                    cnt = cnt + 1;
+                }
+
 
                 //Push the pos array to the pos list
-
-            }else{
-                println!("Invalid data line!");
-
-            }
+                pos_list.push(curr_pos);
 
         }
 
@@ -62,9 +69,19 @@ impl DataHandler{
 
         //Go through each piece of trajectory information
         for pos in pos_list.iter(){
-
-            todo!()
-
+            
+            if pos[0] < min_x{
+                min_x = pos[0];
+            }else if pos[0] > max_x{
+                max_x = pos[0];
+            }
+            
+            if pos[1] < min_y{
+                min_y = pos[1];
+            }else if pos[1] > max_y{
+                max_y = pos[1];
+            }        
+            
         }
 
 

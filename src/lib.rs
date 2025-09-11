@@ -1,2 +1,3 @@
-pub mod control;
-pub mod mapping;
+mod control;
+mod mapping;
+mod analysis;

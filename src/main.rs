@@ -8,10 +8,13 @@ use std::fs;
 use std::io::stdin;
 
 mod control;
+mod mapping;
+mod analysis;
 use crate::mapping::terr_map_tools::Heightmap;
 use control::abb_rob;
+use analysis::data_handler::DataHandler;
 
-mod mapping;
+
 
 const VER_NUM: &str = "V0.3";
 //Program title
@@ -22,9 +25,13 @@ fn main() {
     println!("RUSTBOT_CNTRL STARTUP....");
 
 
+    let mut d_handle: DataHandler = DataHandler::read_data_from_file("C:/Users/User/Documents/Results/DEPTH_TESTS/line_depth_insert_09_09/data_line_depth_insert.txt").expect("FILE ERROR");
+    
+    println!("{:?}",d_handle.get_traj_rect_bnds());
+
 
     //Run the command handler
-    core_cmd_handler();
+    //core_cmd_handler();
 
     println!("Shutting down");
 }
