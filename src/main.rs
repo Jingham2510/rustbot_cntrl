@@ -7,6 +7,9 @@ use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::io::{stdin, Write};
+use std::thread::sleep;
+use std::time::Duration;
+use raylib::ffi::PI;
 
 mod analysis;
 mod control;
@@ -22,6 +25,8 @@ const TITLE: &str = "Rustbot Control";
 
 fn main() {
     println!("RUSTBOT_CNTRL STARTUP....");
+
+
 
     //Run the command handler
     core_cmd_handler();
@@ -75,13 +80,13 @@ fn core_cmd_handler() {
                     println!("ANALYSE ERROR - {e}")
                 }
             }
-            
+
             "snsdpth" => {
                 if let Err(e) = save_n_heightmaps() {
                     println!("MEASURE ERROR - {e}");
                 }
             }
-            
+
 
             //Catch all else
             _ => println!("Unknown command - see CMDs for list of commands"),
@@ -199,15 +204,15 @@ fn analyse() -> Result<(), anyhow::Error> {
             continue;
         }
     }
-    
-    
-    
+
+
+
 
     //Create analysis tool from chosen test
     let mut analyser = Analyser::init(test_enum[user_sel].1.clone())?;
 
     analyser.save_coverage()?;
-    
+
 
     Ok(())
 }
@@ -248,25 +253,34 @@ fn save_n_heightmaps() -> Result<(), anyhow::Error>{
     //Create a depth camera handler
     let mut cam = RealsenseCam::initialise()?;
 
+    //Sleep for 3 seconds to let the camera warm up
+    sleep(Duration::from_secs(3));
+
     //Measure n pcls then convert to heightmaps and save
     for i in 0..n{
-        
-        let curr_pcl = cam.get_depth_pnts()?;
-        
+
+        let mut curr_pcl = cam.get_depth_pnts()?;
+
+        //Rotate the PCL to orient it correctly
+        curr_pcl.rotate(PI as f32/2.0 - 0.524 , 0.0, 0.0);
+        //Empirically calculated passband to isolate terrain bed
+        curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
+
         let mut curr_heightmap = Heightmap::create_from_pcl(curr_pcl, 250, 250, false);
-        
+
         let hmap_fp = format!("{}/hmap_{}_{}", new_fp, user_inp.trim(), i);
-        
-        curr_heightmap.save_to_file(&*hmap_fp)?;        
+
+        curr_heightmap.save_to_file(&*hmap_fp)?;
     }
-    
-    
+
+
     //Create an empty data file so that the folder can be used with the analyser
     let data_fp = format!("{}/data_{}.txt", new_fp, user_inp.trim());
     let mut dat_file = File::create(data_fp)?;
     dat_file.write("NODATA - PURE DEPTH TEST".as_bytes())?;
 
 
+    println!("Heightmaps generated");
 
 
 
