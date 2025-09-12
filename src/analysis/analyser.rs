@@ -3,6 +3,8 @@ use crate::mapping::terr_map_tools;
 use crate::mapping::terr_map_tools::{Heightmap, PointCloud};
 use anyhow::bail;
 use std::fs;
+use std::fs::File;
+use std::io::Write;
 
 pub struct Analyser {
     //Name of the test
@@ -39,6 +41,8 @@ impl Analyser {
 
         //Create the data handler
         let data_fp = format!("{}/data_{}.txt", test_fp, test_name);
+
+        println!("{data_fp}");
 
         let data_handler = DataHandler::read_data_from_file(data_fp)?;
 
@@ -147,7 +151,7 @@ impl Analyser {
 
             let mut filled_cells = 0;
             for cell in map.get_flattened_cells()? {
-                if f32::is_nan(cell) {
+                if !f32::is_nan(cell) {
                     filled_cells = filled_cells + 1;
                 }
             }
@@ -156,6 +160,37 @@ impl Analyser {
 
         Ok(coverages)
     }
+
+
+    //Calculates and saves the coverage of a test to the test folder
+    pub fn save_coverage(&mut self) -> Result<(), anyhow::Error>{
+
+        //Get the coverages of the heightmaps
+        let covs = self.calc_coverage()?;
+
+        //Save them
+        let covs_fp = format!("{}/cov_{}.txt", self.test_fp, self.test_name);
+
+        let mut cov_file = File::create(covs_fp)?;
+
+        for cov in covs{
+            let curr_line = format!("{}\n", cov);
+
+            cov_file.write_all(curr_line.as_bytes())?;
+
+        }
+
+
+        println!("Covereage saved");
+
+        Ok(())
+
+
+
+
+    }
+
+
 
     //Counts the numbre of generated hmaps saved in the test dir
     fn get_hmap_cnt(&mut self) -> Result<i32, anyhow::Error> {
@@ -263,8 +298,7 @@ impl Analyser {
 
         //Apply the iso-radius bounds as a pass-band filter to each pointcloud
         for mut pcl in pcls{
-            pcl.passband_filter(iso_passband[0], iso_passband[1], iso_passband[2], iso_passband[3], -999.0, 999.0)
-
+            pcl.passband_filter(iso_passband[0], iso_passband[1], iso_passband[2], iso_passband[3], -999.0, 999.0);
 
             //Transform the pointcloud to a heightmap and display it
             let mut curr_hmap = Heightmap::create_from_pcl(pcl, 250, 250, false);

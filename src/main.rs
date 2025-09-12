@@ -5,13 +5,16 @@
 
 use std::collections::HashMap;
 use std::fs;
-use std::io::stdin;
+use std::fs::File;
+use std::io::{stdin, Write};
 
 mod analysis;
 mod control;
 mod mapping;
 use crate::analysis::analyser::Analyser;
 use control::abb_rob;
+use crate::mapping::terr_map_sense::RealsenseCam;
+use crate::mapping::terr_map_tools::Heightmap;
 
 const VER_NUM: &str = "V0.3";
 //Program title
@@ -29,13 +32,14 @@ fn main() {
 //Handles commands given by the user - without a robot
 fn core_cmd_handler() {
     //Array of implemented commands
-    const VALID_CMDS: [&str; 6] = [
+    const VALID_CMDS: [&str; 7] = [
         "info - get title and version number",
         "quit - close the program",
         "cmds - list the currently implemented commands",
         "ping - TEST - connect to and ping the robot studio",
         "connect - connect to a robot on a given ip and port (if successful unlocks robot specific commands",
         "analyse - analyse a previous tests data",
+        "snsdpth - Take N heightmap measurements"
     ];
 
     println!("{TITLE} - {VER_NUM}");
@@ -67,11 +71,17 @@ fn core_cmd_handler() {
             "connect" => rob_connect(),
 
             "analyse" => {
-                if let Ok(_) = analyse() {
-                } else {
-                    println!("ANALYSE ERROR");
+                if let Err(e) = analyse() {
+                    println!("ANALYSE ERROR - {e}")
                 }
             }
+            
+            "snsdpth" => {
+                if let Err(e) = save_n_heightmaps() {
+                    println!("MEASURE ERROR - {e}");
+                }
+            }
+            
 
             //Catch all else
             _ => println!("Unknown command - see CMDs for list of commands"),
@@ -189,12 +199,79 @@ fn analyse() -> Result<(), anyhow::Error> {
             continue;
         }
     }
+    
+    
+    
 
     //Create analysis tool from chosen test
     let mut analyser = Analyser::init(test_enum[user_sel].1.clone())?;
 
-    println!("{:?}", analyser.calc_coverage());
-    analyser.display();
+    analyser.save_coverage()?;
+    
 
     Ok(())
+}
+
+
+//For testing coverage and variance of a realsense depth cam
+fn save_n_heightmaps() -> Result<(), anyhow::Error>{
+
+
+    //Create the filename
+    println!("How many snapshots?");
+
+    //Get user input
+    let mut user_inp = String::new();
+    stdin()
+        .read_line(&mut user_inp)
+        .expect("Failed to read line");
+
+    //TODO - Handle erroneous user input
+    let n = user_inp.trim().parse::<i32>()?;
+
+    const DEPTH_TEST_FP: &str = "C:/Users/User/Documents/Results/DEPTH_TESTS";
+
+    //Ask the user for a dataset name
+    //Create the filename
+    println!("Please provide a test name");
+
+    //Get user input
+    let mut user_inp = String::new();
+    stdin()
+        .read_line(&mut user_inp)
+        .expect("Failed to read line");
+
+    //Create a folder to hold the test data
+    let new_fp = format!("{}/{}", DEPTH_TEST_FP, user_inp.trim());
+    fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
+
+    //Create a depth camera handler
+    let mut cam = RealsenseCam::initialise()?;
+
+    //Measure n pcls then convert to heightmaps and save
+    for i in 0..n{
+        
+        let curr_pcl = cam.get_depth_pnts()?;
+        
+        let mut curr_heightmap = Heightmap::create_from_pcl(curr_pcl, 250, 250, false);
+        
+        let hmap_fp = format!("{}/hmap_{}_{}", new_fp, user_inp.trim(), i);
+        
+        curr_heightmap.save_to_file(&*hmap_fp)?;        
+    }
+    
+    
+    //Create an empty data file so that the folder can be used with the analyser
+    let data_fp = format!("{}/data_{}.txt", new_fp, user_inp.trim());
+    let mut dat_file = File::create(data_fp)?;
+    dat_file.write("NODATA - PURE DEPTH TEST".as_bytes())?;
+
+
+
+
+
+    Ok(())
+
+
+
 }
