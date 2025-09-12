@@ -328,19 +328,26 @@ impl AbbRob {
 
                         let filename = format!("{}/data_{}.txt", new_fp, user_inp.trim());
 
+                        //Create a threading channel
+                        let (tx, rx) = mpsc::channel();
+
+                        //Create the thread that handles the depth camera
+                        thread::spawn(move || Self::depth_sensing(rx, &*user_inp.trim(), true));
+                        
+                        let start_pos = (traj[0].0, traj[0].1, traj[0].2 + 25.0);
+                        
                         //Move to a starting point - above the starting point
-                        self.set_pos((traj[0].0, traj[0].1, traj[0].2 + 25.0));
+                        self.set_pos(start_pos);
+
+                        //Trigger before the test begins
+                        if let Ok(_) = tx.send(true){}
 
                         //Place all the trajectories in the queue
                         for pnt in traj {
                             self.traj_queue_add_trans(pnt);
                         }
 
-                        //Create a threading channel
-                        let (tx, rx) = mpsc::channel();
 
-                        //Create the thread that handles the depth camera
-                        thread::spawn(move || Self::depth_sensing(rx, &*user_inp.trim(), true));
 
                         //Start the trajectory
                         self.traj_queue_go();
@@ -375,10 +382,17 @@ impl AbbRob {
                                 return;
                             }
                         }
-
+                        
+                        //VERIFY HOME POS BEFORE USING
+                        //self.go_home_pos();
+                        //Go back to start_pos - makes start_end comp easier?
+                        self.set_pos(start_pos);
                         //No point error handling - if this fails the test is done anyways
-                        tx.send(false);
+                        tx.send(true);                        
+                        
                         println!("Trajectory done!");
+
+                        tx.send(false);
 
                         return;
                     } else {
