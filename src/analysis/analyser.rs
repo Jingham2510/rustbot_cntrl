@@ -277,6 +277,31 @@ impl Analyser {
         //Load every pointcloud taken during the test
         let pcls = self.load_all_pcl().unwrap();
 
+
+        //Calculate the isolation rectangle bounds
+        let iso_bounds = self.gen_iso_rect(iso_x_radius, iso_y_radius);
+
+        //Apply the iso-radius bounds as a pass-band filter to each pointcloud
+        for mut pcl in pcls {
+            //Z is extreme because we have no modification to the z data
+            pcl.passband_filter(
+                iso_bounds[0],
+                iso_bounds[1],
+                iso_bounds[2],
+                iso_bounds[3],
+                -999.0,
+                999.0,
+            );
+
+            //Transform the pointcloud to a heightmap and display it
+            let mut curr_hmap = Heightmap::create_from_pcl(pcl, 250, 250, false);
+            curr_hmap.disp_map();
+        }
+    }
+
+    //Generates the isolation rectangle to surround the trajectory
+    fn gen_iso_rect(&mut self, iso_x_radius : f32, iso_y_radius : f32) -> [f32; 4]{
+
         //Get the bounds of the trajectory
         let mut traj_bounds = self.get_traj_bounds();
 
@@ -317,21 +342,10 @@ impl Analyser {
         traj_bounds[2] = traj_bounds[2] + y_trans_factor;
         traj_bounds[3] = traj_bounds[3] + y_trans_factor;
 
-        //Apply the iso-radius bounds as a pass-band filter to each pointcloud
-        for mut pcl in pcls {
-            //Z is extreme because we have no modification to the z data
-            pcl.passband_filter(
-                traj_bounds[0],
-                traj_bounds[1],
-                traj_bounds[2],
-                traj_bounds[3],
-                -999.0,
-                999.0,
-            );
+        //Return the new trajectory bounds
+        traj_bounds
 
-            //Transform the pointcloud to a heightmap and display it
-            let mut curr_hmap = Heightmap::create_from_pcl(pcl, 250, 250, false);
-            curr_hmap.disp_map();
-        }
     }
+
+
 }
