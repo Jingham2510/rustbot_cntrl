@@ -240,7 +240,7 @@ impl Analyser {
         let fp = format!("{}/pcl_{}_{}.txt", self.test_fp, self.test_name, n);
 
         //Generate the heightmap from the pcl file
-        let hmap = Heightmap::create_from_pcl_file(fp, 250, 250, false)?;
+        let hmap = Heightmap::create_from_pcl_file(fp, width,height, false)?;
 
         Ok(hmap)
     }
