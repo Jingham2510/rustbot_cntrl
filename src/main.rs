@@ -21,7 +21,7 @@ use crate::analysis::analyser::Analyser;
 use control::abb_rob;
 use crate::mapping::terr_map_sense::RealsenseCam;
 use crate::mapping::terr_map_tools::Heightmap;
-
+use crate::config::Config;
 
 const VER_NUM: &str = "V0.3";
 //Program title
@@ -31,7 +31,18 @@ const TITLE: &str = "Rustbot Control";
 fn main() -> Result<(), anyhow::Error>{
     println!("RUSTBOT_CNTRL STARTUP....");
 
-    let conf = config::Config::create_config()?;
+    //Load the program config
+    let config : Config;
+    if let Ok(conf) = Config::setup_config(){
+        config = conf;
+        println!("Config loaded");
+    }else{
+        println!("Error loading config - Loading default!");
+        config = Config::default();
+    }
+
+
+    println!("{:?}", config);
 
     //Run the command handler
     //core_cmd_handler();
@@ -213,12 +224,13 @@ fn analyse() -> Result<(), anyhow::Error> {
     }
 
 
-
-
     //Create analysis tool from chosen test
     let mut analyser = Analyser::init(test_enum[user_sel].1.clone())?;
 
-    analyser.save_coverage()?;
+
+    analyser.disp_overall_change();
+
+    //analyser.save_coverage()?;
 
 
     Ok(())
