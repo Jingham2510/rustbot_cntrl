@@ -282,6 +282,7 @@ pub struct Heightmap {
     cells: Vec<Vec<f32>>,
 }
 
+
 impl Default for Heightmap {
     //Default heightmap is a blank 250x250
     fn default() -> Heightmap {
@@ -801,6 +802,11 @@ impl Heightmap {
                 data_height = self.cells[x_cell][y_cell];
             }
         }
+    }
+
+    //Display the heightmap alongside the isolation bounds (i.e. draw an extra rectangle)
+    pub fn disp_map_and_iso(&self, iso_bounds: [f32; 4]) {
+        todo!()
     }
 
     //Returns the flattened cells (i.e. every single cell)

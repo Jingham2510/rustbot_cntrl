@@ -228,6 +228,23 @@ impl Analyser {
         Ok(heightmaps)
     }
 
+    fn gen_hmap_n(&mut self, width : u32, height : u32, n : i32) -> Result<Heightmap, anyhow::Error> {
+        println!("GENERATING HEIGHTMAP {n} ---------");
+
+        //Check that the n number is valid
+        if n >= self.no_of_pcl{
+            bail!("Invalid hmap number")
+        }
+
+        //Create the filepath
+        let fp = format!("{}/pcl_{}_{}.txt", self.test_fp, self.test_name, n);
+
+        //Generate the heightmap from the pcl file
+        let hmap = Heightmap::create_from_pcl_file(fp, 250, 250, false)?;
+
+        Ok(hmap)
+    }
+
     //Load all the hmaps saved to a test directory
     fn load_all_genned_hmaps(&mut self) -> Result<Vec<Heightmap>, anyhow::Error> {
         println!("LOADING HEIGHTMAPS ---------");
@@ -277,7 +294,6 @@ impl Analyser {
         //Load every pointcloud taken during the test
         let pcls = self.load_all_pcl().unwrap();
 
-
         //Calculate the isolation rectangle bounds
         let iso_bounds = self.gen_iso_rect(iso_x_radius, iso_y_radius);
 
@@ -298,6 +314,37 @@ impl Analyser {
             curr_hmap.disp_map();
         }
     }
+
+    //Displays the rectangle surrounding the trajectory
+    //Mainly for debug purpose
+    pub fn disp_iso_rect(&mut self, iso_x_radius: f32, iso_y_radius: f32) -> Result<(), anyhow::Error> {
+
+        //Generate the bounds for isolation
+        let iso_bounds = self.gen_iso_rect(iso_x_radius, iso_y_radius);
+
+        let hmap : Heightmap;
+
+        //Check to see if the heightmap needs to be generated
+        if self.get_hmap_cnt()? == self.no_of_pcl{
+
+            let hmap_fp = format!("{}/hmap_{}_{}", self.test_fp, self.test_name, (self.no_of_pcl - 1));
+
+            hmap = Heightmap::create_from_file(hmap_fp)?;
+        }else{
+            //If the hmap hasnt been generated - generate it!
+            hmap = self.gen_hmap_n(250, 250, (self.no_of_pcl - 1))?;
+        }
+
+        
+        //Display the map with the iso rectangle
+        hmap.disp_map_and_iso(iso_bounds);
+
+        Ok(())
+
+
+
+    }
+
 
     //Generates the isolation rectangle to surround the trajectory
     fn gen_iso_rect(&mut self, iso_x_radius : f32, iso_y_radius : f32) -> [f32; 4]{
@@ -344,7 +391,6 @@ impl Analyser {
 
         //Return the new trajectory bounds
         traj_bounds
-
     }
 
 
