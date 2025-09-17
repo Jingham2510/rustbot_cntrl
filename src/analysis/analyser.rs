@@ -1,16 +1,15 @@
 use crate::analysis::data_handler::DataHandler;
+use crate::config::CamInfo;
 use crate::mapping::terr_map_tools;
 use crate::mapping::terr_map_tools::{Heightmap, PointCloud};
 use anyhow::bail;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
-use crate::config::CamInfo;
 
 pub struct Analyser {
-
     //Filepath location of the test data
-    filepath : String,
+    filepath: String,
     //Name of the test
     test_name: String,
     //Folder location holding the test data
@@ -20,13 +19,12 @@ pub struct Analyser {
     //Number of pointlcouds taken in this test
     no_of_pcl: i32,
     //The camera information for the given test
-    cam_info : CamInfo
+    cam_info: CamInfo,
 }
 
 impl Analyser {
     //Create a data analyser
-    pub fn init(filepath : String, test_name: String) -> Result<Self, anyhow::Error> {
-
+    pub fn init(filepath: String, test_name: String) -> Result<Self, anyhow::Error> {
         let filepath = filepath;
 
         //Check that the test exists
@@ -62,7 +60,7 @@ impl Analyser {
             test_fp,
             data_handler,
             no_of_pcl,
-            cam_info
+            cam_info,
         })
     }
 
@@ -173,10 +171,8 @@ impl Analyser {
         Ok(coverages)
     }
 
-
     //Calculates and saves the coverage of a test to the test folder
-    pub fn save_coverage(&mut self) -> Result<(), anyhow::Error>{
-
+    pub fn save_coverage(&mut self) -> Result<(), anyhow::Error> {
         //Get the coverages of the heightmaps
         let covs = self.calc_coverage()?;
 
@@ -185,24 +181,16 @@ impl Analyser {
 
         let mut cov_file = File::create(covs_fp)?;
 
-        for cov in covs{
+        for cov in covs {
             let curr_line = format!("{}\n", cov);
 
             cov_file.write_all(curr_line.as_bytes())?;
-
         }
-
 
         println!("Covereage saved");
 
         Ok(())
-
-
-
-
     }
-
-
 
     //Counts the number of generated hmaps saved in the test dir
     fn get_hmap_cnt(&mut self) -> Result<i32, anyhow::Error> {
@@ -262,7 +250,7 @@ impl Analyser {
         Ok(heightmaps)
     }
 
-    fn load_all_pcl(&mut self) -> Result<Vec<PointCloud>, anyhow::Error>{
+    fn load_all_pcl(&mut self) -> Result<Vec<PointCloud>, anyhow::Error> {
         println!("LOADING POINTCLOUDS ----------");
 
         let mut pcls: Vec<PointCloud> = vec![];
@@ -281,15 +269,11 @@ impl Analyser {
             }
         }
         Ok(pcls)
-
-
     }
-
 
     //Isolates the region in each pointcloud that is potenitally affected by the trajectory
     //Turns it into a heightmap and displays it
-    pub fn disp_iso_traj_path(&mut self, iso_x_radius : f32, iso_y_radius : f32){
-
+    pub fn disp_iso_traj_path(&mut self, iso_x_radius: f32, iso_y_radius: f32) {
         //Load every pointcloud taken during the test
         let pcls = self.load_all_pcl().unwrap();
 
@@ -308,7 +292,7 @@ impl Analyser {
         //Need to think about this, do we want to stretch the points about the origin?
         //Or do we want to strech about the middle of the bounds?
         //There might not even be a scale? just change from mm to m
-        let x_stretch_factor= self.cam_info.x_scale();
+        let x_stretch_factor = self.cam_info.x_scale();
         let y_stretch_factor = self.cam_info.y_scale();
 
         //For now from the origin
@@ -318,14 +302,12 @@ impl Analyser {
         traj_bounds[2] = traj_bounds[2] * y_stretch_factor;
         traj_bounds[3] = traj_bounds[3] * y_stretch_factor;
 
-
         //Rotate the points - based on the y rotation (birdseye rotation)
         let theta = self.cam_info.rel_ori()[1];
-        traj_bounds[0] = traj_bounds[0]*theta.cos() - traj_bounds[2]*theta.sin();
-        traj_bounds[1] = traj_bounds[1]*theta.cos() - traj_bounds[3]*theta.sin();
+        traj_bounds[0] = traj_bounds[0] * theta.cos() - traj_bounds[2] * theta.sin();
+        traj_bounds[1] = traj_bounds[1] * theta.cos() - traj_bounds[3] * theta.sin();
         traj_bounds[2] = traj_bounds[0] * theta.sin() + traj_bounds[2] * theta.cos();
         traj_bounds[3] = traj_bounds[1] * theta.sin() + traj_bounds[3] * theta.cos();
-
 
         //Translate the points
         let x_trans_factor = self.cam_info.rel_pos()[0];
@@ -336,19 +318,20 @@ impl Analyser {
         traj_bounds[3] = traj_bounds[3] + y_trans_factor;
 
         //Apply the iso-radius bounds as a pass-band filter to each pointcloud
-        for mut pcl in pcls{
+        for mut pcl in pcls {
             //Z is extreme because we have no modification to the z data
-            pcl.passband_filter(traj_bounds[0], traj_bounds[1], traj_bounds[2], traj_bounds[3], -999.0, 999.0);
+            pcl.passband_filter(
+                traj_bounds[0],
+                traj_bounds[1],
+                traj_bounds[2],
+                traj_bounds[3],
+                -999.0,
+                999.0,
+            );
 
             //Transform the pointcloud to a heightmap and display it
             let mut curr_hmap = Heightmap::create_from_pcl(pcl, 250, 250, false);
-            curr_hmap.disp_map();       
+            curr_hmap.disp_map();
         }
-
-
-
     }
-
-
-
 }
