@@ -5,8 +5,12 @@ use anyhow::bail;
 use std::fs;
 use std::fs::File;
 use std::io::Write;
+use crate::config::CamInfo;
 
 pub struct Analyser {
+
+    //Filepath location of the test data
+    filepath : String,
     //Name of the test
     test_name: String,
     //Folder location holding the test data
@@ -15,21 +19,24 @@ pub struct Analyser {
     data_handler: DataHandler,
     //Number of pointlcouds taken in this test
     no_of_pcl: i32,
+    //The camera information for the given test
+    cam_info : CamInfo
 }
-
-const DEFAULT_TEST_FP: &str = "C:/Users/User/Documents/Results/DEPTH_TESTS";
 
 impl Analyser {
     //Create a data analyser
-    pub fn init(test_name: String) -> Result<Self, anyhow::Error> {
+    pub fn init(filepath : String, test_name: String) -> Result<Self, anyhow::Error> {
+
+        let filepath = filepath;
+
         //Check that the test exists
-        if !fs::read_dir(DEFAULT_TEST_FP)?
+        if !fs::read_dir(&filepath)?
             .any(|e| e.unwrap().file_name().into_string().unwrap() == test_name)
         {
             bail!("Test {} does not exist!", test_name);
         }
 
-        let test_fp = format!("{}/{}", DEFAULT_TEST_FP, test_name);
+        let test_fp = format!("{}/{}", filepath, test_name);
 
         //Count the number of pointclouds
         let mut no_of_pcl = 0;
@@ -44,13 +51,18 @@ impl Analyser {
 
         println!("{data_fp}");
 
-        let data_handler = DataHandler::read_data_from_file(data_fp)?;
+        let mut data_handler = DataHandler::read_data_from_file(data_fp)?;
+        let cam_info = data_handler.get_cam_info()?;
+
+        println!("{:?}", cam_info);
 
         Ok(Self {
+            filepath,
             test_name: test_name.to_string(),
             test_fp,
             data_handler,
             no_of_pcl,
+            cam_info
         })
     }
 

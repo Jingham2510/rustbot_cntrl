@@ -9,8 +9,9 @@ use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::time::SystemTime;
 use std::{fs, thread};
+use crate::config::Config;
 
-pub struct AbbRob {
+pub struct AbbRob<'a> {
     socket: tcp_sock::TcpSock,
     pos: (f32, f32, f32),
     ori: (f32, f32, f32),
@@ -19,6 +20,8 @@ pub struct AbbRob {
     move_flag: bool,
     traj_done_flag: bool,
     disconnected: bool,
+    //Programme setup config
+    config : &'a Config
 }
 
 pub const IMPL_COMMDS: [&str; 8] = [
@@ -32,8 +35,8 @@ pub const IMPL_COMMDS: [&str; 8] = [
     "req ori",
 ];
 
-impl AbbRob {
-    pub fn create_rob(ip: String, port: u32) -> Result<AbbRob, anyhow::Error> {
+impl AbbRob<'_> {
+    pub fn create_rob(ip: String, port: u32, config : &Config) -> Result<AbbRob, anyhow::Error> {
         //Create the robots socket
         let mut rob_sock = tcp_sock::create_sock(ip, port);
         //Attempt to connect to the robot
@@ -50,6 +53,7 @@ impl AbbRob {
                 move_flag: false,
                 traj_done_flag: false,
                 disconnected: false,
+                config
             };
 
             Ok(new_rob)
@@ -323,16 +327,16 @@ impl AbbRob {
                             .expect("Failed to read line");
 
                         //Create a folder to hold the test data
-                        let new_fp = format!("dump/{}", user_inp.trim());
+                        let new_fp = format!("{}/{}", self.config.test_fp(), user_inp.trim());
                         fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
 
                         let filename = format!("{}/data_{}.txt", new_fp, user_inp.trim());
 
-                        //Create a threading channel
+                        //Create a threading channel to trigger the camera
                         let (tx, rx) = mpsc::channel();
 
                         //Create the thread that handles the depth camera
-                        thread::spawn(move || Self::depth_sensing(rx, &*user_inp.trim(), true));
+                        thread::spawn(move || Self::depth_sensing(rx, new_fp, &*user_inp.trim(), true));
                         
                         let start_pos = (traj[0].0, traj[0].1, traj[0].2 + 25.0);
                         
@@ -346,7 +350,6 @@ impl AbbRob {
                         for pnt in traj {
                             self.traj_queue_add_trans(pnt);
                         }
-
 
 
                         //Start the trajectory
@@ -404,7 +407,7 @@ impl AbbRob {
     }
 
     //Function which repeatedly takes depth measurements on trigger from another thread
-    fn depth_sensing(rx: Receiver<bool>, test_name: &str, hmap: bool) {
+    fn depth_sensing(rx: Receiver<bool>, filepath : String, test_name: &str, hmap: bool) {
         //Create a camera
         let mut cam = terr_map_sense::RealsenseCam::initialise().expect("Failed to create camera");
 
@@ -419,23 +422,24 @@ impl AbbRob {
                 //Create a pointcloud
                 let mut curr_pcl = cam.get_depth_pnts().expect("Failed to get get pointcloud");
 
-                //For now - rotate and filter the cloud automatically - assume that we are working with the terrain box in the TRL
-                curr_pcl.rotate((std::f32::consts::PI / 4.0) + 0.12, 0.0, 0.0);
+                //Dont rotate or filter the data - save raw and reconstruct using the test data
+                //curr_pcl.rotate((std::f32::consts::PI / 4.0) + 0.12, 0.0, 0.0);
                 //Empirically calculated passband to isolate terrain bed
-                curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
+                //curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
 
                 //Save the pointcloud
-                let filepath = format!("dump/{test_name}/pcl_{test_name}_{cnt}");
-                println!("{}", filepath);
+                let pcl_filepath = format!("{filepath}/pcl_{test_name}_{cnt}");
+                
 
-                curr_pcl.save_to_file(&*filepath).unwrap();
+                curr_pcl.save_to_file(&*pcl_filepath).unwrap();
 
                 if hmap {
                     //Create a heightmap from the pointcloud
                     let mut curr_hmap = Heightmap::create_from_pcl(curr_pcl, 250, 250, false);
 
                     //Save the heightmap
-                    let filepath = format!("dump/{test_name}/hmap_{test_name}_{cnt}");
+                    let filepath = format!("{filepath}/hmap_{test_name}_{cnt}");
+                    println!("{filepath}");
                     curr_hmap.save_to_file(&*filepath).unwrap()
                 }
 
@@ -625,6 +629,23 @@ impl AbbRob {
             .create(true)
             .open(filename.trim())
             .unwrap();
+
+        //If the first line - print the cam info
+        if i == 0{
+            let line = format!("CAM: POS:[{},{},{}] ORI:[{},{},{}] X_SC:[{}] Y_SC:[{}]",
+                               self.config.cam_info.rel_pos()[0],
+                               self.config.cam_info.rel_pos()[1],
+                               self.config.cam_info.rel_pos()[2],
+                               self.config.cam_info.rel_ori()[0],
+                               self.config.cam_info.rel_ori()[1],
+                               self.config.cam_info.rel_ori()[2],
+                               self.config.cam_info.x_scale(),
+                               self.config.cam_info.y_scale()
+
+            );
+            writeln!(file, "{}", line).expect("FAILED TO WRITE CAM INFO - CLOSING");
+        }
+
 
         //Format the line to write
         let line = format!(

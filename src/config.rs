@@ -11,7 +11,7 @@ use anyhow::bail;
 #[derive(Debug)]
 pub struct Config{
     test_fp : String,
-    cam_info : CamInfo,
+    pub cam_info : CamInfo,
     //Indicator for test processing (in case of erroneous analyses)
     default : bool
 }
@@ -67,7 +67,7 @@ impl Config{
         //Get the Caminfo (from the file)
         Ok(Self{
             test_fp,
-            cam_info : CamInfo::setup_cam_info()?,
+            cam_info : CamInfo::read_cam_info_from_file()?,
             default : false
         })
     }
@@ -92,11 +92,34 @@ impl Config{
         //Auto extract the string
         Ok(data_fp[1].parse()?)
     }
+
+
+    pub fn test_fp(&self) -> String{
+        self.test_fp.clone()
+    }
+
+
+
+    pub fn is_default(&self) -> bool{
+        self.default
+    }
+
 }
 
 impl CamInfo{
 
-    fn setup_cam_info() -> Result<Self, anyhow::Error>{
+
+    pub fn create_cam_info(rel_pos : [f32;3], rel_ori : [f32;3], x_scale  :f32, y_scale : f32 ) -> Self{
+
+        Self{
+            rel_pos,
+            rel_ori,
+            x_scale,
+            y_scale
+        }
+    }
+
+    fn read_cam_info_from_file() -> Result<Self, anyhow::Error>{
 
         //Construct the filepath
         const CAM_CONFIG_FILENAME: &str = "caminfo.txt";
@@ -186,6 +209,23 @@ impl CamInfo{
         Ok(val.parse()?)
 
     }
+
+    pub fn rel_pos(&self) -> [f32;3]{
+        self.rel_pos
+    }
+
+    pub fn rel_ori(&self) -> [f32;3]{
+        self.rel_ori
+    }
+
+    pub fn x_scale(&self) -> f32{
+        self.x_scale
+    }
+
+    pub fn y_scale(&self) -> f32{
+        self.y_scale
+    }
+
 
 
 }

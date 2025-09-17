@@ -23,7 +23,7 @@ use crate::mapping::terr_map_sense::RealsenseCam;
 use crate::mapping::terr_map_tools::Heightmap;
 use crate::config::Config;
 
-const VER_NUM: &str = "V0.3";
+const VER_NUM: &str = "V0.4";
 //Program title
 const TITLE: &str = "Rustbot Control";
 
@@ -42,10 +42,8 @@ fn main() -> Result<(), anyhow::Error>{
     }
 
 
-    println!("{:?}", config);
-
     //Run the command handler
-    //core_cmd_handler();
+    core_cmd_handler(&config);
 
     println!("Shutting down");
 
@@ -53,7 +51,7 @@ fn main() -> Result<(), anyhow::Error>{
 }
 
 //Handles commands given by the user - without a robot
-fn core_cmd_handler() {
+fn core_cmd_handler(config : &Config) {
     //Array of implemented commands
     const VALID_CMDS: [&str; 7] = [
         "info - get title and version number",
@@ -91,16 +89,16 @@ fn core_cmd_handler() {
             }
             "quit" => break,
 
-            "connect" => rob_connect(),
+            "connect" => rob_connect(&config),
 
             "analyse" => {
-                if let Err(e) = analyse() {
+                if let Err(e) = analyse(&config) {
                     println!("ANALYSE ERROR - {e}")
                 }
             }
 
             "snsdpth" => {
-                if let Err(e) = save_n_heightmaps() {
+                if let Err(e) = save_n_heightmaps(&config) {
                     println!("MEASURE ERROR - {e}");
                 }
             }
@@ -113,7 +111,7 @@ fn core_cmd_handler() {
 }
 
 //Command line for logging into and controlling a robot
-fn rob_connect() {
+fn rob_connect(config : &Config) {
     //Not const because you cant make constant hashmaps
 
     let profiles = HashMap::from([
@@ -155,7 +153,7 @@ fn rob_connect() {
 
     //If connected - create the robot and keep it in scope to keep the connection open
     if let Ok(mut curr_rob) =
-        abb_rob::AbbRob::create_rob(profile[0].parse().unwrap(), profile[1].parse().unwrap())
+        abb_rob::AbbRob::create_rob(profile[0].parse().unwrap(), profile[1].parse().unwrap(), config)
     {
         println!("Connected!");
 
@@ -169,11 +167,11 @@ fn rob_connect() {
 }
 
 //Iterates through a tests generated heightmaps and displays them one by one
-fn analyse() -> Result<(), anyhow::Error> {
+fn analyse(config : &Config) -> Result<(), anyhow::Error> {
     //Print and number the list of tests in the DEPTH_TESTS folder (ignoring _archive)
-    const DEPTH_TEST_FP: &str = "C:/Users/User/Documents/Results/DEPTH_TESTS";
+    let depth_test_fp: String = config.test_fp();
 
-    let paths = fs::read_dir(DEPTH_TEST_FP)?;
+    let paths = fs::read_dir(&depth_test_fp)?;
 
     //Test enumeration holder
     let mut test_enum: Vec<(i32, String)> = vec![];
@@ -225,7 +223,7 @@ fn analyse() -> Result<(), anyhow::Error> {
 
 
     //Create analysis tool from chosen test
-    let mut analyser = Analyser::init(test_enum[user_sel].1.clone())?;
+    let mut analyser = Analyser::init(depth_test_fp, test_enum[user_sel].1.clone())?;
 
 
     analyser.disp_overall_change();
@@ -238,7 +236,7 @@ fn analyse() -> Result<(), anyhow::Error> {
 
 
 //For testing coverage and variance of a realsense depth cam
-fn save_n_heightmaps() -> Result<(), anyhow::Error>{
+fn save_n_heightmaps(config : &Config) -> Result<(), anyhow::Error>{
 
 
     //Create the filename
@@ -253,7 +251,7 @@ fn save_n_heightmaps() -> Result<(), anyhow::Error>{
     //TODO - Handle erroneous user input
     let n = user_inp.trim().parse::<i32>()?;
 
-    const DEPTH_TEST_FP: &str = "C:/Users/User/Documents/Results/DEPTH_TESTS";
+    let depth_test_fp: String = config.test_fp();
 
     //Ask the user for a dataset name
     //Create the filename
@@ -266,7 +264,7 @@ fn save_n_heightmaps() -> Result<(), anyhow::Error>{
         .expect("Failed to read line");
 
     //Create a folder to hold the test data
-    let new_fp = format!("{}/{}", DEPTH_TEST_FP, user_inp.trim());
+    let new_fp = format!("{}/{}", depth_test_fp, user_inp.trim());
     fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
 
     //Create a depth camera handler
