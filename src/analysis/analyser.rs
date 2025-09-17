@@ -292,9 +292,43 @@ impl Analyser {
 
         //Transform the iso-radius bounds into the camera frame
 
+        todo!("Haven't got the transformation yet!");
+
+        //Stretch the points to fit the camera frame
+        //Need to think about this, do we want to stretch the points about the origin?
+        //Or do we want to strech about the middle of the bounds?
+        //There might not even be a scale? just change from mm to m
+        let x_stretch_factor : f32;
+        let y_stretch_factor : f32;
+
+        //For now from the origin
+        traj_bounds[0] = traj_bounds[0] * x_stretch_factor;
+        traj_bounds[1] = traj_bounds[1] * x_stretch_factor;
+
+        traj_bounds[2] = traj_bounds[2] * y_stretch_factor;
+        traj_bounds[3] = traj_bounds[3] * y_stretch_factor;
+
+
+        //Rotate the points
+        let theta : f32;
+        traj_bounds[0] = traj_bounds[0]*theta.cos() - traj_bounds[2]*theta.sin();
+        traj_bounds[1] = traj_bounds[1]*theta.cos() - traj_bounds[3]*theta.sin();
+        traj_bounds[2] = traj_bounds[0] * theta.sin() + traj_bounds[2] * theta.cos();
+        traj_bounds[3] = traj_bounds[1] * theta.sin() + traj_bounds[3] * theta.cos();
+
+
+        //Translate the points
+        let x_trans_factor : f32;
+        let y_trans_factor : f32;
+        traj_bounds[0] = traj_bounds[0] + x_trans_factor;
+        traj_bounds[1] = traj_bounds[1] + x_trans_factor;
+        traj_bounds[2] = traj_bounds[2] + y_trans_factor;
+        traj_bounds[3] = traj_bounds[3] + y_trans_factor;
+
+
+
         let iso_passband : [f32;4] = [f32::NAN, f32::NAN, f32::NAN, f32::NAN];
 
-        todo!("Haven't got the transformation yet!");
 
         //Apply the iso-radius bounds as a pass-band filter to each pointcloud
         for mut pcl in pcls{

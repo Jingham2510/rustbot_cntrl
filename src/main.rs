@@ -14,24 +14,31 @@ use raylib::ffi::PI;
 mod analysis;
 mod control;
 mod mapping;
+mod config;
+
+
 use crate::analysis::analyser::Analyser;
 use control::abb_rob;
 use crate::mapping::terr_map_sense::RealsenseCam;
 use crate::mapping::terr_map_tools::Heightmap;
 
+
 const VER_NUM: &str = "V0.3";
 //Program title
 const TITLE: &str = "Rustbot Control";
 
-fn main() {
+
+fn main() -> Result<(), anyhow::Error>{
     println!("RUSTBOT_CNTRL STARTUP....");
 
-
+    let conf = config::Config::create_config()?;
 
     //Run the command handler
-    core_cmd_handler();
+    //core_cmd_handler();
 
     println!("Shutting down");
+
+    Ok(())
 }
 
 //Handles commands given by the user - without a robot
@@ -285,7 +292,5 @@ fn save_n_heightmaps() -> Result<(), anyhow::Error>{
 
 
     Ok(())
-
-
-
 }
+
