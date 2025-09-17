@@ -204,7 +204,7 @@ impl Analyser {
 
 
 
-    //Counts the numbre of generated hmaps saved in the test dir
+    //Counts the number of generated hmaps saved in the test dir
     fn get_hmap_cnt(&mut self) -> Result<i32, anyhow::Error> {
         //Count the number of heightmaps saved in the test
         let mut hmap_cnt = 0;

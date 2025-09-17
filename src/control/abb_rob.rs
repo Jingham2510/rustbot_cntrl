@@ -9,7 +9,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::time::SystemTime;
 use std::{fs, thread};
-use crate::config::Config;
+use crate::config::{CamInfo, Config};
 
 pub struct AbbRob<'a> {
     socket: tcp_sock::TcpSock,
@@ -336,7 +336,7 @@ impl AbbRob<'_> {
                         let (tx, rx) = mpsc::channel();
 
                         //Create the thread that handles the depth camera
-                        thread::spawn(move || Self::depth_sensing(rx, new_fp, &*user_inp.trim(), true));
+                        thread::spawn(move || Self::depth_sensing(rx, new_fp, &*user_inp.trim(), true, &self.config.cam_info));
                         
                         let start_pos = (traj[0].0, traj[0].1, traj[0].2 + 25.0);
                         
@@ -407,7 +407,7 @@ impl AbbRob<'_> {
     }
 
     //Function which repeatedly takes depth measurements on trigger from another thread
-    fn depth_sensing(rx: Receiver<bool>, filepath : String, test_name: &str, hmap: bool) {
+    fn depth_sensing(rx: Receiver<bool>, filepath : String, test_name: &str, hmap: bool, cam_info : &CamInfo) {
         //Create a camera
         let mut cam = terr_map_sense::RealsenseCam::initialise().expect("Failed to create camera");
 
@@ -422,8 +422,8 @@ impl AbbRob<'_> {
                 //Create a pointcloud
                 let mut curr_pcl = cam.get_depth_pnts().expect("Failed to get get pointcloud");
 
-                //Dont rotate or filter the data - save raw and reconstruct using the test data
-                //curr_pcl.rotate((std::f32::consts::PI / 4.0) + 0.12, 0.0, 0.0);
+                //Dont  filter the data - save raw (rotated though)
+                curr_pcl.rotate( cam_info.rel_ori()[0], cam_info.rel_ori()[1], cam_info.rel_ori()[2]);
                 //Empirically calculated passband to isolate terrain bed
                 //curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
 
