@@ -49,9 +49,9 @@ impl Analyser {
 
         println!("Loading data - {data_fp}");
         let mut data_handler = DataHandler::read_data_from_file(data_fp)?;
-        
+
         let cam_info = get_cam_info(&test_fp, &test_name)?;
-        println!("{:?}", cam_info);
+        println!("Cam config - {:?}", cam_info);
 
         Ok(Self {
             filepath,
@@ -64,7 +64,7 @@ impl Analyser {
     }
 
     //Get the rectangular bounds of the test (i.e. where the end-effector interacted with the soil)
-    pub fn get_traj_bounds(&mut self) -> [f32; 4] {
+    pub fn get_traj_bounds(&mut self) -> Result<[f32; 4], anyhow::Error> {
         self.data_handler.get_traj_rect_bnds()
     }
 
@@ -287,14 +287,36 @@ impl Analyser {
         Ok(pcls)
     }
 
+    //Generates the isolation rectangle to surround the trajectory
+    fn gen_iso_rect(&mut self, iso_x_radius : f32, iso_y_radius : f32) -> Result<[f32; 4], anyhow::Error>{
+
+        //Get the bounds of the trajectory
+        let mut traj_bounds = self.get_traj_bounds()?;
+
+        println!("Trajectory bounds - {:?}", traj_bounds);
+
+        //Increase the bounds by the iso radius
+        traj_bounds[0] = traj_bounds[0] - iso_x_radius;
+        traj_bounds[1] = traj_bounds[1] + iso_x_radius;
+        traj_bounds[2] = traj_bounds[2] - iso_y_radius;
+        traj_bounds[3] = traj_bounds[3] + iso_y_radius;
+
+        //No need to transform as data is transformed to correct frame when saved
+
+
+        //Return the new trajectory bounds
+        Ok(traj_bounds)
+    }
+
+
     //Isolates the region in each pointcloud that is potenitally affected by the trajectory
     //Turns it into a heightmap and displays it
-    pub fn disp_iso_traj_path(&mut self, iso_x_radius: f32, iso_y_radius: f32) {
+    pub fn disp_iso_traj_path(&mut self, iso_x_radius: f32, iso_y_radius: f32) -> Result<(), anyhow::Error> {
         //Load every pointcloud taken during the test
-        let pcls = self.load_all_pcl().unwrap();
+        let pcls = self.load_all_pcl()?;
 
         //Calculate the isolation rectangle bounds
-        let iso_bounds = self.gen_iso_rect(iso_x_radius, iso_y_radius);
+        let iso_bounds = self.gen_iso_rect(iso_x_radius, iso_y_radius)?;
 
         //Apply the iso-radius bounds as a pass-band filter to each pointcloud
         for mut pcl in pcls {
@@ -312,97 +334,23 @@ impl Analyser {
             let mut curr_hmap = Heightmap::create_from_pcl(pcl, 250, 250, false);
             curr_hmap.disp_map();
         }
-    }
-
-    //Displays the rectangle surrounding the trajectory
-    //Mainly for debug purpose
-    pub fn disp_iso_rect(&mut self, iso_x_radius: f32, iso_y_radius: f32) -> Result<(), anyhow::Error> {
-
-        //Generate the bounds for isolation
-        let iso_bounds = self.gen_iso_rect(iso_x_radius, iso_y_radius);
-
-        let mut hmap: Heightmap;
-
-        //Check to see if the heightmap needs to be generated
-        if self.get_hmap_cnt()? == self.no_of_pcl{
-
-            let hmap_fp = format!("{}/hmap_{}_{}", self.test_fp, self.test_name, (self.no_of_pcl - 1));
-
-            hmap = Heightmap::create_from_file(hmap_fp)?;
-        }else{
-            //If the hmap hasnt been generated - generate it!
-            hmap = self.gen_hmap_n(250, 250, (self.no_of_pcl - 1))?;
-        }
-
-        
-        //Display the map with the iso rectangle
-        hmap.disp_map_and_iso(iso_bounds);
 
         Ok(())
-
-
-
     }
 
 
-    //Generates the isolation rectangle to surround the trajectory
-    fn gen_iso_rect(&mut self, iso_x_radius : f32, iso_y_radius : f32) -> [f32; 4]{
 
-        //Get the bounds of the trajectory
-        let mut traj_bounds = self.get_traj_bounds();
 
-        //Stretch the bounds by the iso radius
-        traj_bounds[0] = traj_bounds[0] - iso_x_radius;
-        traj_bounds[1] = traj_bounds[1] + iso_x_radius;
-        traj_bounds[2] = traj_bounds[2] - iso_y_radius;
-        traj_bounds[3] = traj_bounds[3] + iso_y_radius;
-
-        //Transform the iso-radius bounds into the camera frame
-
-        //Stretch the points to fit the camera frame
-        //Need to think about this, do we want to stretch the points about the origin?
-        //Or do we want to strech about the middle of the bounds?
-        //There might not even be a scale? just change from mm to m
-        let x_stretch_factor = self.cam_info.x_scale();
-        let y_stretch_factor = self.cam_info.y_scale();
-
-        //For now from the origin
-        traj_bounds[0] = traj_bounds[0] * x_stretch_factor;
-        traj_bounds[1] = traj_bounds[1] * x_stretch_factor;
-
-        traj_bounds[2] = traj_bounds[2] * y_stretch_factor;
-        traj_bounds[3] = traj_bounds[3] * y_stretch_factor;
-
-        //Rotate the points - based on the y rotation (birdseye rotation)
-        let theta = self.cam_info.rel_ori()[1];
-        traj_bounds[0] = traj_bounds[0] * theta.cos() - traj_bounds[2] * theta.sin();
-        traj_bounds[1] = traj_bounds[1] * theta.cos() - traj_bounds[3] * theta.sin();
-        traj_bounds[2] = traj_bounds[0] * theta.sin() + traj_bounds[2] * theta.cos();
-        traj_bounds[3] = traj_bounds[1] * theta.sin() + traj_bounds[3] * theta.cos();
-
-        //Translate the points
-        let x_trans_factor = self.cam_info.rel_pos()[0];
-        let y_trans_factor = self.cam_info.rel_pos()[1];
-        traj_bounds[0] = traj_bounds[0] + x_trans_factor;
-        traj_bounds[1] = traj_bounds[1] + x_trans_factor;
-        traj_bounds[2] = traj_bounds[2] + y_trans_factor;
-        traj_bounds[3] = traj_bounds[3] + y_trans_factor;
-
-        //Return the new trajectory bounds
-        traj_bounds
-    }
 
 }
 
 //Helper function that extracts the camera info from the config file
+//Very file specific - not very robust
 fn get_cam_info(filepath : &String, test_name: &String) -> Result<CamInfo, anyhow::Error> {
 
-
     //Get the first line of the cam config file
-
     let config_fp = format!("{}/conf_{}.txt", filepath, test_name);
-    
-    
+
 
     //Open the file and read the first line
     let mut cam_info_line = String::new();
@@ -456,7 +404,7 @@ fn get_cam_info(filepath : &String, test_name: &String) -> Result<CamInfo, anyho
                 }
 
                 _ =>{
-                    println!("Skipping line")
+                    //Do nothing
                 }
             }
             ind_cnt = ind_cnt + 1;
@@ -468,3 +416,4 @@ fn get_cam_info(filepath : &String, test_name: &String) -> Result<CamInfo, anyho
 
     Ok(cam_info)
 }
+

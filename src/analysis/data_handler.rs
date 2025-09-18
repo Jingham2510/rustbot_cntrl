@@ -20,27 +20,19 @@ impl DataHandler {
 
     //Function which gets the rectangular bounds of a trajectory
     //Z pos currently unused
-    pub fn get_traj_rect_bnds(&mut self) -> [f32; 4] {
+    pub fn get_traj_rect_bnds(&mut self) -> Result<[f32; 4], anyhow::Error> {
         //First create a line reader
         let line_reader = BufReader::new(self.file.try_clone().expect("FAILED TO CLONE FILE"));
 
-         
-        
+
         let mut pos_list: Vec<[f32; 3]> = vec![];
 
-        let mut skip_first = true;    
-    
-        
+
+
         //Read every line
         for line in line_reader.lines() {
-            
-            //Skip the first line (its a config line)
-            if skip_first{
-                skip_first = false;
-                continue
-            }
-            
-            let line = line.unwrap();
+
+            let line = line?;
 
             //We know the data starts with ',[' so we can jump right to it
             let line_split = line.split(",[");
@@ -54,7 +46,7 @@ impl DataHandler {
 
             //Extract the individual numbers from the pos string and feed them into a pos array
             for token in curr_pos_string.split(",") {
-                curr_pos[cnt] = token.parse().unwrap();
+                curr_pos[cnt] = token.parse()?;
                 cnt = cnt + 1;
             }
 
@@ -62,15 +54,16 @@ impl DataHandler {
             pos_list.push(curr_pos);
         }
 
-        let mut min_x = 999.0;
-        let mut max_x = -999.0;
-        let mut min_y = 999.0;
-        let mut max_y = -999.0;
+        let mut min_x = 9999.0;
+        let mut max_x = -9999.0;
+        let mut min_y = 9999.0;
+        let mut max_y = -9999.0;
 
         //Go through each piece of trajectory information
         for pos in pos_list.iter() {
             if pos[0] < min_x {
                 min_x = pos[0];
+
             } else if pos[0] > max_x {
                 max_x = pos[0];
             }
@@ -83,11 +76,11 @@ impl DataHandler {
         }
 
         //Return the bounds
-        [min_x, max_x, min_y, max_y]
+        Ok([min_x, max_x, min_y, max_y])
     }
 
 
-    
+
 
 
 

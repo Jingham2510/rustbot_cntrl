@@ -343,9 +343,11 @@ impl AbbRob<'_> {
                         //Clone the cam configs to avoid handing ownership to the thread
                         let rel_pos = self.config.cam_info.rel_pos().clone();
                         let rel_ori = self.config.cam_info.rel_ori().clone();
+                        let scale = self.config.cam_info.x_scale();
+
 
                         //Create the thread that handles the depth camera
-                        thread::spawn(move || Self::depth_sensing(rx, new_fp, &*user_inp.trim(), true, rel_pos, rel_ori));
+                        thread::spawn(move || Self::depth_sensing(rx, new_fp, &*user_inp.trim(), true, rel_pos, rel_ori, scale));
                         
                         let start_pos = (traj[0].0, traj[0].1, traj[0].2 + 25.0);
                         
@@ -416,7 +418,7 @@ impl AbbRob<'_> {
     }
 
     //Function which repeatedly takes depth measurements on trigger from another thread
-    fn depth_sensing(rx: Receiver<bool>, filepath : String, test_name: &str, hmap: bool, rel_pos : [f32;3], rel_ori : [f32;3]) {
+    fn depth_sensing(rx: Receiver<bool>, filepath : String, test_name: &str, hmap: bool, rel_pos : [f32;3], rel_ori : [f32;3], scale : f32) {
         //Create a camera
         let mut cam = terr_map_sense::RealsenseCam::initialise().expect("Failed to create camera");
 
@@ -431,8 +433,11 @@ impl AbbRob<'_> {
                 //Create a pointcloud
                 let mut curr_pcl = cam.get_depth_pnts().expect("Failed to get get pointcloud");
 
-                //Dont  filter the data - save raw (rotated though)
+                //Dont  filter the data - save raw (transformed to robot frame)
+                curr_pcl.scale_even(scale);
                 curr_pcl.rotate( rel_ori[0], rel_ori[1], rel_ori[2]);
+                curr_pcl.translate(rel_pos[0], rel_pos[1], rel_pos[2]);
+
                 //Empirically calculated passband to isolate terrain bed
                 //curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
 
