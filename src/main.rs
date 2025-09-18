@@ -225,10 +225,7 @@ fn analyse(config : &Config) -> Result<(), anyhow::Error> {
     //Create analysis tool from chosen test
     let mut analyser = Analyser::init(depth_test_fp, test_enum[user_sel].1.clone())?;
 
-
-    analyser.disp_overall_change();
-
-    //analyser.save_coverage()?;
+    analyser.disp_iso_rect(50.0, 50.0)?;
 
 
     Ok(())

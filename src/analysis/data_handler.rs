@@ -2,7 +2,6 @@
 
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use crate::config::CamInfo;
 
 //Object associated with completing data handling tasks
 pub struct DataHandler {
@@ -25,10 +24,22 @@ impl DataHandler {
         //First create a line reader
         let line_reader = BufReader::new(self.file.try_clone().expect("FAILED TO CLONE FILE"));
 
+         
+        
         let mut pos_list: Vec<[f32; 3]> = vec![];
 
+        let mut skip_first = true;    
+    
+        
         //Read every line
         for line in line_reader.lines() {
+            
+            //Skip the first line (its a config line)
+            if skip_first{
+                skip_first = false;
+                continue
+            }
+            
             let line = line.unwrap();
 
             //We know the data starts with ',[' so we can jump right to it
@@ -76,77 +87,7 @@ impl DataHandler {
     }
 
 
-    //Gets the camera info from the first line of the data - parses it
-    pub(crate) fn get_cam_info(&mut self) -> Result<CamInfo, anyhow::Error> {
-
-       
-        //Get the first line of the data file
-        let mut cam_info_line = String::new();
-        BufReader::new(&self.file).read_line(&mut cam_info_line)?;
-
-        //Split the line up
-        let cam_inf_split = cam_info_line.split("[");
-        let mut ind_cnt = 0;
-        
-        let mut rel_pos = [f32::NAN, f32::NAN, f32::NAN];
-        let mut rel_ori = [f32::NAN, f32::NAN, f32::NAN];
-        let mut x_scale = f32::NAN;
-        let mut y_scale = f32::NAN;
-        
-        for split in cam_inf_split{
-            
-            //Split again to isolate the data
-            for token in split.split("]"){
-
-
-                //We only want the first token
-                //println!("{ind_cnt} - {token}");
-
-
-                match ind_cnt {
-
-                    1 => {
-                        let mut val_cnt = 0;
-                        for val in token.split(","){
-                            rel_pos[val_cnt] = val.trim().parse()?;
-                            val_cnt = val_cnt + 1;
-                        }
-
-                    }
-
-                    3 =>{
-                        let mut val_cnt = 0;
-                        for val in token.split(","){
-                            rel_ori[val_cnt] = val.trim().parse()?;
-                            val_cnt = val_cnt + 1;
-                        }
-
-                    }
-
-                    5 => {
-                        x_scale = token.parse()?;
-                    }
-
-                    7 => {
-                        y_scale = token.parse()?;
-                    }
-
-                    _ =>{
-                        println!("Skipping line")
-                    }
-                }
-                ind_cnt = ind_cnt + 1;
-            }
-
-        }
-
-
-        
-        let cam_info = CamInfo::create_cam_info(rel_pos, rel_ori, x_scale, y_scale);
-
-
-        Ok(cam_info)
-    }
+    
 
 
 

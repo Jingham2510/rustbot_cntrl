@@ -130,8 +130,6 @@ impl CamInfo{
         //Open the cam config file
         let cam_config_file = File::open(fp)?;
 
-
-
         //Have the default values initialised - incase they aren't overwritten
         let mut rel_pos : [f32;3] = [250.0, 250.0, 250.0];
         let mut rel_ori : [f32;3] = [0.785, std::f32::consts::PI, 0.0];

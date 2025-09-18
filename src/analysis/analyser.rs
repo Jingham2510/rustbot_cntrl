@@ -5,7 +5,7 @@ use crate::mapping::terr_map_tools::{Heightmap, PointCloud};
 use anyhow::bail;
 use std::fs;
 use std::fs::File;
-use std::io::Write;
+use std::io::{BufRead, BufReader, Write};
 
 pub struct Analyser {
     //Filepath location of the test data
@@ -47,11 +47,10 @@ impl Analyser {
         //Create the data handler
         let data_fp = format!("{}/data_{}.txt", test_fp, test_name);
 
-        println!("{data_fp}");
-
+        println!("Loading data - {data_fp}");
         let mut data_handler = DataHandler::read_data_from_file(data_fp)?;
-        let cam_info = data_handler.get_cam_info()?;
-
+        
+        let cam_info = get_cam_info(&test_fp, &test_name)?;
         println!("{:?}", cam_info);
 
         Ok(Self {
@@ -322,7 +321,7 @@ impl Analyser {
         //Generate the bounds for isolation
         let iso_bounds = self.gen_iso_rect(iso_x_radius, iso_y_radius);
 
-        let hmap : Heightmap;
+        let mut hmap: Heightmap;
 
         //Check to see if the heightmap needs to be generated
         if self.get_hmap_cnt()? == self.no_of_pcl{
@@ -393,5 +392,79 @@ impl Analyser {
         traj_bounds
     }
 
+}
 
+//Helper function that extracts the camera info from the config file
+fn get_cam_info(filepath : &String, test_name: &String) -> Result<CamInfo, anyhow::Error> {
+
+
+    //Get the first line of the cam config file
+
+    let config_fp = format!("{}/conf_{}.txt", filepath, test_name);
+    
+    
+
+    //Open the file and read the first line
+    let mut cam_info_line = String::new();
+    BufReader::new(File::open(config_fp)?).read_line(&mut cam_info_line)?;
+
+    //Split the line up
+    let cam_inf_split = cam_info_line.split("[");
+    let mut ind_cnt = 0;
+
+    let mut rel_pos = [f32::NAN, f32::NAN, f32::NAN];
+    let mut rel_ori = [f32::NAN, f32::NAN, f32::NAN];
+    let mut x_scale = f32::NAN;
+    let mut y_scale = f32::NAN;
+
+    for split in cam_inf_split{
+
+        //Split again to isolate the data
+        for token in split.split("]"){
+
+
+            //We only want the first token
+            //println!("{ind_cnt} - {token}");
+
+
+            match ind_cnt {
+
+                1 => {
+                    let mut val_cnt = 0;
+                    for val in token.split(","){
+                        rel_pos[val_cnt] = val.trim().parse()?;
+                        val_cnt = val_cnt + 1;
+                    }
+
+                }
+
+                3 =>{
+                    let mut val_cnt = 0;
+                    for val in token.split(","){
+                        rel_ori[val_cnt] = val.trim().parse()?;
+                        val_cnt = val_cnt + 1;
+                    }
+
+                }
+
+                5 => {
+                    x_scale = token.parse()?;
+                }
+
+                7 => {
+                    y_scale = token.parse()?;
+                }
+
+                _ =>{
+                    println!("Skipping line")
+                }
+            }
+            ind_cnt = ind_cnt + 1;
+        }
+
+    }
+
+    let cam_info = CamInfo::create_cam_info(rel_pos, rel_ori, x_scale, y_scale);
+
+    Ok(cam_info)
 }

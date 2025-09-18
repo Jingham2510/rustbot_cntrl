@@ -9,7 +9,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::time::SystemTime;
 use std::{fs, thread};
-use crate::config::{CamInfo, Config};
+use crate::config::{Config};
 
 pub struct AbbRob<'a> {
     socket: tcp_sock::TcpSock,
@@ -330,13 +330,22 @@ impl AbbRob<'_> {
                         let new_fp = format!("{}/{}", self.config.test_fp(), user_inp.trim());
                         fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
 
-                        let filename = format!("{}/data_{}.txt", new_fp, user_inp.trim());
+                        let data_filename = format!("{}/data_{}.txt", new_fp, user_inp.trim());
+
+                        let config_filename = format!("{}/conf_{}.txt", new_fp, user_inp.trim());
+
+                        //Log the camera config
+                        self.log_config(config_filename);
 
                         //Create a threading channel to trigger the camera
                         let (tx, rx) = mpsc::channel();
 
+                        //Clone the cam configs to avoid handing ownership to the thread
+                        let rel_pos = self.config.cam_info.rel_pos().clone();
+                        let rel_ori = self.config.cam_info.rel_ori().clone();
+
                         //Create the thread that handles the depth camera
-                        thread::spawn(move || Self::depth_sensing(rx, new_fp, &*user_inp.trim(), true, &self.config.cam_info));
+                        thread::spawn(move || Self::depth_sensing(rx, new_fp, &*user_inp.trim(), true, rel_pos, rel_ori));
                         
                         let start_pos = (traj[0].0, traj[0].1, traj[0].2 + 25.0);
                         
@@ -364,7 +373,7 @@ impl AbbRob<'_> {
                         //Read the values until the trajectory is reported as done
                         while !self.traj_done_flag {
                             self.update_rob_info();
-                            self.store_state(&filename, cnt);
+                            self.store_state(&data_filename, cnt);
 
                             //Trigger at the start - or at a specified interval
                             if cnt % DEPTH_FREQ == 0 || cnt == 0 {
@@ -407,7 +416,7 @@ impl AbbRob<'_> {
     }
 
     //Function which repeatedly takes depth measurements on trigger from another thread
-    fn depth_sensing(rx: Receiver<bool>, filepath : String, test_name: &str, hmap: bool, cam_info : &CamInfo) {
+    fn depth_sensing(rx: Receiver<bool>, filepath : String, test_name: &str, hmap: bool, rel_pos : [f32;3], rel_ori : [f32;3]) {
         //Create a camera
         let mut cam = terr_map_sense::RealsenseCam::initialise().expect("Failed to create camera");
 
@@ -423,7 +432,7 @@ impl AbbRob<'_> {
                 let mut curr_pcl = cam.get_depth_pnts().expect("Failed to get get pointcloud");
 
                 //Dont  filter the data - save raw (rotated though)
-                curr_pcl.rotate( cam_info.rel_ori()[0], cam_info.rel_ori()[1], cam_info.rel_ori()[2]);
+                curr_pcl.rotate( rel_ori[0], rel_ori[1], rel_ori[2]);
                 //Empirically calculated passband to isolate terrain bed
                 //curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
 
@@ -630,21 +639,6 @@ impl AbbRob<'_> {
             .open(filename.trim())
             .unwrap();
 
-        //If the first line - print the cam info
-        if i == 0{
-            let line = format!("CAM: POS:[{},{},{}] ORI:[{},{},{}] X_SC:[{}] Y_SC:[{}]",
-                               self.config.cam_info.rel_pos()[0],
-                               self.config.cam_info.rel_pos()[1],
-                               self.config.cam_info.rel_pos()[2],
-                               self.config.cam_info.rel_ori()[0],
-                               self.config.cam_info.rel_ori()[1],
-                               self.config.cam_info.rel_ori()[2],
-                               self.config.cam_info.x_scale(),
-                               self.config.cam_info.y_scale()
-
-            );
-            writeln!(file, "{}", line).expect("FAILED TO WRITE CAM INFO - CLOSING");
-        }
 
 
         //Format the line to write
@@ -675,4 +669,33 @@ impl AbbRob<'_> {
             eprint!("Couldn't write to file: {}", e);
         }
     }
+
+    fn log_config(&mut self, filepath: String){
+
+        println!("{filepath}");
+
+        //Create the config file and save the data
+        let mut file = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(filepath.trim())
+            .unwrap();
+
+        let line = format!("CAM: POS:[{},{},{}] ORI:[{},{},{}] X_SC:[{}] Y_SC:[{}]",
+                           self.config.cam_info.rel_pos()[0],
+                           self.config.cam_info.rel_pos()[1],
+                           self.config.cam_info.rel_pos()[2],
+                           self.config.cam_info.rel_ori()[0],
+                           self.config.cam_info.rel_ori()[1],
+                           self.config.cam_info.rel_ori()[2],
+                           self.config.cam_info.x_scale(),
+                           self.config.cam_info.y_scale()
+
+        );
+
+        writeln!(file, "{}", line).expect("FAILED TO WRITE CAM INFO - CLOSING");
+
+    }
+
+
 }
