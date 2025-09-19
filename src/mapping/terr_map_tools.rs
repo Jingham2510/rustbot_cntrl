@@ -287,11 +287,16 @@ pub struct Heightmap {
     min_updated: bool,
     max_updated: bool,
 
+    //Cell location contianing the min and max height cells
     min_pos: (u32, u32),
     max_pos: (u32, u32),
 
     //the 2d vector representing the cells
     cells: Vec<Vec<f32>>,
+
+    //The pointcloud bounds it was constructed from (used to position the heightmap in the real world)
+    lower_coord_bounds: [f32;2],
+    upper_coord_bounds: [f32;2]
 }
 
 
@@ -325,6 +330,8 @@ impl Heightmap {
             max_updated: false,
             min_pos: (0, 0),
             max_pos: (0, 0),
+            lower_coord_bounds : [0.0,0.0],
+            upper_coord_bounds : [0.0,0.0],
         }
     }
 
@@ -412,6 +419,9 @@ impl Heightmap {
                 min_pos: (0, 0),
                 max_pos: (0, 0),
                 cells,
+                lower_coord_bounds : [bounds[0], bounds[2]],
+                upper_coord_bounds : [bounds[1], bounds[3]]
+
             }
         } else {
             Self {
@@ -425,7 +435,10 @@ impl Heightmap {
                 max_updated: false,
                 min_pos: (0, 0),
                 max_pos: (0, 0),
+                //Asses the point density instead
                 cells: cell_pnt_cnt,
+                lower_coord_bounds : [bounds[0], bounds[2]],
+                upper_coord_bounds : [bounds[1], bounds[3]]
             }
         }
     }
@@ -437,7 +450,20 @@ impl Heightmap {
 
         //Open the file and create a buffer to read the lines
         let file = File::open(filepath)?;
-        let line_reader = BufReader::new(file);
+        let mut line_reader = BufReader::new(file);
+
+        //Read the first line to extract the bounds
+        let mut first_line = String::new();
+        line_reader.read_line(&mut first_line)?;
+
+        let bounds = Self::extract_bounds(first_line);
+
+        let mut bounds_res : [f32;4] = [f32::NAN, f32::NAN, f32::NAN, f32::NAN];
+
+        if bounds.is_ok(){
+            bounds_res = bounds?
+        }
+
 
         let mut height = 0;
         let mut width = 0;
@@ -489,6 +515,8 @@ impl Heightmap {
             min_pos: (0, 0),
             max_pos: (0, 0),
             cells,
+            lower_coord_bounds : [bounds_res[0], bounds_res[2]],
+            upper_coord_bounds : [bounds_res[1], bounds_res[3]]
         })
     }
 
@@ -836,6 +864,11 @@ impl Heightmap {
         //Create a file
         let mut file = File::create(filepath.to_owned() + ".txt")?;
 
+        //Format the first line to store the real bounds
+        let first_line = format!("bnds:[{},{}][{},{}]\n", self.lower_coord_bounds[0],self.lower_coord_bounds[1], self.upper_coord_bounds[0],self.upper_coord_bounds[1]);
+        file.write_all(first_line.as_bytes())?;
+
+
         //Iterate thorugh each row
         for row in self.cells.iter() {
             for cell in row {
@@ -859,7 +892,44 @@ impl Heightmap {
         self.height
     }
 
+    //Extracts the bounds from a string
+    fn extract_bounds(bnd_line : String) -> Result<[f32;4], anyhow::Error> {
 
+        let mut bounds : [f32;4] = [f32::NAN, f32::NAN, f32::NAN, f32::NAN];
+
+        let mut bnd_cnt = 0;
+
+        //Split the line into 3 sections
+        let mut bnd_split = bnd_line.split("[");
+
+        let mut ignore = true;
+
+        //Second and third sections have the data we want
+        for split in bnd_split{
+
+            //Ignore the first split
+            if ignore{
+                ignore = false;
+                continue
+            }
+
+            //Tokenize the second and third section (also remove the final parentheses)
+            let mut str = split.trim().to_string();
+            str.pop();
+
+
+            for token in str.split(","){
+
+
+                bounds[bnd_cnt] = token.parse()?;
+                bnd_cnt = bnd_cnt + 1;
+            }
+        }
+
+
+
+        Ok(bounds)
+    }
 }
 
 //Compares a given map with a desired map and outputs a map of height differences

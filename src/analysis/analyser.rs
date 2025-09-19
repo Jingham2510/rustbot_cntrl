@@ -70,17 +70,15 @@ impl Analyser {
 
     //Display the height change from the first to the last heightmap
     pub fn disp_overall_change(&mut self) -> Result<(), anyhow::Error> {
-        if self.no_of_pcl < 2 {
-            bail!("Not enough PCLS to perform analysis!")
-        }
 
-        let hmap_cnt = self.get_hmap_cnt();
+
+        let hmap_cnt = self.get_hmap_cnt()?;
 
         let mut first_hmap: Heightmap = Default::default();
         let mut last_hmap: Heightmap = Default::default();
 
-        //If the heightmaps haven't been genereated - generate them now
-        if self.no_of_pcl > hmap_cnt? {
+        //If the heightmaps haven't been generated - generate them now
+        if self.no_of_pcl > hmap_cnt {
             let first_fp = format!("{}/pcl_{}_0.txt", self.test_fp, self.test_name);
 
             first_hmap = Heightmap::create_from_pcl_file(first_fp, 250, 250, false)?;
@@ -104,7 +102,7 @@ impl Analyser {
                 "{}/hmap_{}_{}.txt",
                 self.test_fp,
                 self.test_name,
-                self.no_of_pcl - 1
+                hmap_cnt - 1
             );
 
             last_hmap = Heightmap::create_from_file(last_fp)?;

@@ -225,6 +225,7 @@ fn analyse(config : &Config) -> Result<(), anyhow::Error> {
     //Create analysis tool from chosen test
     let mut analyser = Analyser::init(depth_test_fp, test_enum[user_sel].1.clone())?;
 
+    analyser.disp_overall_change()?;
 
 
     Ok(())
@@ -275,7 +276,9 @@ fn save_n_heightmaps(config : &Config) -> Result<(), anyhow::Error>{
         let mut curr_pcl = cam.get_depth_pnts()?;
 
         //Rotate the PCL to orient it correctly
-        curr_pcl.rotate(PI as f32/2.0 - 0.524 , 0.0, 0.0);
+        curr_pcl.scale_even(config.cam_info.x_scale());
+        curr_pcl.rotate( config.cam_info.rel_ori()[0], config.cam_info.rel_ori()[1], config.cam_info.rel_ori()[2]);
+        curr_pcl.translate(config.cam_info.rel_pos()[0], config.cam_info.rel_pos()[1], config.cam_info.rel_pos()[2]);
         //Empirically calculated passband to isolate terrain bed
         curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
 
@@ -295,7 +298,11 @@ fn save_n_heightmaps(config : &Config) -> Result<(), anyhow::Error>{
 
     println!("Heightmaps generated");
 
+    let hmap_fp = "C:/Users/User/Documents/Results/DEPTH_TESTS/test/hmap_test_0.txt";
+    let hmap = Heightmap::create_from_file(hmap_fp.parse()?);
 
+
+    
 
     Ok(())
 }
