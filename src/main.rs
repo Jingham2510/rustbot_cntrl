@@ -280,7 +280,7 @@ fn save_n_heightmaps(config : &Config) -> Result<(), anyhow::Error>{
         curr_pcl.rotate( config.cam_info.rel_ori()[0], config.cam_info.rel_ori()[1], config.cam_info.rel_ori()[2]);
         curr_pcl.translate(config.cam_info.rel_pos()[0], config.cam_info.rel_pos()[1], config.cam_info.rel_pos()[2]);
         //Empirically calculated passband to isolate terrain bed
-        curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
+        //curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
 
         let mut curr_heightmap = Heightmap::create_from_pcl(curr_pcl, 250, 250, false);
 
@@ -301,8 +301,9 @@ fn save_n_heightmaps(config : &Config) -> Result<(), anyhow::Error>{
     let hmap_fp = "C:/Users/User/Documents/Results/DEPTH_TESTS/test/hmap_test_0.txt";
     let hmap = Heightmap::create_from_file(hmap_fp.parse()?);
 
+    println!("{:?}", hmap?.calc_cell_mid_pnt(125, 125));
 
-    
+
 
     Ok(())
 }

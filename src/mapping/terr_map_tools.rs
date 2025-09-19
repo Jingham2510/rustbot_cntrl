@@ -926,10 +926,40 @@ impl Heightmap {
             }
         }
 
-
-
         Ok(bounds)
     }
+
+
+    //Calculates the middle coordinates of a given cell (based on the upper/lower bounds)
+    pub fn calc_cell_mid_pnt(&self, n : u32, m : u32) -> Result<[f32;2], anyhow::Error>{
+
+
+        if n >= self.width{
+            bail!("Error - out of width bounds!")
+        }
+        if m >= self.height{
+            bail!("Error - out of height bounds!");
+        }
+
+
+        let mut mid_pnt : [f32;2] = [f32::NAN, f32::NAN];
+
+        let cell_width = (self.upper_coord_bounds[0] - self.lower_coord_bounds[0]).abs() / self.width as f32;
+        let cell_height = (self.upper_coord_bounds[1] - self.lower_coord_bounds[1]).abs() / self.width as f32;
+
+        //Calc the mid point with the offset
+        mid_pnt[0] = (n as f32 * cell_width) + self.lower_coord_bounds[0];
+        mid_pnt[1] = (m as f32 * cell_height) + self.lower_coord_bounds[1];
+
+
+        Ok(mid_pnt)
+
+
+    }
+
+
+
+
 }
 
 //Compares a given map with a desired map and outputs a map of height differences
