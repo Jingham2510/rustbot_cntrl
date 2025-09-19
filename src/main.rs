@@ -9,7 +9,6 @@ use std::fs::File;
 use std::io::{stdin, Write};
 use std::thread::sleep;
 use std::time::Duration;
-use raylib::ffi::PI;
 
 mod analysis;
 mod control;
