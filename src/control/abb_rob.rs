@@ -698,7 +698,9 @@ impl AbbRob<'_> {
 
         );
 
-        writeln!(file, "{}", line).expect("FAILED TO WRITE CAM INFO - CLOSING");
+        writeln!(file, "{}", line).expect("FAILED TO WRITE CAM TO CONFIG - CLOSING");
+
+        //Save another line with the robot pos/ori config data
 
     }
 

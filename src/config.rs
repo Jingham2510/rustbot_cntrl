@@ -12,6 +12,7 @@ use anyhow::bail;
 pub struct Config{
     test_fp : String,
     pub cam_info : CamInfo,
+    pub rob_info : RobInfo,
     //Indicator for test processing (in case of erroneous analyses)
     default : bool
 }
@@ -24,17 +25,25 @@ pub struct CamInfo{
     y_scale : f32
 }
 
+#[derive(Debug)]
+pub struct RobInfo{
+    rob_name : String,
+    //Position and orientation information required for transformation to global world frame (0,0 in terrian box)
+    pos_for_zero : [f32;3],
+    ori_for_zero : [f32;3]
+}
+
 
 
 const CONFIG_FP : &str = "configs/";
 
 impl Default for Config{
     fn default() -> Config{
-
         //Create the default config
         Config{
             test_fp : "C:/Users/User/Documents/Results/DEPTH_TESTS".parse().unwrap(),
             cam_info : CamInfo::default(),
+            rob_info : RobInfo::default(),
             default : true
         }
     }
@@ -45,7 +54,6 @@ impl Default for Config{
 impl Default for CamInfo{
 
     fn default() -> CamInfo{
-
         CamInfo{
             rel_pos : [250.0, 250.0, 250.0],
             //around 45 degrees facing downward
@@ -53,6 +61,16 @@ impl Default for CamInfo{
             //Scale from mm to m
             x_scale : 0.001,
             y_scale : 0.001
+        }
+    }
+}
+
+impl Default for RobInfo{
+    fn default() -> RobInfo{
+        RobInfo{
+            rob_name : "ABB-IRB6400".parse().unwrap(),
+            pos_for_zero : [2400.0, 1300.0, 1250.0],
+            ori_for_zero : [60.0, 60.0, 40.0],
         }
     }
 }
@@ -68,6 +86,7 @@ impl Config{
         Ok(Self{
             test_fp,
             cam_info : CamInfo::read_cam_info_from_file()?,
+            rob_info : RobInfo::read_rob_info_from_file()?,
             default : false
         })
     }
@@ -125,7 +144,6 @@ impl CamInfo{
         const CAM_CONFIG_FILENAME: &str = "caminfo.txt";
         let fp = format!("{}/{}", CONFIG_FP, CAM_CONFIG_FILENAME);
 
-        println!("{:?}", fp);
 
         //Open the cam config file
         let cam_config_file = File::open(fp)?;
@@ -142,9 +160,9 @@ impl CamInfo{
             let curr_line = line?;
 
                 if curr_line.starts_with("REL_POS"){
-                    rel_pos = Self::extract_pos_ori(curr_line)?;
+                    rel_pos = pos_ori_parser(curr_line)?;
                 }else if curr_line.starts_with("REL_ORI"){
-                    rel_ori = Self::extract_pos_ori(curr_line)?;
+                    rel_ori = pos_ori_parser(curr_line)?;
                 }else if curr_line.starts_with("X_SCALE"){
                     x_scale = Self::extract_scale(curr_line)?;
                 }else if curr_line.starts_with("Y_SCALE"){
@@ -166,39 +184,9 @@ impl CamInfo{
     }
 
 
-    fn extract_pos_ori(line: String) -> Result<[f32;3], anyhow::Error>{
-
-        //Access the string array
-        let line_split : Vec<&str> = line.split("[").collect();
-
-        //Index to the correct part of the array and remove the final bracket
-        let vals = line_split[1].replace("]", "");
-
-        //Place each value in an actual array
-        let mut out : [f32; 3] = [-0.1, -0.1, -0.1];
-        let mut cnt = 0;
-
-        for token in vals.split(","){
-
-            //Check the count is correct
-            if cnt > 2{
-                bail!("Too many values in pos/ori array")
-            }
-
-            out[cnt] = token.parse()?;
-            cnt = cnt + 1
-        }
-
-
-
-        Ok(out)
-
-
-    }
 
 
     fn extract_scale(line : String) -> Result<f32, anyhow::Error>{
-
         //Access the value
         let line_split : Vec<&str> = line.split("[").collect();
         let val = line_split[1].replace("]", "");
@@ -219,11 +207,93 @@ impl CamInfo{
     pub fn x_scale(&self) -> f32{
         self.x_scale
     }
-
     pub fn y_scale(&self) -> f32{
         self.y_scale
     }
 
+}
+
+impl RobInfo{
 
 
+    pub fn read_rob_info_from_file() -> Result<Self, anyhow::Error>{
+
+        const ROB_CONFIG_FILENAME : &str = "robinfo.txt";
+
+        let fp = format!("{}/{}", CONFIG_FP, ROB_CONFIG_FILENAME);
+
+        let mut rob_name = String::new();
+        let mut pos_for_zero = [0.0, 0.0, 0.0];
+        let mut ori_for_zero = [0.0, 0.0, 0.0];
+
+
+        //Open the file and iterate line by line
+        let rob_config_file = File::open(fp)?;
+        for line in BufReader::new(rob_config_file).lines(){
+
+            let curr_line = line?;
+
+            //Check which line your on
+            if curr_line.starts_with("ROB_NAME"){
+                //Split the current line to extract the name
+                let split : Vec<&str> = curr_line.split("\"").collect();
+                rob_name = split[1].parse()?;
+
+            }else if curr_line.starts_with("POS_TO_ZERO"){
+                pos_for_zero = pos_ori_parser(curr_line)?;
+            }else if curr_line.starts_with("ORI_TO_ZERO"){
+                ori_for_zero = pos_ori_parser(curr_line)?;
+            }
+
+
+            else{
+                //Panic if it encounters a line that it cannot interpret!
+                bail!("Invalid line in robot config!")
+            }
+
+
+        }
+
+
+        Ok(Self{
+            rob_name,
+            pos_for_zero,
+            ori_for_zero
+
+        })
+    }
+
+    //getters for config info
+    pub fn rob_name(&self) -> String {self.rob_name.clone()}
+    pub fn pos_to_zero(&self) -> [f32;3] {self.pos_for_zero}
+    pub fn ori_to_zero(&self) -> [f32;3] {self.ori_for_zero}
+
+
+
+}
+
+//Helper function for both cam and rob config to extract xyz coords/rotations from a given string surrounded by "[]" and delimited by ","
+fn pos_ori_parser(line: String) -> Result<[f32;3], anyhow::Error>{
+
+    //Access the string array
+    let line_split : Vec<&str> = line.split("[").collect();
+
+    //Index to the correct part of the array and remove the final bracket
+    let vals = line_split[1].replace("]", "");
+
+    //Place each value in an actual array
+    let mut out : [f32; 3] = [-0.1, -0.1, -0.1];
+    let mut cnt = 0;
+
+    for token in vals.split(","){
+
+        //Check the count is correct
+        if cnt > 2{
+            bail!("Too many values in pos/ori array")
+        }
+
+        out[cnt] = token.parse()?;
+        cnt = cnt + 1
+    }
+    Ok(out)
 }

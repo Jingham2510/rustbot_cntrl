@@ -274,6 +274,8 @@ fn save_n_heightmaps(config : &Config) -> Result<(), anyhow::Error>{
 
         let mut curr_pcl = cam.get_depth_pnts()?;
 
+        curr_pcl.save_to_file("C:/Users/User/Documents/Results/DEPTH_TESTS/test/pcl_test_0")?;
+
         //Rotate the PCL to orient it correctly
         curr_pcl.scale_even(config.cam_info.x_scale());
         curr_pcl.rotate( config.cam_info.rel_ori()[0], config.cam_info.rel_ori()[1], config.cam_info.rel_ori()[2]);
@@ -296,12 +298,6 @@ fn save_n_heightmaps(config : &Config) -> Result<(), anyhow::Error>{
 
 
     println!("Heightmaps generated");
-
-    let hmap_fp = "C:/Users/User/Documents/Results/DEPTH_TESTS/test/hmap_test_0.txt";
-    let hmap = Heightmap::create_from_file(hmap_fp.parse()?);
-
-    println!("{:?}", hmap?.calc_cell_mid_pnt(125, 125));
-
 
 
     Ok(())
