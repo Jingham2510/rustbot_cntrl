@@ -35,6 +35,8 @@ pub const IMPL_COMMDS: [&str; 8] = [
     "req ori",
 ];
 
+const TRANSFORM_TO_WORK_SPACE : bool = true;
+
 impl AbbRob<'_> {
     pub fn create_rob(ip: String, port: u32, config : &Config) -> Result<AbbRob, anyhow::Error> {
         //Create the robots socket
@@ -375,7 +377,7 @@ impl AbbRob<'_> {
                         //Read the values until the trajectory is reported as done
                         while !self.traj_done_flag {
                             self.update_rob_info();
-                            self.store_state(&data_filename, cnt);
+                            self.store_state(&data_filename, cnt, TRANSFORM_TO_WORK_SPACE);
 
                             //Trigger at the start - or at a specified interval
                             if cnt % DEPTH_FREQ == 0 || cnt == 0 {
@@ -636,7 +638,7 @@ impl AbbRob<'_> {
     }
 
     //Appends relevant test information to the provided filename
-    fn store_state(&mut self, filename: &String, i: i32) {
+    fn store_state(&mut self, filename: &String, i: i32, transform_to_work_space : bool) {
         //Open the file (or create if it doesn't exist)
         let mut file = OpenOptions::new()
             .append(true)
@@ -644,30 +646,56 @@ impl AbbRob<'_> {
             .open(filename.trim())
             .unwrap();
 
+        let mut line = String::new();
 
+        //See whether to transofmr the data by the
+        if !transform_to_work_space {
+            //Format the line to write
+            line = format!(
+                "{},{:?},[{},{},{}],[{},{},{}],[{},{},{},{},{},{}]",
+                i,
+                SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs_f64(),
+                //Make sure that you dont print a lack of information in the data
+                self.pos.0,
+                self.pos.1,
+                self.pos.2,
+                self.ori.0,
+                self.ori.1,
+                self.ori.2,
+                self.force.0,
+                self.force.1,
+                self.force.2,
+                self.force.3,
+                self.force.4,
+                self.force.5,
+            );
+        }else{
+            line = format!(
+                "{},{:?},[{},{},{}],[{},{},{}],[{},{},{},{},{},{}]",
+                i,
+                SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs_f64(),
+                //Make sure that you dont print a lack of information in the data
+                self.pos.0 - self.config.rob_info.pos_to_zero()[0],
+                self.pos.1 - self.config.rob_info.pos_to_zero()[1],
+                self.pos.2 - self.config.rob_info.pos_to_zero()[2],
+                self.ori.0 - self.config.rob_info.ori_to_zero()[0],
+                self.ori.1 - self.config.rob_info.ori_to_zero()[1],
+                self.ori.2 - self.config.rob_info.ori_to_zero()[2],
+                self.force.0,
+                self.force.1,
+                self.force.2,
+                self.force.3,
+                self.force.4,
+                self.force.5,
+            );
 
-        //Format the line to write
-        let line = format!(
-            "{},{:?},[{},{},{}],[{},{},{}],[{},{},{},{},{},{}]",
-            i,
-            SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs_f64(),
-            //Make sure that you dont print a lack of information in the data
-            self.pos.0,
-            self.pos.1,
-            self.pos.2,
-            self.ori.0,
-            self.ori.1,
-            self.ori.2,
-            self.force.0,
-            self.force.1,
-            self.force.2,
-            self.force.3,
-            self.force.4,
-            self.force.5,
-        );
+        }
 
         //Write to the file - indicating if writing failed (but don't worry about it!)
         if let Err(e) = writeln!(file, "{}", line) {
@@ -713,6 +741,12 @@ impl AbbRob<'_> {
         );
 
         writeln!(file, "{}", line).expect("FAILED TO WRITE ROB TO CONFIG - CLOSING");
+
+
+        //Save a line indicating if the data is pre-transformed
+        let line = format!("COORDS PRE-TRANSFORMED?:{}", TRANSFORM_TO_WORK_SPACE);
+
+        writeln!(file, "{}", line).expect("FAILED TO WRITE TRANSFORM FLAG TO CONFIG - CLOSING");
 
 
     }

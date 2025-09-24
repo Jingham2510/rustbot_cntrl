@@ -226,7 +226,7 @@ fn analyse(config : &Config) -> Result<(), anyhow::Error> {
 
     
 
-    analyser.disp_overall_change()?;
+    analyser.disp_action_map(250, 250)?;
 
 
     Ok(())

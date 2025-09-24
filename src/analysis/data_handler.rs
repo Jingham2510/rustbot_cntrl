@@ -9,6 +9,8 @@ pub struct DataHandler {
 }
 
 
+
+
 impl DataHandler {
     //Create a data handler by associating a data file with it
     //Do not store all the data in the object for now - can just read it when necessary
@@ -21,38 +23,8 @@ impl DataHandler {
     //Function which gets the rectangular bounds of a trajectory
     //Z pos currently unused
     pub fn get_traj_rect_bnds(&mut self) -> Result<[f32; 4], anyhow::Error> {
-        //First create a line reader
-        let line_reader = BufReader::new(self.file.try_clone().expect("FAILED TO CLONE FILE"));
-
-
-        let mut pos_list: Vec<[f32; 3]> = vec![];
-
-
-
-        //Read every line
-        for line in line_reader.lines() {
-
-            let line = line?;
-
-            //We know the data starts with ',[' so we can jump right to it
-            let line_split = line.split(",[");
-
-            //Extract the pos information (index - 1)
-            //Remove the final square bracket
-            let curr_pos_string = line_split.collect::<Vec<&str>>()[1].replace("]", "");
-
-            let mut curr_pos: [f32; 3] = [f32::NAN, f32::NAN, f32::NAN];
-            let mut cnt = 0;
-
-            //Extract the individual numbers from the pos string and feed them into a pos array
-            for token in curr_pos_string.split(",") {
-                curr_pos[cnt] = token.parse()?;
-                cnt = cnt + 1;
-            }
-
-            //Push the pos array to the pos list
-            pos_list.push(curr_pos);
-        }
+     
+        let mut pos_list: Vec<[f32; 3]> = self.get_trajectory()?;
 
         let mut min_x = 9999.0;
         let mut max_x = -9999.0;
@@ -80,7 +52,44 @@ impl DataHandler {
     }
 
 
+    //Extracts every trajectory point from the datafile
+    pub fn get_trajectory(&self) -> Result<Vec<[f32;3]>, anyhow::Error>{
 
+        let mut traj_list : Vec<[f32;3]> = vec![];
+
+        //Create a line reader
+        let line_reader = BufReader::new(self.file.try_clone().expect("FAILED TO CLONE FILE"));
+
+
+        //Read every line
+        for line in line_reader.lines() {
+            let line = line?;
+
+            //We know the data starts with ',[' so we can jump right to it
+            let line_split = line.split(",[");
+
+            //Extract the pos information (index - 1)
+            //Remove the final square bracket
+            let curr_pos_string = line_split.collect::<Vec<&str>>()[1].replace("]", "");
+
+            let mut curr_pos: [f32; 3] = [f32::NAN, f32::NAN, f32::NAN];
+            let mut cnt = 0;
+
+            //Extract the individual numbers from the pos string and feed them into a pos array
+            for token in curr_pos_string.split(",") {
+                curr_pos[cnt] = token.parse()?;
+                cnt = cnt + 1;
+            }
+
+            //Push the pos array to the pos list
+            traj_list.push(curr_pos);
+
+        }
+
+        //Return the trajectory
+        Ok(traj_list)
+
+   }
 
 
 

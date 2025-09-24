@@ -6,6 +6,10 @@ use anyhow::bail;
 use std::fs;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
+use raylib::callbacks::TraceLogLevel;
+use raylib::color::Color;
+use raylib::drawing::RaylibDraw;
+use raylib::math::{Rectangle, Vector2};
 
 pub struct Analyser {
     //Filepath location of the test data
@@ -343,6 +347,217 @@ impl Analyser {
         Ok(())
     }
 
+
+
+    //Calculates the action map matrix based on the trajectory of the test being analysed
+    fn calc_action_map(&mut self, width :usize, height :usize) -> Result<Vec<Vec<f32>>, anyhow::Error>{
+
+        //Get the base pointcloud - calculate the bounds
+        let fp = format!("{}/pcl_{}_0.txt", self.test_fp, self.test_name);
+
+        //Load the heightmap file
+        let bounds = PointCloud::create_from_file(fp)?.get_bounds();
+        //Calculate the real distance and height of the heightmap
+        let total_width = bounds[1] - bounds[0];
+        let total_height = bounds[3] - bounds[2];
+
+        //Assume that both the trajectory and pointcloud have alreayd been trasnformed/mapped to the workspace
+
+        //Get the trajectory
+        let traj = self.data_handler.get_trajectory()?;
+
+
+        //Create a matrix which tracks the number of trajectory points in each cell
+        let mut cell_pnt_cnt = vec![vec![0.0f32; height]; width];
+
+        //Create the empty cell matrix
+        //NaN spots are areas with 0 action
+        let mut cells = vec![vec![f32::NAN; height]; width];
+
+        //Check where the trajectory lies within the cell space - copied from heightmap generation
+        //Check each points and direct it to a cell (updating the average height)
+        for pnt in traj{
+            let mut n = 0;
+            let mut m = 0;
+
+            let mut n_fnd = false;
+            let mut m_fnd = false;
+
+            //Find the horizontal pos
+            while !n_fnd {
+                if pnt[0] < ((total_width / width as f32) * n as f32) + bounds[0] {
+                    n_fnd = true;
+                } else {
+                    n = n + 1;
+                }
+
+                //Check if end pos
+                if n == (width - 1) as usize {
+                    n_fnd = true;
+                }
+            }
+
+            //Find the vertical pos
+            while !m_fnd {
+                if pnt[1] < ((total_height / height as f32) * m as f32) + bounds[2] {
+                    m_fnd = true;
+                } else {
+                    m = m + 1;
+                }
+                //Check if end pos
+                if m == (height - 1) as usize {
+                    m_fnd = true;
+                }
+            }
+
+            //Set the pcl to 0.0 at the start to avoid mem errors
+            if cell_pnt_cnt[n][m] == 0.0 {
+                cells[n][m] = 0.0;
+            }
+
+            //Calculate the updated cumulitve average
+            cells[n][m] =
+                (pnt[2] + cell_pnt_cnt[n][m] as f32 * cells[n][m]) / (cell_pnt_cnt[n][m] + 1.0);
+            //Increase the point count
+            cell_pnt_cnt[n][m] = cell_pnt_cnt[n][m] + 1.0;
+        }
+
+        Ok(cells)
+    }
+
+    //Displays the action map of the test (i.e. graphically encoded trajectory) - height indicate by pixel intensity
+    pub fn disp_action_map(&mut self, width :usize, height :usize) -> Result<(), anyhow::Error>{
+
+        //Use the same window parameters for the heightmap
+        const WINDOW_WIDTH: f32 = 1024.0;
+        const WINDOW_HEIGHT: f32 = 768.0;
+
+        //Precalced to save time
+        const WINDOW_WIDTH_START: f32 = WINDOW_WIDTH * 0.1;
+        const WINDOW_WIDTH_END: f32 = WINDOW_WIDTH * 0.9;
+        const WINDOW_HEIGHT_START: f32 = WINDOW_HEIGHT * 0.1;
+        const WINDOW_HEIGHT_END: f32 = WINDOW_HEIGHT * 0.9;
+
+        //GUI grid width/height
+        let grid_disp_width: f32 = WINDOW_WIDTH * 0.8;
+        let grid_disp_height: f32 = WINDOW_HEIGHT * 0.8;
+
+        //Line thickness
+        const LINE_THICKNESS: f32 = 3.0;
+
+        //calculate the cell width
+        let cell_width: f32 =
+            (grid_disp_width - ((width as f32 + 2.0) * LINE_THICKNESS)) / (width as f32);
+
+        let cell_height: f32 = (grid_disp_height - ((height as f32 + 2.0) * LINE_THICKNESS))
+            / (height as f32);
+
+        //Calculate the action map matrix
+        if let Ok(mut ac_mat) = self.calc_action_map(width, height){
+            //Cell by cell paint the action map onto the grid
+
+            //Create the window
+            let (mut rl, thread) = raylib::init()
+                .size(WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32)
+                .title("Terrain map")
+                //Set log report level
+                .log_level(TraceLogLevel::LOG_WARNING)
+                .build();
+
+            while !rl.window_should_close() {
+                //Create the drawing tool
+                let mut d = rl.begin_drawing(&thread);
+
+                //Set the background colour
+                d.clear_background(Color::WHITE);
+
+                //Draw the grid outline
+                d.draw_rectangle_lines_ex(
+                    Rectangle::new(
+                        WINDOW_WIDTH_START,
+                        WINDOW_HEIGHT_START,
+                        grid_disp_width,
+                        grid_disp_height,
+                    ),
+                    LINE_THICKNESS,
+                    Color::BLACK,
+                );
+
+                //Draw the grid lines
+                for i in 1..width {
+                    let curr_x = (WINDOW_WIDTH_START + LINE_THICKNESS)
+                        + (i as f32 * (cell_width + LINE_THICKNESS));
+
+                    d.draw_line_ex(
+                        Vector2::new(curr_x, WINDOW_HEIGHT_START),
+                        Vector2::new(curr_x, WINDOW_HEIGHT_END),
+                        LINE_THICKNESS,
+                        Color::BLACK,
+                    );
+                }
+                for i in 1..height {
+                    let curr_y = (WINDOW_HEIGHT_START + LINE_THICKNESS)
+                        + (i as f32 * (cell_height + LINE_THICKNESS));
+
+                    d.draw_line_ex(
+                        Vector2::new(WINDOW_WIDTH_START, curr_y),
+                        Vector2::new(WINDOW_WIDTH_END, curr_y),
+                        LINE_THICKNESS,
+                        Color::BLACK,
+                    );
+                }
+                //Go through every cell and draw a coloured rectangle to represent it
+                for (x, row) in ac_mat.iter_mut().enumerate() {
+                    //Calculate the start point of the rectangle
+                    let curr_x = (WINDOW_WIDTH_START + (LINE_THICKNESS))
+                        + (x as f32 * (cell_width + LINE_THICKNESS));
+
+                    for (y, col) in row.iter_mut().enumerate() {
+                        //Calc the starting height
+                        let curr_y = (WINDOW_HEIGHT_START + (LINE_THICKNESS))
+                            + (y as f32 * (cell_height + LINE_THICKNESS));
+
+                        //Calculate the colour
+                        let cell_col: Color;
+
+
+
+                        //If the value in the cell is unknown - paint it black
+                        if col.is_nan() {
+                            cell_col = Color::BLACK;
+                        } else {
+                            cell_col = Color::new(
+                                255.0 as u8 ,
+                                255.0 as u8,
+                                255.0 as u8,
+                                255.0 as u8,
+                            );
+                        }
+
+                        //Create the coloured rectangle in the grid
+                        d.draw_rectangle(
+                            curr_x as i32,
+                            curr_y as i32,
+                            (cell_width + 2.0 * LINE_THICKNESS) as i32,
+                            (cell_height + 2.0 * LINE_THICKNESS) as i32,
+                            cell_col,
+                        );
+
+
+                    }
+                }
+            }
+        } else {
+            bail!("Failed to draw action map!")
+        }
+
+
+
+
+
+
+        Ok(())
+    }
 
 
 
