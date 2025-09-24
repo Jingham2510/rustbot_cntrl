@@ -1,5 +1,5 @@
 use crate::analysis::data_handler::DataHandler;
-use crate::config::CamInfo;
+use crate::config::{CamInfo, RobInfo};
 use crate::mapping::terr_map_tools;
 use crate::mapping::terr_map_tools::{Heightmap, PointCloud};
 use anyhow::bail;
@@ -20,6 +20,8 @@ pub struct Analyser {
     no_of_pcl: i32,
     //The camera information for the given test
     cam_info: CamInfo,
+    //The robot information for the given test
+    rob_info: RobInfo
 }
 
 impl Analyser {
@@ -48,10 +50,14 @@ impl Analyser {
         let data_fp = format!("{}/data_{}.txt", test_fp, test_name);
 
         println!("Loading data - {data_fp}");
-        let mut data_handler = DataHandler::read_data_from_file(data_fp)?;
+        let data_handler = DataHandler::read_data_from_file(data_fp)?;
 
-        let cam_info = get_cam_info(&test_fp, &test_name)?;
-        println!("Cam config - {:?}", cam_info);
+        //Get the config info
+        let config_info = get_config(&test_fp, &test_name)?;
+
+        println!("{:?}", config_info.0);
+
+
 
         Ok(Self {
             filepath,
@@ -59,7 +65,8 @@ impl Analyser {
             test_fp,
             data_handler,
             no_of_pcl,
-            cam_info,
+            cam_info : config_info.1,
+            rob_info : config_info.0
         })
     }
 
@@ -342,76 +349,27 @@ impl Analyser {
 
 }
 
-//Helper function that extracts the camera info from the config file
-//Very file specific - not very robust
-fn get_cam_info(filepath : &String, test_name: &String) -> Result<CamInfo, anyhow::Error> {
+
+fn get_config(filepath:  &String, test_name: &String) -> Result<(RobInfo, CamInfo), anyhow::Error>{
 
     //Get the first line of the cam config file
     let config_fp = format!("{}/conf_{}.txt", filepath, test_name);
 
+    let conf_file = File::open(config_fp)?;
+    let mut line_reader = BufReader::new(conf_file);
 
     //Open the file and read the first line
     let mut cam_info_line = String::new();
-    BufReader::new(File::open(config_fp)?).read_line(&mut cam_info_line)?;
+    line_reader.read_line(&mut cam_info_line)?;
 
-    //Split the line up
-    let cam_inf_split = cam_info_line.split("[");
-    let mut ind_cnt = 0;
+    
 
-    let mut rel_pos = [f32::NAN, f32::NAN, f32::NAN];
-    let mut rel_ori = [f32::NAN, f32::NAN, f32::NAN];
-    let mut x_scale = f32::NAN;
-    let mut y_scale = f32::NAN;
+    //Read the second line to get the robot info
+    let mut rob_info_line = String::new();
+    line_reader.read_line(&mut rob_info_line)?;
 
-    for split in cam_inf_split{
-
-        //Split again to isolate the data
-        for token in split.split("]"){
+    //Attempt to create both the configs inplace
+    Ok((RobInfo::create_rob_info_from_line(rob_info_line)?, CamInfo::create_cam_info_from_line(cam_info_line)?))
 
 
-            //We only want the first token
-            //println!("{ind_cnt} - {token}");
-
-
-            match ind_cnt {
-
-                1 => {
-                    let mut val_cnt = 0;
-                    for val in token.split(","){
-                        rel_pos[val_cnt] = val.trim().parse()?;
-                        val_cnt = val_cnt + 1;
-                    }
-
-                }
-
-                3 =>{
-                    let mut val_cnt = 0;
-                    for val in token.split(","){
-                        rel_ori[val_cnt] = val.trim().parse()?;
-                        val_cnt = val_cnt + 1;
-                    }
-
-                }
-
-                5 => {
-                    x_scale = token.parse()?;
-                }
-
-                7 => {
-                    y_scale = token.parse()?;
-                }
-
-                _ =>{
-                    //Do nothing
-                }
-            }
-            ind_cnt = ind_cnt + 1;
-        }
-
-    }
-
-    let cam_info = CamInfo::create_cam_info(rel_pos, rel_ori, x_scale, y_scale);
-
-    Ok(cam_info)
 }
-

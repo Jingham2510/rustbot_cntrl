@@ -34,7 +34,7 @@ fn main() -> Result<(), anyhow::Error>{
     let config : Config;
     if let Ok(conf) = Config::setup_config(){
         config = conf;
-        println!("Config loaded");
+        println!("Set config loaded");
     }else{
         println!("Error loading config - Loading default!");
         config = Config::default();
@@ -223,6 +223,8 @@ fn analyse(config : &Config) -> Result<(), anyhow::Error> {
 
     //Create analysis tool from chosen test
     let mut analyser = Analyser::init(depth_test_fp, test_enum[user_sel].1.clone())?;
+
+    
 
     analyser.disp_overall_change()?;
 

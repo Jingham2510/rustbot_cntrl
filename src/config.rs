@@ -33,7 +33,9 @@ pub struct RobInfo{
     ori_for_zero : [f32;3]
 }
 
+impl RobInfo {
 
+}
 
 const CONFIG_FP : &str = "configs/";
 
@@ -137,6 +139,62 @@ impl CamInfo{
             y_scale
         }
     }
+
+
+    //Create a caminfo struct from a line with format CAM: POS:[X,Y,Z] ORI:[X,Y,Z] X_SC:[X] Y_SC[Y]
+    pub fn create_cam_info_from_line(cam_info_line : String) -> Result<Self, anyhow::Error>{
+        //Split the line up
+        let cam_inf_split = cam_info_line.split("[");
+        let mut ind_cnt = 0;
+
+        let mut rel_pos = [f32::NAN, f32::NAN, f32::NAN];
+        let mut rel_ori = [f32::NAN, f32::NAN, f32::NAN];
+        let mut x_scale = f32::NAN;
+        let mut y_scale = f32::NAN;
+
+        for split in cam_inf_split{
+
+            //Split again to isolate the data
+            for token in split.split("]"){
+
+                match ind_cnt {
+
+                    1 => {
+                        let mut val_cnt = 0;
+                        for val in token.split(","){
+                            rel_pos[val_cnt] = val.trim().parse()?;
+                            val_cnt = val_cnt + 1;
+                        }
+
+                    }
+                    3 =>{
+                        let mut val_cnt = 0;
+                        for val in token.split(","){
+                            rel_ori[val_cnt] = val.trim().parse()?;
+                            val_cnt = val_cnt + 1;
+                        }
+
+                    }
+                    5 => {
+                        x_scale = token.parse()?;
+                    }
+
+                    7 => {
+                        y_scale = token.parse()?;
+                    }
+
+                    _ =>{
+                        //Do nothing
+                    }
+                }
+                ind_cnt = ind_cnt + 1;
+            }
+        }
+        let cam_info = CamInfo::create_cam_info(rel_pos, rel_ori, x_scale, y_scale);
+
+        Ok(cam_info)
+    }
+
 
     fn read_cam_info_from_file() -> Result<Self, anyhow::Error>{
 
@@ -262,6 +320,47 @@ impl RobInfo{
 
         })
     }
+
+
+    pub fn create_rob_info_from_line(line : String) -> Result<RobInfo, anyhow::Error> {
+
+
+        //Access the robot name
+        let name_split: Vec<&str> = line.split("\"").collect();
+        let rob_name = name_split[1];
+
+        //Split the string by [
+        let para_split: Vec<&str> = name_split[2].split("[").collect();
+
+        //Access the pos
+        let mut pos_for_zero = [f32::NAN, f32::NAN, f32::NAN];
+        let poses  = para_split[1].replace("] ORI:", "");
+        let poses: Vec<&str> = poses.split(",").collect();
+        let mut pos_cnt = 0;
+        for pos in poses{
+
+            pos_for_zero[pos_cnt] = pos.parse()?;
+            pos_cnt = pos_cnt + 1;
+        }
+
+
+        //Access the orientation
+        let mut ori_for_zero = [f32::NAN, f32::NAN, f32::NAN];
+        let oris = para_split[2].replace("]", "");
+        let oris : Vec<&str> = oris.trim().split(",").collect();
+        let mut ori_cnt = 0;
+        for ori in oris{
+            ori_for_zero[ori_cnt] = ori.parse()?;
+            ori_cnt = ori_cnt + 1;
+        }
+
+        Ok(RobInfo{
+            rob_name : rob_name.to_string(),
+            pos_for_zero,
+            ori_for_zero
+        })
+    }
+
 
     //getters for config info
     pub fn rob_name(&self) -> String {self.rob_name.clone()}

@@ -679,13 +679,14 @@ impl AbbRob<'_> {
 
         println!("{filepath}");
 
-        //Create the config file and save the data
+        //Create the config file and save the config info
         let mut file = OpenOptions::new()
             .append(true)
             .create(true)
             .open(filepath.trim())
             .unwrap();
 
+        //Save the cam info
         let line = format!("CAM: POS:[{},{},{}] ORI:[{},{},{}] X_SC:[{}] Y_SC:[{}]",
                            self.config.cam_info.rel_pos()[0],
                            self.config.cam_info.rel_pos()[1],
@@ -701,6 +702,18 @@ impl AbbRob<'_> {
         writeln!(file, "{}", line).expect("FAILED TO WRITE CAM TO CONFIG - CLOSING");
 
         //Save another line with the robot pos/ori config data
+        let line = format!("ROB: NAME: \"{}\" POS:[{},{},{}] ORI:[{},{},{}]",
+                           self.config.rob_info.rob_name(),
+                           self.config.rob_info.pos_to_zero()[0],
+                           self.config.rob_info.pos_to_zero()[1],
+                           self.config.rob_info.pos_to_zero()[2],
+                           self.config.rob_info.ori_to_zero()[0],
+                           self.config.rob_info.ori_to_zero()[1],
+                           self.config.rob_info.ori_to_zero()[2],
+        );
+
+        writeln!(file, "{}", line).expect("FAILED TO WRITE ROB TO CONFIG - CLOSING");
+
 
     }
 
