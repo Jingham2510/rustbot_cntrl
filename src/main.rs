@@ -18,7 +18,7 @@ mod config;
 mod helper_funcs;
 
 
-use crate::analysis::analyser::Analyser;
+use crate::analysis::analyser::{Analyser, ForceSel};
 use control::abb_rob;
 use crate::mapping::terr_map_sense::RealsenseCam;
 use crate::mapping::terr_map_tools::Heightmap;
@@ -226,12 +226,10 @@ fn analyse(config : &Config) -> Result<(), anyhow::Error> {
     //Create analysis tool from chosen test
     let mut analyser = Analyser::init(depth_test_fp, test_enum[user_sel].1.clone())?;
 
-    
 
-    analyser.disp_force_map(250, 250)?;
+    analyser.disp_action_map(250, 250)?;
 
-
-
+    //analyser.disp_force_map(100, 100, ForceSel::MomAvg)?;
 
     Ok(())
 }
@@ -239,7 +237,6 @@ fn analyse(config : &Config) -> Result<(), anyhow::Error> {
 
 //For testing coverage and variance of a realsense depth cam
 fn save_n_heightmaps(config : &Config) -> Result<(), anyhow::Error>{
-
 
     //Create the filename
     println!("How many snapshots?");

@@ -1,11 +1,11 @@
 use anyhow::bail;
 use chrono::{DateTime, Utc};
 use rand::Rng;
-use raylib::prelude::*;
 use realsense_sys::rs2_vertex;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 use crate::helper_funcs;
+use crate::helper_funcs::helper_funcs::ColOpt;
 
 //Pointcloud structure - contains purely point information
 //Basically a fancy vector wrapper
@@ -596,181 +596,11 @@ impl Heightmap {
         self.get_min();
     }
 
-    //Display the map as a grid - colouring in cells based on the height
-    //TODO : ADD NON-RELATIVE COLOURING (I.E. BASED ON ACTUAL HEIGHT)
-    pub fn disp_map(&mut self) {
-        //Calcualte grid sizes etc
-        //Square grid could be awkward if rectangular map but unlikely event
-
-        //GUI window size
-        const WINDOW_WIDTH: f32 = 1024.0;
-        const WINDOW_HEIGHT: f32 = 768.0;
-
-        //Precalced to save time
-        const WINDOW_WIDTH_START: f32 = WINDOW_WIDTH * 0.1;
-        const WINDOW_WIDTH_END: f32 = WINDOW_WIDTH * 0.9;
-        const WINDOW_HEIGHT_START: f32 = WINDOW_HEIGHT * 0.1;
-        const WINDOW_HEIGHT_END: f32 = WINDOW_HEIGHT * 0.9;
-
-        //GUI grid width/height
-        let grid_disp_width: f32 = WINDOW_WIDTH * 0.8;
-        let grid_disp_height: f32 = WINDOW_HEIGHT * 0.8;
-
-        //Line thickness
-        const LINE_THICKNESS: f32 = 3.0;
-
-        //calculate the cell width
-        let cell_width: f32 =
-            (grid_disp_width - ((self.width as f32 + 2.0) * LINE_THICKNESS)) / (self.width as f32);
-
-        let cell_height: f32 = (grid_disp_height - ((self.height as f32 + 2.0) * LINE_THICKNESS))
-            / (self.height as f32);
-
-        //Create the window
-        let (mut rl, thread) = raylib::init()
-            .size(WINDOW_WIDTH as i32, WINDOW_HEIGHT as i32)
-            .title("Terrain map")
-            //Set log report level
-            .log_level(TraceLogLevel::LOG_WARNING)
-            .build();
-
-        let mut data_height = f32::NAN;
-
-        while !rl.window_should_close() {
-            //Create the drawing tool
-            let mut d = rl.begin_drawing(&thread);
-
-            //Set the background colour
-            d.clear_background(Color::WHITE);
-
-            //Draw the grid outline
-            d.draw_rectangle_lines_ex(
-                Rectangle::new(
-                    WINDOW_WIDTH_START,
-                    WINDOW_HEIGHT_START,
-                    grid_disp_width,
-                    grid_disp_height,
-                ),
-                LINE_THICKNESS,
-                Color::BLACK,
-            );
-
-            //Draw the grid lines
-            for i in 1..self.width {
-                let curr_x = (WINDOW_WIDTH_START + LINE_THICKNESS)
-                    + (i as f32 * (cell_width + LINE_THICKNESS));
-
-                d.draw_line_ex(
-                    Vector2::new(curr_x, WINDOW_HEIGHT_START),
-                    Vector2::new(curr_x, WINDOW_HEIGHT_END),
-                    LINE_THICKNESS,
-                    Color::BLACK,
-                );
-            }
-            for i in 1..self.height {
-                let curr_y = (WINDOW_HEIGHT_START + LINE_THICKNESS)
-                    + (i as f32 * (cell_height + LINE_THICKNESS));
-
-                d.draw_line_ex(
-                    Vector2::new(WINDOW_WIDTH_START, curr_y),
-                    Vector2::new(WINDOW_WIDTH_END, curr_y),
-                    LINE_THICKNESS,
-                    Color::BLACK,
-                );
-            }
-
-            //Fill in the cell colours based on height values -----
-            //Base colour gradient range on largest and minimum value (with a median to act as a neutral value)
-            if !self.min_updated {
-                self.get_min();
-            }
-            if !self.max_updated {
-                self.get_max();
-            }
-
-            let median = (self.max + self.min) / 2.0;
-
-            //Go through every cell and draw a coloured rectangle to represent it
-            for (x, row) in self.cells.iter_mut().enumerate() {
-                //Calculate the start point of the rectangle
-                let curr_x = (WINDOW_WIDTH_START + (LINE_THICKNESS))
-                    + (x as f32 * (cell_width + LINE_THICKNESS));
-
-                for (y, col) in row.iter_mut().enumerate() {
-                    //Calc the starting height
-                    let curr_y = (WINDOW_HEIGHT_START + (LINE_THICKNESS))
-                        + (y as f32 * (cell_height + LINE_THICKNESS));
-
-                    //Calculate the colour
-                    let cell_col: Color;
-
-                    //println!("{0}", self.max);
-
-                    //If the value in the cell is unknown - paint it black
-                    if col.is_nan() {
-                        cell_col = Color::BLACK;
-                    } else if *col <= median {
-                        cell_col = Color::new(
-                            (256.0 * (1.0 - ((*col - self.min) / (median - self.min)))) as u8,
-                            (256.0 * ((*col - self.min) / (median - self.min))) as u8,
-                            0,
-                            255,
-                        );
-                    } else {
-                        cell_col = Color::new(
-                            0,
-                            (256.0 * (1.0 - ((*col - median) / (self.max - median)))) as u8,
-                            (256.0 * ((*col - median) / (self.max - median))) as u8,
-                            255,
-                        );
-                    }
-
-                    //Create the coloured rectangle in the grid
-                    d.draw_rectangle(
-                        curr_x as i32,
-                        curr_y as i32,
-                        (cell_width + 2.0 * LINE_THICKNESS) as i32,
-                        (cell_height + 2.0 * LINE_THICKNESS) as i32,
-                        cell_col,
-                    );
-
-                    //Draw the text info
-                    let data_str = format!("Height: {}", data_height);
-                    d.draw_text(
-                        &*data_str,
-                        WINDOW_WIDTH_START as i32,
-                        WINDOW_HEIGHT_END as i32 + 25,
-                        42,
-                        Color::BLACK,
-                    );
-                }
-            }
-
-            //Check if the mouse is clicked
-            if d.is_mouse_button_down(MouseButton::MOUSE_BUTTON_LEFT) {
-                let m_pos = d.get_mouse_position();
-
-                //Check if inside the bounds of the heightmap graphics
-                if m_pos.x < WINDOW_WIDTH_START
-                    || m_pos.x > WINDOW_WIDTH_END
-                    || m_pos.y < WINDOW_HEIGHT_START
-                    || m_pos.y > WINDOW_HEIGHT_END
-                {
-                    continue;
-                }
-
-                //Remove window placement offset, then take the percentage across the screen
-                let perc_x =
-                    (m_pos.x - WINDOW_WIDTH_START) / (WINDOW_WIDTH_END - WINDOW_WIDTH_START);
-                let perc_y =
-                    (m_pos.y - WINDOW_HEIGHT_START) / (WINDOW_HEIGHT_END - WINDOW_HEIGHT_START);
-
-                //Calculate which cell the position corresponds to
-                let x_cell = (perc_x * self.width as f32).floor() as usize;
-                let y_cell = (perc_y * self.height as f32).floor() as usize;
-                data_height = self.cells[x_cell][y_cell];
-            }
-        }
+    //Display the map as a grid - colouring in cells based on the distance from the median
+    pub fn disp_map(&mut self) -> Result<(), anyhow::Error>{
+       //Display the heightmap
+        helper_funcs::helper_funcs::display_magnitude_map("Heightmap",self.cells.clone(), self.width as usize, self.height as usize, ColOpt::Median)?;
+        Ok(())
     }
 
 
