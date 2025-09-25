@@ -451,7 +451,7 @@ impl AbbRob<'_> {
 
                 if hmap {
                     //Create a heightmap from the pointcloud
-                    let mut curr_hmap = Heightmap::create_from_pcl(curr_pcl, 250, 250, false);
+                    let mut curr_hmap = Heightmap::create_from_pcl(curr_pcl, 250, 250);
 
                     //Save the heightmap
                     let filepath = format!("{filepath}/hmap_{test_name}_{cnt}");

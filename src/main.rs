@@ -15,6 +15,8 @@ mod control;
 mod mapping;
 mod config;
 
+mod helper_funcs;
+
 
 use crate::analysis::analyser::Analyser;
 use control::abb_rob;
@@ -22,7 +24,7 @@ use crate::mapping::terr_map_sense::RealsenseCam;
 use crate::mapping::terr_map_tools::Heightmap;
 use crate::config::Config;
 
-const VER_NUM: &str = "V0.4";
+const VER_NUM: &str = "V0.5";
 //Program title
 const TITLE: &str = "Rustbot Control";
 
@@ -226,7 +228,9 @@ fn analyse(config : &Config) -> Result<(), anyhow::Error> {
 
     
 
-    analyser.disp_action_map(250, 250)?;
+    analyser.disp_force_map(250, 250)?;
+
+
 
 
     Ok(())
@@ -285,7 +289,7 @@ fn save_n_heightmaps(config : &Config) -> Result<(), anyhow::Error>{
         //Empirically calculated passband to isolate terrain bed
         //curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
 
-        let mut curr_heightmap = Heightmap::create_from_pcl(curr_pcl, 250, 250, false);
+        let mut curr_heightmap = Heightmap::create_from_pcl(curr_pcl, 250, 250);
 
         let hmap_fp = format!("{}/hmap_{}_{}", new_fp, user_inp.trim(), i);
 

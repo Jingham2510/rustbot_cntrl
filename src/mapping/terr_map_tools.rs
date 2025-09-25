@@ -3,9 +3,9 @@ use chrono::{DateTime, Utc};
 use rand::Rng;
 use raylib::prelude::*;
 use realsense_sys::rs2_vertex;
-use std::fmt::Debug;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
+use crate::helper_funcs;
 
 //Pointcloud structure - contains purely point information
 //Basically a fancy vector wrapper
@@ -336,7 +336,7 @@ impl Heightmap {
     }
 
     //Create a heightmap from a pointcloud (takes ownership of pcl object)
-    pub fn create_from_pcl(mut pcl: PointCloud, width: u32, height: u32, density: bool) -> Self {
+    pub fn create_from_pcl(mut pcl: PointCloud, width: u32, height: u32) -> Self {
         //Get the bounds
         let bounds = pcl.get_bounds();
 
@@ -344,59 +344,7 @@ impl Heightmap {
         let total_width = bounds[1] - bounds[0];
         let total_height = bounds[3] - bounds[2];
 
-        //Create a matrix which tracks the number of points in each cell
-        let mut cell_pnt_cnt = vec![vec![0.0f32; height as usize]; width as usize];
-
-        //Create the empty cell matrix
-        //Defined as NaN so that empty spots can be identified
-        let mut cells = vec![vec![f32::NAN; height as usize]; width as usize];
-
-        //Check each points and direct it to a cell (updating the average height)
-        for pnt in pcl.points {
-            let mut n = 0;
-            let mut m = 0;
-
-            let mut n_fnd = false;
-            let mut m_fnd = false;
-
-            //Find the horizontal pos
-            while !n_fnd {
-                if pnt[0] < ((total_width / width as f32) * n as f32) + bounds[0] {
-                    n_fnd = true;
-                } else {
-                    n = n + 1;
-                }
-
-                //Check if end pos
-                if n == (width - 1) as usize {
-                    n_fnd = true;
-                }
-            }
-
-            //Find the vertical pos
-            while !m_fnd {
-                if pnt[1] < ((total_height / height as f32) * m as f32) + bounds[2] {
-                    m_fnd = true;
-                } else {
-                    m = m + 1;
-                }
-                //Check if end pos
-                if m == (height - 1) as usize {
-                    m_fnd = true;
-                }
-            }
-
-            //Set the pcl to 0.0 at the start to avoid mem errors
-            if cell_pnt_cnt[n][m] == 0.0 {
-                cells[n][m] = 0.0;
-            }
-
-            //Calculate the updated cumulitve average
-            cells[n][m] =
-                (pnt[2] + cell_pnt_cnt[n][m] as f32 * cells[n][m]) / (cell_pnt_cnt[n][m] + 1.0);
-            //Increase the point count
-            cell_pnt_cnt[n][m] = cell_pnt_cnt[n][m] + 1.0;
-        }
+        let cells = helper_funcs::helper_funcs::trans_to_heightmap(pcl.points, width as usize, height as usize, total_width, total_height, bounds[0], bounds[2]).expect("Failed to convert PCL to heightmap");
 
         let square;
         //check if the heightmap is square
@@ -406,8 +354,8 @@ impl Heightmap {
             square = false;
         }
 
-        if !density {
-            Self {
+
+        Self {
                 height,
                 width,
                 square,
@@ -422,24 +370,6 @@ impl Heightmap {
                 lower_coord_bounds : [bounds[0], bounds[2]],
                 upper_coord_bounds : [bounds[1], bounds[3]]
 
-            }
-        } else {
-            Self {
-                height,
-                width,
-                square,
-                no_of_cells: height * width,
-                min: 999.0,
-                max: -999.0,
-                min_updated: false,
-                max_updated: false,
-                min_pos: (0, 0),
-                max_pos: (0, 0),
-                //Asses the point density instead
-                cells: cell_pnt_cnt,
-                lower_coord_bounds : [bounds[0], bounds[2]],
-                upper_coord_bounds : [bounds[1], bounds[3]]
-            }
         }
     }
 
@@ -525,13 +455,12 @@ impl Heightmap {
         filepath: String,
         width: u32,
         height: u32,
-        density: bool,
     ) -> Result<Self, anyhow::Error> {
         //Load the pcl file
         let pcl = PointCloud::create_from_file(filepath)?;
 
         //Turn the pcl into a heightmap and return it
-        Ok(Heightmap::create_from_pcl(pcl, width, height, density))
+        Ok(Heightmap::create_from_pcl(pcl, width, height))
     }
 
     pub fn print_cells(&self) {

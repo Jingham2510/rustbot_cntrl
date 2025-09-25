@@ -8,9 +8,6 @@ pub struct DataHandler {
     file: File,
 }
 
-
-
-
 impl DataHandler {
     //Create a data handler by associating a data file with it
     //Do not store all the data in the object for now - can just read it when necessary
@@ -88,9 +85,64 @@ impl DataHandler {
 
         //Return the trajectory
         Ok(traj_list)
-
    }
 
 
 
+    //Returns the trajectory and force data for the file - in an vector comprised of a tuple trajectory/force vector pairs
+    pub fn get_traj_and_force(&self) -> Result<Vec<([f32;3],[f32;6])>, anyhow::Error>{
+
+        let mut force_traj_data: Vec<([f32;3], [f32;6])> = vec![];
+
+        //Create a line reader
+        let line_reader = BufReader::new(self.file.try_clone().expect("FAILED TO CLONE FILE"));
+
+
+        //Read every line
+        for line in line_reader.lines() {
+            let line = line?;
+
+            //We know the data starts with ',[' so we can jump right to it
+            let line_split = line.split(",[");
+            let line_split = line_split.collect::<Vec<&str>>();
+
+            //Extract the pos information (index - 1)
+            //Remove the final square bracket
+            let curr_pos_string = line_split[1].replace("]", "");
+
+            let mut curr_pos: [f32; 3] = [f32::NAN, f32::NAN, f32::NAN];
+            let mut cnt = 0;
+
+            //Extract the individual numbers from the pos string and feed them into a pos array
+            for token in curr_pos_string.split(",") {
+                curr_pos[cnt] = token.parse()?;
+                cnt = cnt + 1;
+            }
+
+
+            let mut curr_force : [f32;6] = [f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN];
+            cnt = 0;
+
+            for token in line_split[3].replace("]", "").split(","){
+               
+                curr_force[cnt] = token.parse()?;
+                cnt = cnt + 1;
+
+            }
+
+            //Push the pos array to the pos list
+            force_traj_data.push((curr_pos, curr_force));
+
+        }
+
+
+
+        Ok(force_traj_data)
+
+    }
+
+
 }
+
+
+
