@@ -9,6 +9,7 @@ use std::fs::File;
 use std::io::{stdin, Write};
 use std::thread::sleep;
 use std::time::Duration;
+use anyhow::bail;
 
 mod analysis;
 mod control;
@@ -248,61 +249,62 @@ fn save_n_heightmaps(config : &Config) -> Result<(), anyhow::Error>{
         .expect("Failed to read line");
 
     //TODO - Handle erroneous user input
-    let n = user_inp.trim().parse::<i32>()?;
+    if let Ok(n) = user_inp.trim().parse::<i32>() {
+        let depth_test_fp: String = config.test_fp();
 
-    let depth_test_fp: String = config.test_fp();
+        //Ask the user for a dataset name
+        //Create the filename
+        println!("Please provide a test name");
 
-    //Ask the user for a dataset name
-    //Create the filename
-    println!("Please provide a test name");
+        //Get user input
+        let mut user_inp = String::new();
+        stdin()
+            .read_line(&mut user_inp)
+            .expect("Failed to read line");
 
-    //Get user input
-    let mut user_inp = String::new();
-    stdin()
-        .read_line(&mut user_inp)
-        .expect("Failed to read line");
+        //Create a folder to hold the test data
+        let new_fp = format!("{}/{}", depth_test_fp, user_inp.trim());
+        fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
 
-    //Create a folder to hold the test data
-    let new_fp = format!("{}/{}", depth_test_fp, user_inp.trim());
-    fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
+        //Create a depth camera handler
+        let mut cam = RealsenseCam::initialise()?;
 
-    //Create a depth camera handler
-    let mut cam = RealsenseCam::initialise()?;
+        //Sleep for 3 seconds to let the camera warm up
+        sleep(Duration::from_secs(3));
 
-    //Sleep for 3 seconds to let the camera warm up
-    sleep(Duration::from_secs(3));
+        //Measure n pcls then convert to heightmaps and save
+        for i in 0..n {
+            let mut curr_pcl = cam.get_depth_pnts()?;
 
-    //Measure n pcls then convert to heightmaps and save
-    for i in 0..n{
+            curr_pcl.save_to_file("C:/Users/User/Documents/Results/DEPTH_TESTS/test/pcl_test_0")?;
 
-        let mut curr_pcl = cam.get_depth_pnts()?;
+            //Rotate the PCL to orient it correctly
+            curr_pcl.scale_even(config.cam_info.x_scale());
+            curr_pcl.rotate(config.cam_info.rel_ori()[0], config.cam_info.rel_ori()[1], config.cam_info.rel_ori()[2]);
+            curr_pcl.translate(config.cam_info.rel_pos()[0], config.cam_info.rel_pos()[1], config.cam_info.rel_pos()[2]);
+            //Empirically calculated passband to isolate terrain bed
+            //curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
 
-        curr_pcl.save_to_file("C:/Users/User/Documents/Results/DEPTH_TESTS/test/pcl_test_0")?;
+            let mut curr_heightmap = Heightmap::create_from_pcl(curr_pcl, 250, 250);
 
-        //Rotate the PCL to orient it correctly
-        curr_pcl.scale_even(config.cam_info.x_scale());
-        curr_pcl.rotate( config.cam_info.rel_ori()[0], config.cam_info.rel_ori()[1], config.cam_info.rel_ori()[2]);
-        curr_pcl.translate(config.cam_info.rel_pos()[0], config.cam_info.rel_pos()[1], config.cam_info.rel_pos()[2]);
-        //Empirically calculated passband to isolate terrain bed
-        //curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
+            let hmap_fp = format!("{}/hmap_{}_{}", new_fp, user_inp.trim(), i);
 
-        let mut curr_heightmap = Heightmap::create_from_pcl(curr_pcl, 250, 250);
+            curr_heightmap.save_to_file(&*hmap_fp)?;
+        }
 
-        let hmap_fp = format!("{}/hmap_{}_{}", new_fp, user_inp.trim(), i);
 
-        curr_heightmap.save_to_file(&*hmap_fp)?;
+        //Create an empty data file so that the folder can be used with the analyser
+        let data_fp = format!("{}/data_{}.txt", new_fp, user_inp.trim());
+        let mut dat_file = File::create(data_fp)?;
+        dat_file.write("NODATA - PURE DEPTH TEST".as_bytes())?;
+
+
+        println!("Heightmaps generated");
+
+
+        Ok(())
+    }else{
+        bail!("Invalid value for number of measurements!")
     }
-
-
-    //Create an empty data file so that the folder can be used with the analyser
-    let data_fp = format!("{}/data_{}.txt", new_fp, user_inp.trim());
-    let mut dat_file = File::create(data_fp)?;
-    dat_file.write("NODATA - PURE DEPTH TEST".as_bytes())?;
-
-
-    println!("Heightmaps generated");
-
-
-    Ok(())
 }
 
