@@ -216,16 +216,18 @@ impl AbbRob<'_> {
 
     //Set the TCP point within the global coordinate system
     //xyz - desired position in cartesian coordinates
+    //block - indicates whether the move should block other transmission
     fn set_pos(&mut self, xyz: (f32, f32, f32)) {
-        if let Ok(_resp) = self
-            .socket
-            .req(&format!("MVTO:[{},{},{}]", xyz.0, xyz.1, xyz.2))
-        {
-            println!("Response!");
-            self.update_rob_info();
-        } else {
-            println!("Warning - no response - robot may not move");
-        }
+
+            if let Ok(_resp) = self
+                .socket
+                .req(&format!("MVTO:[{},{},{}]", xyz.0, xyz.1, xyz.2))
+            {
+                println!("Response!");
+                self.update_rob_info();
+            } else {
+                println!("Warning - no response - robot may not move");
+            }
     }
 
     //Add a translational movement to the robot movement queue
@@ -350,14 +352,19 @@ impl AbbRob<'_> {
 
                         //Create the thread that handles the depth camera
                         thread::spawn(move || Self::depth_sensing(rx, new_fp, &*user_inp.trim(), true, rel_pos, rel_ori, scale));
-                        
+
+                        //Move to the home position
+                        self.go_home_pos();
+                        //Trigger before the test begins
+                        if let Ok(_) = tx.send(2){}
+
+
                         let start_pos = (traj[0].0, traj[0].1, traj[0].2 + 25.0);
                         
                         //Move to a starting point - above the starting point
                         self.set_pos(start_pos);
 
-                        //Trigger before the test begins
-                        if let Ok(_) = tx.send(true){}
+
 
                         //Place all the trajectories in the queue
                         for pnt in traj {
@@ -381,9 +388,8 @@ impl AbbRob<'_> {
 
                             //Trigger at the start - or at a specified interval
                             if cnt % DEPTH_FREQ == 0 || cnt == 0 {
-                                if let Ok(_) = tx.send(true) {
+                                if let Ok(_) = tx.send(1) {
                                     //Do nothing here - normal operation
-                                    //println!("trigger sent")
                                 } else {
                                     println!("Warning - Cam thread dead!");
                                 }
@@ -394,21 +400,20 @@ impl AbbRob<'_> {
 
                             if self.disconnected {
                                 println!("Warning - disconnected during test");
-                                tx.send(false);
+                                tx.send(0);
                                 return;
                             }
                         }
                         
-                        //VERIFY HOME POS BEFORE USING
-                        //self.go_home_pos();
-                        //Go back to start_pos - makes start_end comp easier?
-                        self.set_pos(start_pos);
-                        //No point error handling - if this fails the test is done anyways
-                        tx.send(true);                        
+
+                        //Go back to home pos
+                        self.go_home_pos();
+                        //No point error handling - if this fails the test is done anyway
+                        tx.send(3);
                         
                         println!("Trajectory done!");
 
-                        tx.send(false);
+                        tx.send(0);
 
                         return;
                     } else {
@@ -420,7 +425,7 @@ impl AbbRob<'_> {
     }
 
     //Function which repeatedly takes depth measurements on trigger from another thread
-    fn depth_sensing(rx: Receiver<bool>, filepath : String, test_name: &str, hmap: bool, rel_pos : [f32;3], rel_ori : [f32;3], scale : f32) {
+    fn depth_sensing(rx: Receiver<u32>, filepath : String, test_name: &str, hmap: bool, rel_pos : [f32;3], rel_ori : [f32;3], scale : f32) {
         //Create a camera
         let mut cam = terr_map_sense::RealsenseCam::initialise().expect("Failed to create camera");
 
@@ -428,8 +433,11 @@ impl AbbRob<'_> {
 
         //Loop forever - will be killed once the test ends automatically
         loop {
+
+            let opt = rx.recv().expect("recieve thread error");
+
             //Block until the trigger is recieved
-            if rx.recv().expect("recieve thread error") {
+            if opt > 0 {
                 println!("Taking depth measure");
 
                 //Create a pointcloud
@@ -444,7 +452,24 @@ impl AbbRob<'_> {
                 //curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
 
                 //Save the pointcloud
-                let pcl_filepath = format!("{filepath}/pcl_{test_name}_{cnt}");
+
+                let pcl_filepath : String;
+
+                match opt{
+                    1 => {
+                        pcl_filepath = format!("{filepath}/pcl_{test_name}_{cnt}")
+                    }
+                    2=> {
+                        pcl_filepath = format!("{filepath}/pcl_{test_name}_START")
+                    }
+                    3=> {
+                        pcl_filepath = format!("{filepath}/pcl_{test_name}_END")
+                    }
+                    //If invalid number just take a count
+                    _ =>{
+                        pcl_filepath = format!("{filepath}/pcl_{test_name}_{cnt}")
+                    }
+                }
                 
 
                 curr_pcl.save_to_file(&*pcl_filepath).unwrap();
@@ -454,13 +479,33 @@ impl AbbRob<'_> {
                     let mut curr_hmap = Heightmap::create_from_pcl(curr_pcl, 250, 250);
 
                     //Save the heightmap
-                    let filepath = format!("{filepath}/hmap_{test_name}_{cnt}");
-                    println!("{filepath}");
-                    curr_hmap.save_to_file(&*filepath).unwrap()
+                    let hmap_filepath:String;
+
+                    match opt{
+                        1 => {
+                            hmap_filepath = format!("{filepath}/hmap_{test_name}_{cnt}")
+                        }
+                        2=> {
+                            hmap_filepath = format!("{filepath}/hmap_{test_name}_START")
+                        }
+                        3=> {
+                            hmap_filepath = format!("{filepath}/hmap_{test_name}_END")
+                        }
+                        //If invalid number just take a count
+                        _ =>{
+                            hmap_filepath = format!("{filepath}/hmap_{test_name}_{cnt}")
+                        }
+                    }
+
+                    println!("{hmap_filepath}");
+                    curr_hmap.save_to_file(&*hmap_filepath).unwrap()
                 }
 
-                //Increase the loop count
-                cnt = cnt + 1;
+                if opt == 1{
+                    //Increase the loop count
+                    cnt = cnt + 1;
+                }
+
             } else {
                 println!("Closing cam thread");
                 return;

@@ -83,53 +83,42 @@ impl Analyser {
 
         let hmap_cnt = self.get_hmap_cnt()?;
 
-        let mut first_hmap: Heightmap = Default::default();
-        let mut last_hmap: Heightmap = Default::default();
+        let first_hmap: Heightmap;
+        let last_hmap: Heightmap;
 
         //If the heightmaps haven't been generated - generate them now
         if self.no_of_pcl > hmap_cnt {
-            let first_fp = format!("{}/pcl_{}_0.txt", self.test_fp, self.test_name);
+            let first_fp = format!("{}/pcl_{}_START.txt", self.test_fp, self.test_name);
 
             first_hmap = Heightmap::create_from_pcl_file(first_fp, 250, 250)?;
 
             let last_fp = format!(
-                "{}/pcl_{}_{}.txt",
+                "{}/pcl_{}_END.txt",
                 self.test_fp,
-                self.test_name,
-                self.no_of_pcl - 1
+                self.test_name
             );
 
             last_hmap = Heightmap::create_from_pcl_file(last_fp, 250, 250)?;
         }
         //If the hmaps already exist, just load them
         else {
-            let first_fp = format!("{}/hmap_{}_0.txt", self.test_fp, self.test_name);
+            first_hmap = self.gen_hmap_n(250, 250, -1)?;
 
-            first_hmap = Heightmap::create_from_file(first_fp)?;
-
-            let last_fp = format!(
-                "{}/hmap_{}_{}.txt",
-                self.test_fp,
-                self.test_name,
-                hmap_cnt - 1
-            );
-
-            last_hmap = Heightmap::create_from_file(last_fp)?;
+            last_hmap = self.gen_hmap_n(250, 250, -2)?;;
         }
 
         //Create a new heightmap that compares the first and last
 
         let mut comp_hmap = terr_map_tools::comp_maps(&last_hmap, &first_hmap)?;
 
-        comp_hmap.disp_map();
+        comp_hmap.disp_map()?;
 
         Ok(())
     }
 
     //Displays all of heightmaps associated with a test
-    //TODO: Check if hmaps havent been genereated, then generate and display from pcl
-    pub fn display(&mut self) -> Result<(), anyhow::Error> {
-        let mut heightmaps: Vec<Heightmap> = vec![];
+    pub fn display_all(&mut self) -> Result<(), anyhow::Error> {
+        let heightmaps: Vec<Heightmap>;
 
         //Check if the hmaps have been generated
         if self.no_of_pcl > self.get_hmap_cnt()? {
@@ -141,7 +130,7 @@ impl Analyser {
 
         //Go through every heightmap and display it
         for mut hmap in heightmaps {
-            hmap.disp_map();
+            hmap.disp_map()?;
         }
 
         Ok(())
@@ -149,7 +138,7 @@ impl Analyser {
 
     //Calculates the total coverage of a measured area (i.e. how much unknown space there is)
     pub fn calc_coverage(&mut self) -> Result<Vec<f32>, anyhow::Error> {
-        let mut hmaps: Vec<Heightmap> = vec![];
+        let hmaps: Vec<Heightmap>;
 
         //Check if the hmaps have been generated
         if self.no_of_pcl > self.get_hmap_cnt()? {
@@ -243,8 +232,14 @@ impl Analyser {
         }
 
         //Create the filepath
-        let fp = format!("{}/pcl_{}_{}.txt", self.test_fp, self.test_name, n);
-
+        let fp : String;
+        if n == -1{
+            fp = format!("{}/pcl_{}_START.txt", self.test_fp, self.test_name);
+        }else if n == -2{
+            fp = format!("{}/pcl_{}_END.txt", self.test_fp, self.test_name);
+        }else {
+            fp = format!("{}/pcl_{}_{}.txt", self.test_fp, self.test_name, n);
+        }
         //Generate the heightmap from the pcl file
         let hmap = Heightmap::create_from_pcl_file(fp, width,height)?;
 
@@ -339,7 +334,7 @@ impl Analyser {
 
             //Transform the pointcloud to a heightmap and display it
             let mut curr_hmap = Heightmap::create_from_pcl(pcl, 250, 250);
-            curr_hmap.disp_map();
+            curr_hmap.disp_map()?;
         }
 
         Ok(())
@@ -351,7 +346,7 @@ impl Analyser {
     fn calc_action_map(&mut self, width :usize, height :usize) -> Result<Vec<Vec<f32>>, anyhow::Error>{
 
         //Get the base pointcloud - calculate the bounds
-        let fp = format!("{}/pcl_{}_0.txt", self.test_fp, self.test_name);
+        let fp = format!("{}/pcl_{}_START.txt", self.test_fp, self.test_name);
 
         //Load the heightmap file
         let bounds = PointCloud::create_from_file(fp)?.get_bounds();
@@ -380,10 +375,10 @@ impl Analyser {
 
     //Calculate the force map (force data transformed to the heightmap space)
     //Force calculation is based on average xyz force experienced
-    fn calc_force_map(&self, width: usize, height: usize, option : ForceSel) -> Result<(Vec<Vec<f32>>), anyhow::Error> {
+    fn calc_force_map(&self, width: usize, height: usize, option : ForceSel) -> Result<Vec<Vec<f32>>, anyhow::Error> {
 
         //Get the base pointcloud - calculate the bounds
-        let fp = format!("{}/pcl_{}_0.txt", self.test_fp, self.test_name);
+        let fp = format!("{}/pcl_{}_START.txt", self.test_fp, self.test_name);
 
         //Load the heightmap file
         let bounds = PointCloud::create_from_file(fp)?.get_bounds();

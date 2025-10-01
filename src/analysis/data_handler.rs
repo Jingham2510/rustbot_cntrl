@@ -21,7 +21,7 @@ impl DataHandler {
     //Z pos currently unused
     pub fn get_traj_rect_bnds(&mut self) -> Result<[f32; 4], anyhow::Error> {
      
-        let mut pos_list: Vec<[f32; 3]> = self.get_trajectory()?;
+        let pos_list: Vec<[f32; 3]> = self.get_trajectory()?;
 
         let mut min_x = 9999.0;
         let mut max_x = -9999.0;

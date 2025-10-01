@@ -1,7 +1,6 @@
 //A collection of helper functions based around calculating and displaying 2.5D maps
 
 
-use anyhow::bail;
 use raylib::callbacks::TraceLogLevel;
 use raylib::color::Color;
 use raylib::consts::MouseButton;
@@ -50,7 +49,7 @@ pub fn trans_to_heightmap(data : Vec<[f32;3]>, width: usize, height : usize, tot
                 m = m + 1;
             }
             //Check if end pos
-            if m == (height - 1) as usize {
+            if m == (height - 1) {
                 m_fnd = true;
             }
         }
@@ -62,7 +61,7 @@ pub fn trans_to_heightmap(data : Vec<[f32;3]>, width: usize, height : usize, tot
 
         //Calculate the updated cumulitve average
         cells[n][m] =
-            (pnt[2] + cell_pnt_cnt[n][m] as f32 * cells[n][m]) / (cell_pnt_cnt[n][m] + 1.0);
+            (pnt[2] + cell_pnt_cnt[n][m] * cells[n][m]) / (cell_pnt_cnt[n][m] + 1.0);
         //Increase the point count
         cell_pnt_cnt[n][m] = cell_pnt_cnt[n][m] + 1.0;
     }
@@ -129,7 +128,7 @@ pub fn display_magnitude_map(wind_title : &str, mut data:Vec<Vec<f32>>, width : 
         / (height as f32);
 
     //Get key data points
-    let (min, med_val, max) = helper_funcs::get_min_med_max(&data);
+    let (min, med_val, max) = get_min_med_max(&data);
 
     //Data to display
     let mut data_height = f32::NAN;

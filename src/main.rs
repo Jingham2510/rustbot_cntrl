@@ -228,7 +228,9 @@ fn analyse(config : &Config) -> Result<(), anyhow::Error> {
     let mut analyser = Analyser::init(depth_test_fp, test_enum[user_sel].1.clone())?;
 
 
-    analyser.disp_action_map(250, 250)?;
+    analyser.disp_overall_change();
+
+    //analyser.disp_action_map(250, 250)?;
 
     //analyser.disp_force_map(100, 100, ForceSel::MomAvg)?;
 
