@@ -104,7 +104,7 @@ impl Analyser {
         else {
             first_hmap = self.gen_hmap_n(250, 250, -1)?;
 
-            last_hmap = self.gen_hmap_n(250, 250, -2)?;;
+            last_hmap = self.gen_hmap_n(250, 250, -2)?;
         }
 
         //Create a new heightmap that compares the first and last

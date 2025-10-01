@@ -6,7 +6,6 @@ use raylib::color::Color;
 use raylib::consts::MouseButton;
 use raylib::drawing::RaylibDraw;
 use raylib::math::{Rectangle, Vector2};
-use crate::helper_funcs::helper_funcs;
 
 //Transforms 3 point data into a 2.5d heightmap ( where the 3rd data point is the "height"/intensity)
 pub fn trans_to_heightmap(data : Vec<[f32;3]>, width: usize, height : usize, total_width : f32, total_height : f32, min_x_bnd : f32, min_y_bnd : f32) -> Result<Vec<Vec<f32>>, anyhow::Error>{

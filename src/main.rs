@@ -19,7 +19,7 @@ mod config;
 mod helper_funcs;
 
 
-use crate::analysis::analyser::{Analyser, ForceSel};
+use crate::analysis::analyser::{Analyser};
 use control::abb_rob;
 use crate::mapping::terr_map_sense::RealsenseCam;
 use crate::mapping::terr_map_tools::Heightmap;
