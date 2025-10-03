@@ -105,6 +105,12 @@ fn core_cmd_handler(config : &Config) {
                 }
             }
 
+            "takepcl" =>{
+                if let Err(e) = take_pointcloud(&config){
+                    println!("PCL ERROR - {e}")
+                }
+            }
+
 
             //Catch all else
             _ => println!("Unknown command - see CMDs for list of commands"),
@@ -308,5 +314,59 @@ fn save_n_heightmaps(config : &Config) -> Result<(), anyhow::Error>{
     }else{
         bail!("Invalid value for number of measurements!")
     }
+}
+
+//Take a pointcloud - mainly for testing so doesn't save config
+fn take_pointcloud(config : &Config) -> Result<(), anyhow::Error>{
+
+
+    let depth_test_fp: String = config.test_fp();
+
+    //Ask the user for a dataset name
+    //Create the filename
+    println!("Please provide a test name");
+
+    //Get user input
+    let mut user_inp = String::new();
+    stdin()
+        .read_line(&mut user_inp)
+        .expect("Failed to read line");
+
+    //Create a folder to hold the test data
+    let new_fp = format!("{}/{}", depth_test_fp, user_inp.trim());
+    fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
+
+    //Create a depth camera handler
+    let mut cam = RealsenseCam::initialise()?;
+
+    //Sleep for 3 seconds to let the camera warm up
+    sleep(Duration::from_secs(3));
+
+    let pcl_fp = format!("{}/pcl_{}", new_fp, user_inp.trim());
+
+    let mut curr_pcl = cam.get_depth_pnts()?;
+
+    curr_pcl.save_to_file(&*pcl_fp)?;
+
+    //Rotate the PCL to orient it correctly
+    curr_pcl.scale_even(config.cam_info.x_scale());
+    curr_pcl.rotate(config.cam_info.rel_ori()[0], config.cam_info.rel_ori()[1], config.cam_info.rel_ori()[2]);
+    curr_pcl.translate(config.cam_info.rel_pos()[0], config.cam_info.rel_pos()[1], config.cam_info.rel_pos()[2]);
+    //Empirically calculated passband to isolate terrain bed
+    //curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
+
+
+    //Create an empty data file so that the folder can be used with the analyser
+    let data_fp = format!("{}/data_{}.txt", new_fp, user_inp.trim());
+    let mut dat_file = File::create(data_fp)?;
+    dat_file.write("NODATA - PURE PCL TEST".as_bytes())?;
+
+
+    println!("PCL generated");
+
+
+    Ok(())
+
+
 }
 
