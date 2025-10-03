@@ -346,15 +346,16 @@ fn take_pointcloud(config : &Config) -> Result<(), anyhow::Error>{
 
     let mut curr_pcl = cam.get_depth_pnts()?;
 
-    curr_pcl.save_to_file(&*pcl_fp)?;
+
 
     //Rotate the PCL to orient it correctly
-    curr_pcl.scale_even(config.cam_info.x_scale());
+    //curr_pcl.scale_even(config.cam_info.x_scale());
     curr_pcl.rotate(config.cam_info.rel_ori()[0], config.cam_info.rel_ori()[1], config.cam_info.rel_ori()[2]);
-    curr_pcl.translate(config.cam_info.rel_pos()[0], config.cam_info.rel_pos()[1], config.cam_info.rel_pos()[2]);
+    //curr_pcl.translate(config.cam_info.rel_pos()[0], config.cam_info.rel_pos()[1], config.cam_info.rel_pos()[2]);
     //Empirically calculated passband to isolate terrain bed
     //curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
 
+    curr_pcl.save_to_file(&*pcl_fp)?;
 
     //Create an empty data file so that the folder can be used with the analyser
     let data_fp = format!("{}/data_{}.txt", new_fp, user_inp.trim());
