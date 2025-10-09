@@ -356,6 +356,8 @@ impl AbbRob<'_> {
 
                         sleep(Duration::from_secs(2));
 
+                        if let Ok(_) = tx.send(4){}
+
                         //Move to the home position - blocker
                         self.go_home_pos();
 
@@ -468,6 +470,12 @@ impl AbbRob<'_> {
                     3=> {
                         pcl_filepath = format!("{filepath}/pcl_{test_name}_END")
                     }
+
+                    //Sacrificial scan (i.e. to get a crappy one out the way
+                    4 =>{
+                        continue
+                    }
+
                     //If invalid number just take a count
                     _ =>{
                         pcl_filepath = format!("{filepath}/pcl_{test_name}_{cnt}")
@@ -494,6 +502,7 @@ impl AbbRob<'_> {
                         3=> {
                             hmap_filepath = format!("{filepath}/hmap_{test_name}_END")
                         }
+
                         //If invalid number just take a count
                         _ =>{
                             hmap_filepath = format!("{filepath}/hmap_{test_name}_{cnt}")
