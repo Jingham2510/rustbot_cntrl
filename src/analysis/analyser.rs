@@ -80,7 +80,6 @@ impl Analyser {
     //Display the height change from the first to the last heightmap
     pub fn disp_overall_change(&mut self) -> Result<(), anyhow::Error> {
 
-
         let hmap_cnt = self.get_hmap_cnt()?;
 
         let first_hmap: Heightmap;
@@ -102,9 +101,12 @@ impl Analyser {
         }
         //If the hmaps already exist, just load them
         else {
-            first_hmap = self.gen_hmap_n(250, 250, -1)?;
 
-            last_hmap = self.gen_hmap_n(250, 250, -2)?;
+            let first_fp = format!("{}/hmap_{}_START.txt", self.test_fp, self.test_name);
+            first_hmap = Heightmap::create_from_file(first_fp)?;
+
+            let end_fp = format!("{}/hmap_{}_END.txt", self.test_fp, self.test_name);
+            last_hmap = Heightmap::create_from_file(end_fp)?;
         }
 
         //Create a new heightmap that compares the first and last
@@ -333,7 +335,7 @@ impl Analyser {
             );
 
             //Transform the pointcloud to a heightmap and display it
-            let mut curr_hmap = Heightmap::create_from_pcl(pcl, 250, 250);
+            let mut curr_hmap = Heightmap::create_from_pcl(pcl, 100, 100);
             curr_hmap.disp_map()?;
         }
 
@@ -356,7 +358,7 @@ impl Analyser {
 
         //Assume that both the trajectory and pointcloud have alreayd been trasnformed/mapped to the workspace
         //Get the trajectory
-        let traj = self.data_handler.get_trajectory()?;
+        let traj = self.data_handler.get_traj();
 
         //Transform the trajectory to the heightmap space
         Ok(trans_to_heightmap(traj, width, height, total_width, total_height, bounds[0], bounds[2])?)
@@ -367,7 +369,10 @@ impl Analyser {
 
             //Calculate the action map matrix
         if let Ok( ac_mat) = self.calc_action_map(width, height) {
+
             display_magnitude_map("Action map",ac_mat, width, height, ColOpt::Median)?;
+        }else{
+            bail!("Error when displaying action map");
         }
 
         Ok(())
@@ -375,7 +380,7 @@ impl Analyser {
 
     //Calculate the force map (force data transformed to the heightmap space)
     //Force calculation is based on average xyz force experienced
-    fn calc_force_map(&self, width: usize, height: usize, option : ForceSel) -> Result<Vec<Vec<f32>>, anyhow::Error> {
+    fn calc_force_map(&mut self, width: usize, height: usize, option : ForceSel) -> Result<Vec<Vec<f32>>, anyhow::Error> {
 
         //Get the base pointcloud - calculate the bounds
         let fp = format!("{}/pcl_{}_START.txt", self.test_fp, self.test_name);
@@ -387,7 +392,9 @@ impl Analyser {
         let total_height = bounds[3] - bounds[2];
 
         //Get the trajectory data coupled with the force data
-        let traj_force_dat = self.data_handler.get_traj_and_force()?;
+
+        let traj_force_dat = self.data_handler.get_traj_force_pairs();
+
 
         let mut pnts : Vec<[f32;3]> = vec![];
 
@@ -397,56 +404,56 @@ impl Analyser {
             ForceSel::ForceAvg =>{
                 //Couple the average force with xy positions
                 for data_pnt in traj_force_dat{
-                    pnts.push([data_pnt.0[0], data_pnt.0[1], (data_pnt.1[0] + data_pnt.1[1] + data_pnt.1[2])/3.0]);
+                    pnts.push([data_pnt.0[0], data_pnt.0[1], ((data_pnt.1[0] + data_pnt.1[1] + data_pnt.1[2])/3.0).abs()]);
                 }
             }
 
             ForceSel::MomAvg =>{
                 //Couple the average force with xy positions
                 for data_pnt in traj_force_dat{
-                    pnts.push([data_pnt.0[0], data_pnt.0[1], (data_pnt.1[3] + data_pnt.1[4] + data_pnt.1[5])/3.0]);
+                    pnts.push([data_pnt.0[0], data_pnt.0[1], ((data_pnt.1[3] + data_pnt.1[4] + data_pnt.1[5])/3.0).abs()]);
                 }
             }
 
             ForceSel::X =>{
                 //Couple the average force with xy positions
                 for data_pnt in traj_force_dat{
-                    pnts.push([data_pnt.0[0], data_pnt.0[1], data_pnt.1[0]]);
+                    pnts.push([data_pnt.0[0], data_pnt.0[1], data_pnt.1[0].abs()]);
                 }
             }
 
             ForceSel::Y =>{
                 //Couple the average force with xy positions
                 for data_pnt in traj_force_dat{
-                    pnts.push([data_pnt.0[0], data_pnt.0[1], data_pnt.1[1]]);
+                    pnts.push([data_pnt.0[0], data_pnt.0[1], data_pnt.1[1].abs()]);
                 }
             }
 
             ForceSel::Z =>{
                 //Couple the average force with xy positions
                 for data_pnt in traj_force_dat{
-                    pnts.push([data_pnt.0[0], data_pnt.0[1], data_pnt.1[2]]);
+                    pnts.push([data_pnt.0[0], data_pnt.0[1], data_pnt.1[2].abs()]);
                 }
             }
 
             ForceSel::Xmom =>{
                 //Couple the average force with xy positions
                 for data_pnt in traj_force_dat{
-                    pnts.push([data_pnt.0[0], data_pnt.0[1], data_pnt.1[3]]);
+                    pnts.push([data_pnt.0[0], data_pnt.0[1], data_pnt.1[3].abs()]);
                 }
             }
 
             ForceSel::Ymom =>{
                 //Couple the average force with xy positions
                 for data_pnt in traj_force_dat{
-                    pnts.push([data_pnt.0[0], data_pnt.0[1], data_pnt.1[4]]);
+                    pnts.push([data_pnt.0[0], data_pnt.0[1], data_pnt.1[4].abs()]);
                 }
             }
 
             ForceSel::Zmom =>{
                 //Couple the average force with xy positions
                 for data_pnt in traj_force_dat{
-                    pnts.push([data_pnt.0[0], data_pnt.0[1], data_pnt.1[5]]);
+                    pnts.push([data_pnt.0[0], data_pnt.0[1], data_pnt.1[5].abs()]);
                 }
             }
 
@@ -465,10 +472,13 @@ impl Analyser {
         //Calculate the force map matrix
         if let Ok(fc_mat) = self.calc_force_map(width, height, option) {
 
-            display_magnitude_map("Force map",fc_mat, width, height, ColOpt::Median)?;
+            display_magnitude_map("Force map",fc_mat, width, height, ColOpt::Intensity)?;
 
+        }else{
+            bail!("Error when displaying action map");
         }
         Ok(())
+
     }
 
 

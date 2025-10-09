@@ -7,8 +7,9 @@ use std::fs::OpenOptions;
 use std::io::{prelude::*, stdin};
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 use std::{fs, thread};
+use std::thread::sleep;
 use crate::config::{Config};
 
 pub struct AbbRob<'a> {
@@ -153,22 +154,22 @@ impl AbbRob<'_> {
 
     fn go_home_pos(&mut self) {
         //Define the home point
-        let home_pos = (177.77, 1777.27, 350.0);
+        const HOME_POS : (f32, f32, f32) = (220.0, 1256.0, 955.0);
 
         //Define the home orientation
-        let home_ori = angle_tools::Quartenion {
-            w: 0.02607,
-            x: -0.76666,
-            y: 0.64128,
-            z: 0.01799,
+        const HOME_ORI : angle_tools::Quartenion = angle_tools::Quartenion {
+            w: 0.00203,
+            x: -0.98623,
+            y: -0.16536,
+            z: 0.00062,
         };
 
-        self.set_speed(500.0);
+        //self.set_speed(500.0);
 
         //Set the pos and ori
-        self.set_pos(home_pos);
+        self.set_pos(HOME_POS);
 
-        self.set_ori(home_ori);
+        self.set_ori(HOME_ORI);
 
         self.set_speed(50.0);
 
@@ -353,8 +354,11 @@ impl AbbRob<'_> {
                         //Create the thread that handles the depth camera
                         thread::spawn(move || Self::depth_sensing(rx, new_fp, &*user_inp.trim(), true, rel_pos, rel_ori, scale));
 
-                        //Move to the home position
+                        sleep(Duration::from_secs(2));
+
+                        //Move to the home position - blocker
                         self.go_home_pos();
+
                         //Trigger before the test begins
                         if let Ok(_) = tx.send(2){}
 
@@ -448,8 +452,7 @@ impl AbbRob<'_> {
                 curr_pcl.rotate( rel_ori[0], rel_ori[1], rel_ori[2]);
                 curr_pcl.translate(rel_pos[0], rel_pos[1], rel_pos[2]);
 
-                //Empirically calculated passband to isolate terrain bed
-                //curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
+                curr_pcl.passband_filter(-10.0, 2000.0, -10.0, 2000.0, -150.0, 200.0);
 
                 //Save the pointcloud
 
@@ -476,7 +479,7 @@ impl AbbRob<'_> {
 
                 if hmap {
                     //Create a heightmap from the pointcloud
-                    let mut curr_hmap = Heightmap::create_from_pcl(curr_pcl, 250, 250);
+                    let mut curr_hmap = Heightmap::create_from_pcl(curr_pcl, 200, 200);
 
                     //Save the heightmap
                     let hmap_filepath:String;

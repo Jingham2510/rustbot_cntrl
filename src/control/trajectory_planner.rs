@@ -7,7 +7,7 @@ use std::{fs, io};
 
 const IMPL_TRAJS: [&str; 4] = ["line", "circle", "slidedown", "custom"];
 
-const DEFAULT_Z: f32 = 155.0;
+const DEFAULT_Z: f32 = 150.0;
 
 //Selects a trajectory bsaed on string input from user
 pub fn traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>> {
@@ -18,7 +18,7 @@ pub fn traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>> {
         //Line trajectory
         "line" => {
             //Define all the starting points etc
-            let line_x = -273.0;
+            let line_x = 265.0;
             let line_z = DEFAULT_Z;
             let start_y = 1550.0;
             let end_y = 2550.0;
@@ -32,7 +32,7 @@ pub fn traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>> {
             //Define all characteristics of the circle
             let centre = (200.0, 2160.0, DEFAULT_Z);
             //Number of times the circle goes round
-            let loops = 3;
+            let loops = 1;
             //"size" of circle
             let radius = 350.0;
 

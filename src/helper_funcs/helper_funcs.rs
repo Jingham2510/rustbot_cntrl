@@ -256,6 +256,10 @@ pub fn display_magnitude_map(wind_title : &str, mut data:Vec<Vec<f32>>, width : 
             data_height = data[x_cell][y_cell];
         }
     }
+
+    
+
+
     Ok(())
 }
 

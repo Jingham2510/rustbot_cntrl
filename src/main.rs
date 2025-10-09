@@ -19,7 +19,7 @@ mod config;
 mod helper_funcs;
 
 
-use crate::analysis::analyser::{Analyser};
+use crate::analysis::analyser::{Analyser, ForceSel};
 use control::abb_rob;
 use crate::mapping::terr_map_sense::RealsenseCam;
 use crate::mapping::terr_map_tools::Heightmap;
@@ -42,6 +42,7 @@ fn main() -> Result<(), anyhow::Error>{
         println!("Error loading config - Loading default!");
         config = Config::default();
     }
+
 
 
     //Run the command handler
@@ -233,12 +234,18 @@ fn analyse(config : &Config) -> Result<(), anyhow::Error> {
     //Create analysis tool from chosen test
     let mut analyser = Analyser::init(depth_test_fp, test_enum[user_sel].1.clone())?;
 
+    //analyser.display_all();
 
-    analyser.disp_overall_change();
+   // analyser.disp_overall_change();
 
-    //analyser.disp_action_map(250, 250)?;
+    analyser.disp_action_map(200, 200)?;
 
-    //analyser.disp_force_map(100, 100, ForceSel::MomAvg)?;
+
+    analyser.disp_force_map(200, 200, ForceSel::X)?;
+
+
+    //analyser.disp_iso_traj_path(50.0, 50.0);
+
 
     Ok(())
 }
@@ -284,16 +291,18 @@ fn save_n_heightmaps(config : &Config) -> Result<(), anyhow::Error>{
         for i in 0..n {
             let mut curr_pcl = cam.get_depth_pnts()?;
 
-            curr_pcl.save_to_file("C:/Users/User/Documents/Results/DEPTH_TESTS/test/pcl_test_0")?;
+            let pcl_fp = format!("{}/pcl_{}_{}", new_fp, user_inp.trim(), i);
+
+            curr_pcl.save_to_file(&*pcl_fp)?;
 
             //Rotate the PCL to orient it correctly
             curr_pcl.scale_even(config.cam_info.x_scale());
             curr_pcl.rotate(config.cam_info.rel_ori()[0], config.cam_info.rel_ori()[1], config.cam_info.rel_ori()[2]);
             curr_pcl.translate(config.cam_info.rel_pos()[0], config.cam_info.rel_pos()[1], config.cam_info.rel_pos()[2]);
             //Empirically calculated passband to isolate terrain bed
-            //curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
+            curr_pcl.passband_filter(-10.0, 2000.0, -10.0, 2000.0, -150.0, 200.0);
 
-            let mut curr_heightmap = Heightmap::create_from_pcl(curr_pcl, 250, 250);
+            let mut curr_heightmap = Heightmap::create_from_pcl(curr_pcl, 200, 200);
 
             let hmap_fp = format!("{}/hmap_{}_{}", new_fp, user_inp.trim(), i);
 
@@ -349,11 +358,11 @@ fn take_pointcloud(config : &Config) -> Result<(), anyhow::Error>{
 
 
     //Rotate the PCL to orient it correctly
-    //curr_pcl.scale_even(config.cam_info.x_scale());
+    curr_pcl.scale_even(config.cam_info.x_scale());
     curr_pcl.rotate(config.cam_info.rel_ori()[0], config.cam_info.rel_ori()[1], config.cam_info.rel_ori()[2]);
-    //curr_pcl.translate(config.cam_info.rel_pos()[0], config.cam_info.rel_pos()[1], config.cam_info.rel_pos()[2]);
+    curr_pcl.translate(config.cam_info.rel_pos()[0], config.cam_info.rel_pos()[1], config.cam_info.rel_pos()[2]);
     //Empirically calculated passband to isolate terrain bed
-    //curr_pcl.passband_filter(-1.0, 1.0, -3.8, -0.9, 0.6, 1.3);
+    curr_pcl.passband_filter(-10.0, 2000.0, -10.0, 2000.0, -150.0, 200.0);
 
     curr_pcl.save_to_file(&*pcl_fp)?;
 
