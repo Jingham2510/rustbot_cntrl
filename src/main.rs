@@ -263,7 +263,6 @@ fn save_n_heightmaps(config : &Config) -> Result<(), anyhow::Error>{
         .read_line(&mut user_inp)
         .expect("Failed to read line");
 
-    //TODO - Handle erroneous user input
     if let Ok(n) = user_inp.trim().parse::<i32>() {
         let depth_test_fp: String = config.test_fp();
 
@@ -321,7 +320,13 @@ fn save_n_heightmaps(config : &Config) -> Result<(), anyhow::Error>{
 
         Ok(())
     }else{
-        bail!("Invalid value for number of measurements!")
+        //bail!("Invalid value for number of measurements!")
+
+        println!("Invalid number - Try again");
+
+        save_n_heightmaps(config)?;
+
+        Ok(())
     }
 }
 
