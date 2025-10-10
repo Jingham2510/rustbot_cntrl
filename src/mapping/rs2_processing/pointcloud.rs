@@ -1,10 +1,6 @@
 use realsense_rust::frame::{DepthFrame, FrameEx, PointsFrame};
 use realsense_rust::stream_profile::DataError;
-use realsense_sys::{
-    rs2_create_frame_queue, rs2_create_pointcloud, rs2_delete_frame_queue,
-    rs2_delete_processing_block, rs2_error, rs2_frame_queue, rs2_process_frame,
-    rs2_processing_block, rs2_start_processing_queue, rs2_wait_for_frame,
-};
+use realsense_sys::{rs2_create_frame_queue, rs2_create_pointcloud, rs2_delete_frame_queue, rs2_delete_processing_block, rs2_error, rs2_frame, rs2_frame_queue, rs2_poll_for_frame, rs2_process_frame, rs2_processing_block, rs2_start_processing_queue, rs2_wait_for_frame};
 use std::ptr::NonNull;
 use std::time::Duration;
 
@@ -81,5 +77,13 @@ impl PointCloudProcBlock {
     }
 
     //Poll to see if the queue is ready to provide a processed frame
-    //TODO - add POLLING using poll for frame
+    pub fn poll(&mut self) -> Result<PointsFrame, DataError> {
+        unsafe{
+            let mut err = std::ptr::null_mut::<rs2_error>();
+            let point_frame: *mut *mut rs2_frame = std::ptr::null_mut::<*mut rs2_frame>();
+            //Poll the processing queue to see if it's ready - if not ready return a null pointer
+            rs2_poll_for_frame(self.processing_queue.as_ptr(), point_frame, &mut err);
+            Ok(PointsFrame::try_from(NonNull::new(*point_frame).unwrap()).unwrap())
+        }
+    }
 }

@@ -132,8 +132,6 @@ impl DataHandler {
 //turns a string in the format "[x,y,z]" into a vector
 fn str_to_traj_ori(x : &str) -> Result<[f32;3], anyhow::Error>{
 
-    println!("{x}");
-
 
     let mut curr_vec: [f32;3] = [f32::NAN, f32::NAN, f32::NAN];
 
