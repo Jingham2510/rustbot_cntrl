@@ -357,6 +357,7 @@ impl AbbRob<'_> {
                         sleep(Duration::from_secs(2));
 
                         if let Ok(_) = tx.send(4){}
+                        if let Ok(_) = tx.send(4){}
 
                         //Move to the home position - blocker
                         self.go_home_pos();

@@ -296,7 +296,11 @@ pub struct Heightmap {
 
     //The pointcloud bounds it was constructed from (used to position the heightmap in the real world)
     lower_coord_bounds: [f32;2],
-    upper_coord_bounds: [f32;2]
+    upper_coord_bounds: [f32;2],
+
+
+    //Store the filepath for usage in analysis
+    pub filename : String
 }
 
 
@@ -317,6 +321,9 @@ impl Heightmap {
             square_check = true;
         }
 
+
+        let filename = "No filepath".to_string();
+
         //Generate an empty cell bed of height*width size
         Self {
             height,
@@ -332,6 +339,7 @@ impl Heightmap {
             max_pos: (0, 0),
             lower_coord_bounds : [0.0,0.0],
             upper_coord_bounds : [0.0,0.0],
+            filename
         }
     }
 
@@ -354,6 +362,8 @@ impl Heightmap {
             square = false;
         }
 
+        //create the filename from the relative timestamp
+        let filename = format!("created from pcl- {}", pcl.rel_timestamp);
 
         Self {
                 height,
@@ -368,7 +378,8 @@ impl Heightmap {
                 max_pos: (0, 0),
                 cells,
                 lower_coord_bounds : [bounds[0], bounds[2]],
-                upper_coord_bounds : [bounds[1], bounds[3]]
+                upper_coord_bounds : [bounds[1], bounds[3]],
+                filename
 
         }
     }
@@ -376,10 +387,9 @@ impl Heightmap {
     //Creates a heightmap from a hmap file
     pub fn create_from_file(filepath: String) -> Result<Self, anyhow::Error> {
         //Create the filepath
-        let filepath = format!("{}", filepath.to_string());
 
         //Open the file and create a buffer to read the lines
-        let file = File::open(filepath)?;
+        let file = File::open(filepath.clone())?;
         let mut line_reader = BufReader::new(file);
 
         //Read the first line to extract the bounds
@@ -446,7 +456,8 @@ impl Heightmap {
             max_pos: (0, 0),
             cells,
             lower_coord_bounds : [bounds_res[0], bounds_res[2]],
-            upper_coord_bounds : [bounds_res[1], bounds_res[3]]
+            upper_coord_bounds : [bounds_res[1], bounds_res[3]],
+            filename : filepath
         })
     }
 

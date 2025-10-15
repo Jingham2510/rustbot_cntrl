@@ -132,7 +132,9 @@ impl Analyser {
 
         //Go through every heightmap and display it
         for mut hmap in heightmaps {
+            println!("{}", hmap.filename);
             hmap.disp_map()?;
+
         }
 
         Ok(())
