@@ -352,7 +352,7 @@ impl Heightmap {
         let total_width = bounds[1] - bounds[0];
         let total_height = bounds[3] - bounds[2];
 
-        let cells = helper_funcs::helper_funcs::trans_to_heightmap(pcl.points, width as usize, height as usize, total_width, total_height, bounds[0], bounds[2]).expect("Failed to convert PCL to heightmap");
+        let cells = helper_funcs::helper_funcs::trans_to_heightmap(pcl.points, width as usize, height as usize, total_width, total_height, bounds[0], bounds[2], helper_funcs::helper_funcs::MapGenOpt::Mean).expect("Failed to convert PCL to heightmap");
 
         let square;
         //check if the heightmap is square

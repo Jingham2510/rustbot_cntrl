@@ -1,21 +1,30 @@
 //A collection of helper functions based around calculating and displaying 2.5D maps
 
-
+use anyhow::bail;
 use raylib::callbacks::TraceLogLevel;
 use raylib::color::Color;
 use raylib::consts::MouseButton;
 use raylib::drawing::RaylibDraw;
 use raylib::math::{Rectangle, Vector2};
 
-//Transforms 3 point data into a 2.5d heightmap ( where the 3rd data point is the "height"/intensity)
-pub fn trans_to_heightmap(data : Vec<[f32;3]>, width: usize, height : usize, total_width : f32, total_height : f32, min_x_bnd : f32, min_y_bnd : f32) -> Result<Vec<Vec<f32>>, anyhow::Error>{
 
-    //Create a matrix which tracks the number of trajectory points in each cell
-    let mut cell_pnt_cnt = vec![vec![0.0f32; height]; width];
+
+
+pub enum MapGenOpt{
+    Mean,
+    Median,
+    Min,
+    Max
+}
+
+
+//Transforms 3 point data into a 2.5d heightmap ( where the 3rd data point is the "height"/intensity)
+pub fn trans_to_heightmap(data : Vec<[f32;3]>, width: usize, height : usize, total_width : f32, total_height : f32, min_x_bnd : f32, min_y_bnd : f32, opt : MapGenOpt) -> Result<Vec<Vec<f32>>, anyhow::Error>{
+
 
     //Create the empty cell matrix
     //NaN spots are areas with 0 action
-    let mut cells = vec![vec![f32::NAN; height]; width];
+    let mut cells_pnt_list = vec![vec![vec![]; height]; width];
 
     //Check where the trajectory lies within the cell space - copied from heightmap generation
     //Check each points and direct it to a cell (updating the average height)
@@ -53,16 +62,94 @@ pub fn trans_to_heightmap(data : Vec<[f32;3]>, width: usize, height : usize, tot
             }
         }
 
-        //Set the pcl to 0.0 at the start to avoid mem errors
-        if cell_pnt_cnt[n][m] == 0.0 {
-            cells[n][m] = 0.0;
+        //add the point to the cell point list
+        cells_pnt_list[n][m].push(pnt[2]);
+    }
+
+
+    //Calculate the height of each cell based on the chosen hmap option
+    let mut cells : Vec<Vec<f32>> = vec![vec![]; width];
+
+    //Iterate through each point list
+    for (i, pnt_list) in cells_pnt_list.iter_mut().enumerate(){
+
+        for  pnts in pnt_list{
+
+            //If the cell is NAN - keep it as a null cell
+            if pnts.iter().any(|x| x.is_nan()){
+                cells[i].push(f32::NAN);
+                continue
+            }
+
+            let mut pnt_to_add : f32 = 0.0;
+
+            //Determine the value of the cell bsaed on the provided heightmap options
+            match opt{
+
+                MapGenOpt::Mean =>{
+
+                    let mut cnt = 0;
+
+                    //sum all the points in the list
+                    for pnt in pnts{
+                        pnt_to_add = pnt_to_add + *pnt;
+                        cnt = cnt + 1;
+                    }
+
+                    //Divide by the length of the list
+                    pnt_to_add = pnt_to_add/cnt as f32;
+
+                }
+
+                MapGenOpt::Median =>{
+
+                    //Sort the list
+                    todo!()
+
+                    //check if length is odd/even
+
+                    //Identify the middle value
+
+
+                }
+
+                MapGenOpt::Max =>{
+
+                    //Set the max default
+                    pnt_to_add = -9999.0;
+                    //Iterate through every point and get the max
+                    for pnt in pnts{
+                        if *pnt > pnt_to_add{
+                            pnt_to_add = *pnt;
+                        }
+                    }
+
+
+                }
+
+                MapGenOpt::Min =>{
+
+                    //Iterate through every point and get the min
+                    //Set the min default
+                    pnt_to_add = 9999.0;
+                    //Iterate through every point and get the max
+                    for pnt in pnts{
+                        if *pnt < pnt_to_add{
+                            pnt_to_add = *pnt;
+                        }
+                    }
+
+
+                }
+
+
+                _=>{bail!("Invalid map gen option")}
+            }
+
+            cells[i].push(pnt_to_add);
         }
 
-        //Calculate the updated cumulitve average
-        cells[n][m] =
-            (pnt[2] + cell_pnt_cnt[n][m] * cells[n][m]) / (cell_pnt_cnt[n][m] + 1.0);
-        //Increase the point count
-        cell_pnt_cnt[n][m] = cell_pnt_cnt[n][m] + 1.0;
+
     }
 
     Ok(cells)
@@ -312,3 +399,5 @@ fn inv_intensity_cell_col(val: f32, min : f32, max : f32) -> Color{
     )
 
 }
+
+

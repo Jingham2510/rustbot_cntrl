@@ -6,6 +6,7 @@ use anyhow::bail;
 use std::fs;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
+use crate::helper_funcs;
 use crate::helper_funcs::helper_funcs::ColOpt;
 use crate::helper_funcs::helper_funcs::{trans_to_heightmap, display_magnitude_map};
 
@@ -363,7 +364,7 @@ impl Analyser {
         let traj = self.data_handler.get_traj();
 
         //Transform the trajectory to the heightmap space
-        Ok(trans_to_heightmap(traj, width, height, total_width, total_height, bounds[0], bounds[2])?)
+        Ok(trans_to_heightmap(traj, width, height, total_width, total_height, bounds[0], bounds[2], helper_funcs::helper_funcs::MapGenOpt::Mean)?)
     }
 
     //Displays the action map of the test (i.e. graphically encoded trajectory) - height indicate by pixel intensity
@@ -465,7 +466,7 @@ impl Analyser {
 
 
 
-        Ok(trans_to_heightmap(pnts, width, height, total_width, total_height, bounds[0], bounds[2])?)
+        Ok(trans_to_heightmap(pnts, width, height, total_width, total_height, bounds[0], bounds[2], helper_funcs::helper_funcs::MapGenOpt::Mean)?)
     }
 
     //Displays the force map of the test (i.e. graphically encoded force experience) - force indicated by pixel colour

@@ -357,8 +357,6 @@ impl AbbRob<'_> {
                         sleep(Duration::from_secs(2));
 
                         if let Ok(_) = tx.send(4){}
-                        if let Ok(_) = tx.send(4){}
-
                         //Move to the home position - blocker
                         self.go_home_pos();
 
@@ -370,7 +368,6 @@ impl AbbRob<'_> {
                         
                         //Move to a starting point - above the starting point
                         self.set_pos(start_pos);
-
 
 
                         //Place all the trajectories in the queue
@@ -450,7 +447,7 @@ impl AbbRob<'_> {
                 //Create a pointcloud
                 let mut curr_pcl = cam.get_depth_pnts().expect("Failed to get get pointcloud");
 
-                //Dont  filter the data - save raw (transformed to robot frame)
+                //filter the data - save raw (transformed to robot frame)
                 curr_pcl.scale_even(scale);
                 curr_pcl.rotate( rel_ori[0], rel_ori[1], rel_ori[2]);
                 curr_pcl.translate(rel_pos[0], rel_pos[1], rel_pos[2]);
@@ -458,7 +455,6 @@ impl AbbRob<'_> {
                 curr_pcl.passband_filter(-10.0, 2000.0, -10.0, 2000.0, -150.0, 200.0);
 
                 //Save the pointcloud
-
                 let pcl_filepath : String;
 
                 match opt{
@@ -474,7 +470,11 @@ impl AbbRob<'_> {
 
                     //Sacrificial scan (i.e. to get a crappy one out the way
                     4 =>{
+                        println!("THROWAWAY SCAN");
+                        //Sleep to try let the cam warm
+                        sleep(Duration::from_secs(2));
                         continue
+
                     }
 
                     //If invalid number just take a count
