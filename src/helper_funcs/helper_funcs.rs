@@ -12,6 +12,7 @@ use raylib::math::{Rectangle, Vector2};
 
 pub enum MapGenOpt{
     Mean,
+    //Warning! Median will be a slow process - you have to sort the list of points in each section
     Median,
     Min,
     Max
@@ -76,12 +77,13 @@ pub fn trans_to_heightmap(data : Vec<[f32;3]>, width: usize, height : usize, tot
         for  pnts in pnt_list{
 
             //If the cell is NAN - keep it as a null cell
-            if pnts.iter().any(|x| x.is_nan()){
+            if pnts.iter().any(|x| x.is_nan()) || pnts.len() == 0{
                 cells[i].push(f32::NAN);
                 continue
             }
 
             let mut pnt_to_add : f32 = 0.0;
+
 
             //Determine the value of the cell bsaed on the provided heightmap options
             match opt{
@@ -103,14 +105,24 @@ pub fn trans_to_heightmap(data : Vec<[f32;3]>, width: usize, height : usize, tot
 
                 MapGenOpt::Median =>{
 
-                    //Sort the list
-                    todo!()
+                    //Sort the list - unstable because we dont care about initial order of indices and also its faster
+                    pnts.sort_unstable_by(f32::total_cmp);
 
-                    //check if length is odd/even
+                    if pnts.len() == 1{
+                        pnt_to_add = pnts[0]
+                    }else {
+                        //check if length is odd/even
+                        let even = {
+                            pnts.len() % 2 == 0
+                        };
 
-                    //Identify the middle value
-
-
+                        //Identify the median value
+                        if even {
+                            pnt_to_add = (pnts[(pnts.len() +1)/2] + pnts[(pnts.len() - 1) /2]) / 2.0
+                        } else {
+                            pnt_to_add = pnts[(pnts.len()) / 2]
+                        }
+                    }
                 }
 
                 MapGenOpt::Max =>{
