@@ -171,7 +171,7 @@ impl AbbRob<'_> {
 
         self.set_ori(HOME_ORI);
 
-        self.set_speed(50.0);
+        self.set_speed(15.0);
 
         println!("Home!");
     }
