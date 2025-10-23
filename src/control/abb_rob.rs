@@ -164,14 +164,14 @@ impl AbbRob<'_> {
             z: 0.00062,
         };
 
-        //self.set_speed(500.0);
+        self.set_speed(150.0);
 
         //Set the pos and ori
         self.set_pos(HOME_POS);
 
         self.set_ori(HOME_ORI);
 
-        self.set_speed(15.0);
+        self.set_speed(50.0);
 
         println!("Home!");
     }
