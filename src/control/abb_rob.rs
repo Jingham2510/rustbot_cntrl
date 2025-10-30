@@ -298,6 +298,47 @@ impl AbbRob<'_> {
         }
     }
 
+    //Set the robot force mode
+    fn set_force_control_mode(&mut self, force_control : bool) -> Result<Ok, anyhow::Error>{
+
+        //Cast the bool to a 1 or a 0 for easier parsing at the other end
+        let fc_cntrl : i32 = force_control as i32;
+        let fc_cntrl_string = format!("STFM:{}", fc_cntrl);
+
+
+        if let Ok(resp) = self.socket.req(&*fc_cntrl_string) {
+
+            let expected_resp = format!("FM:{}", fc_cntrl);
+            if resp != expected_resp{
+                bail!("Incorrect response, mode not changed!");
+            }else{
+                Ok(())
+            }
+        } else {
+            //This is a bail because it is safety critical that the mode is known
+            bail!("Error - no response robot control mode may be incorrect!");
+
+        }
+    }
+
+    //Set the force requirements for force control
+    //Safety critical - always bail if state is possibly unknown!
+    fn set_force_config(&mut self, ax : &str, target : f32) -> Result<Ok, anyhow::Error>{
+
+
+        //Format the string request (SeT ForceConfig)
+        let conf_str = format!("STFC:{}.{}", ax, target);
+        
+        //Send teh request
+        if let Ok(resp) = self.socket.req(&*conf_str){
+            
+            //Check that the robot has responded with the correct values (otherwise bail)
+            
+        }
+
+        todo!()
+    }
+
     //Essentially another command line handler - just for running specific tests
     fn run_test(&mut self) {
         println!("Specifiy the trajectory you wish to run");
