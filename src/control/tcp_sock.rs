@@ -84,7 +84,7 @@ impl TcpSock {
         }
     }
 
-    //Public interface for requesting for a TCP connection
+    //Public interface for sending a request to the robot 
     pub fn req(&mut self, msg: &str) -> Result<String, anyhow::Error> {
         self.write(msg);
 

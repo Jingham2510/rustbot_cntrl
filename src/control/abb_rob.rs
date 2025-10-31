@@ -9,7 +9,6 @@ use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::time::{Duration, SystemTime};
 use std::{fs, thread};
-use std::ascii::AsciiExt;
 use std::thread::sleep;
 use crate::config::{Config};
 
@@ -113,16 +112,13 @@ impl AbbRob<'_> {
 
                 //Whatever function is being tested at the moment
                 "test" => {
-                    if let Ok(swap)=self.set_force_control_mode(true){
-                        println!("Set TRUE okay");
+                    if let Ok(swap)=self.set_force_config("X", 123.0){
+                        println!("FORCE CONFIG SET OKAY");
                     }else{
-                        println!("Failed to set TRUE");
+                        println!("FAILED TO SET CORRECT CONFIG")
                     }
-
-                    if let Ok(swap)=self.set_force_control_mode(false){
-                        println!("Set FALSE okay");
-                    }else{
-                        println!("Failed to set FALSE");
+                    if let Err(swap)=self.set_force_config("D", 123.0){
+                        println!("FAILED TO SET CONFIG - {}",swap)
                     }
 
 
@@ -314,9 +310,9 @@ impl AbbRob<'_> {
 
         if let Ok(resp) = self.socket.req(&*fc_cntrl_string) {
 
-            let expected_resp = format!("FM:{}!", force_control);
+            let expected_resp = format!("FM:{}", force_control);
 
-            if resp.eq_ignore_ascii_case(&*expected_resp){
+            if !resp.eq_ignore_ascii_case(&*expected_resp){
                 bail!("Incorrect response, mode not changed!");
             }else{
                 //Update internal flag
@@ -338,14 +334,28 @@ impl AbbRob<'_> {
         //Format the string request (SeT ForceConfig)
         let conf_str = format!("STFC:{}.{}", ax, target);
         
-        //Send teh request
+        //Send the request
         if let Ok(resp) = self.socket.req(&*conf_str){
-            
+
             //Check that the robot has responded with the correct values (otherwise bail)
+            let expected_resp = format!("FC:{}.{}", ax, target);
+
+            println!("{}", resp);
+            println!("{}", expected_resp);
+
+
+            if !resp.eq_ignore_ascii_case(&*expected_resp){
+                bail!("Incorrect config! Force control will be incorrect")
+            }else{
+                Ok(())
+            }
+
+
             
+        }else{
+            bail!("Error - no repsonse, cannot verify force config set!")
         }
 
-        todo!()
     }
 
     //Essentially another command line handler - just for running specific tests
