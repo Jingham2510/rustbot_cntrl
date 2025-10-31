@@ -9,6 +9,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
 use std::time::{Duration, SystemTime};
 use std::{fs, thread};
+use std::ascii::AsciiExt;
 use std::thread::sleep;
 use crate::config::{Config};
 
@@ -21,6 +22,7 @@ pub struct AbbRob<'a> {
     move_flag: bool,
     traj_done_flag: bool,
     disconnected: bool,
+    force_mode_flag : bool,
     //Programme setup config
     config : &'a Config
 }
@@ -56,6 +58,7 @@ impl AbbRob<'_> {
                 move_flag: false,
                 traj_done_flag: false,
                 disconnected: false,
+                force_mode_flag: false,
                 config
             };
 
@@ -110,15 +113,20 @@ impl AbbRob<'_> {
 
                 //Whatever function is being tested at the moment
                 "test" => {
-                    self.traj_queue_add_rot(angle_tools::Quartenion {
-                        w: 0.07731,
-                        x: -0.88577,
-                        y: 0.45533,
-                        z: -0.04604,
-                    });
-                    self.traj_queue_add_trans((790.0, 2300.0, 1400.0));
+                    if let Ok(swap)=self.set_force_control_mode(true){
+                        println!("Set TRUE okay");
+                    }else{
+                        println!("Failed to set TRUE");
+                    }
 
-                    self.traj_queue_go();
+                    if let Ok(swap)=self.set_force_control_mode(false){
+                        println!("Set FALSE okay");
+                    }else{
+                        println!("Failed to set FALSE");
+                    }
+
+
+
                 }
 
                 "home" => {
@@ -299,19 +307,20 @@ impl AbbRob<'_> {
     }
 
     //Set the robot force mode
-    fn set_force_control_mode(&mut self, force_control : bool) -> Result<Ok, anyhow::Error>{
+    fn set_force_control_mode(&mut self, force_control : bool) -> Result<(), anyhow::Error>{
 
-        //Cast the bool to a 1 or a 0 for easier parsing at the other end
-        let fc_cntrl : i32 = force_control as i32;
-        let fc_cntrl_string = format!("STFM:{}", fc_cntrl);
 
+        let fc_cntrl_string = format!("STFM:{}", force_control);
 
         if let Ok(resp) = self.socket.req(&*fc_cntrl_string) {
 
-            let expected_resp = format!("FM:{}", fc_cntrl);
-            if resp != expected_resp{
+            let expected_resp = format!("FM:{}!", force_control);
+
+            if resp.eq_ignore_ascii_case(&*expected_resp){
                 bail!("Incorrect response, mode not changed!");
             }else{
+                //Update internal flag
+                self.force_mode_flag = force_control;
                 Ok(())
             }
         } else {
@@ -323,7 +332,7 @@ impl AbbRob<'_> {
 
     //Set the force requirements for force control
     //Safety critical - always bail if state is possibly unknown!
-    fn set_force_config(&mut self, ax : &str, target : f32) -> Result<Ok, anyhow::Error>{
+    fn set_force_config(&mut self, ax : &str, target : f32) -> Result<(), anyhow::Error>{
 
 
         //Format the string request (SeT ForceConfig)
@@ -406,10 +415,13 @@ impl AbbRob<'_> {
 
 
                         let start_pos = (traj[0].0, traj[0].1, traj[0].2 + 25.0);
+
+
                         
                         //Move to a starting point - above the starting point
                         self.set_pos(start_pos);
 
+                        self.set_speed(10.0);
 
                         //Place all the trajectories in the queue
                         for pnt in traj {
@@ -713,6 +725,8 @@ impl AbbRob<'_> {
     //Helper function that requests all the update information from the robot
     //Returns early from the function if the robot has disconnected
     fn update_rob_info(&mut self) {
+
+
         self.req_xyz();
         if self.disconnected {
             return;
@@ -732,6 +746,7 @@ impl AbbRob<'_> {
         if self.disconnected {
             return;
         }
+
 
         self.get_traj_done_flag();
     }

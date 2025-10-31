@@ -70,9 +70,12 @@ impl TcpSock {
 
         //Attempt to read from the TCP stream until the '!' character is reached
         if let Ok(_size) = reader.read_until(b'!', &mut recv) {
-            //println!("{:?}", String::from_utf8(Vec::from(recv)));
 
-            Ok(String::from_utf8(Vec::from(recv))?)
+            let recv_str = String::from_utf8(Vec::from(recv))?;
+
+            //println!("{:?}", recv_str);
+
+            Ok(recv_str)
         } else {
             println!("Failed to read TCP stream");
             self.last_error = Option::from(String::from("TCP Read Error"));
