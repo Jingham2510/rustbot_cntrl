@@ -26,11 +26,12 @@ pub struct AbbRob<'a> {
     config : &'a Config
 }
 
-pub const IMPL_COMMDS: [&str; 8] = [
+pub const IMPL_COMMDS: [&str; 9] = [
     "info",
     "cmds",
     "disconnect",
     "trajectory",
+    "force traj",
     "test",
     "home",
     "req xyz",
@@ -110,6 +111,10 @@ impl AbbRob<'_> {
                     self.run_test();
                 }
 
+                "force traj" =>{
+                    todo!()
+                }
+
                 //Whatever function is being tested at the moment
                 "test" => {
                     if let Ok(swap)=self.set_force_config("X", 123.0){
@@ -158,7 +163,7 @@ impl AbbRob<'_> {
 
     fn go_home_pos(&mut self) {
         //Define the home point
-        const HOME_POS : (f32, f32, f32) = (220.0, 1256.0, 955.0);
+        const HOME_POS : (f32, f32, f32) = (220.0, 1355.0, 955.0);
 
         //Define the home orientation
         const HOME_ORI : angle_tools::Quartenion = angle_tools::Quartenion {
