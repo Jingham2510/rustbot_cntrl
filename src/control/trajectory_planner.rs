@@ -11,8 +11,6 @@ const IMPL_TRAJS: [&str; 4] = ["line", "circle", "slidedown", "custom"];
 const DEFAULT_Z: f32 = 150.0;
 
 
-//TODO: Change option to Err (to handle invalid trajectories)
-
 //Selects a trajectory bsaed on string input from user
 pub fn traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Error> {
     //Define the trajcetory - it will be of unknown size so have to store on the heap

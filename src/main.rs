@@ -24,7 +24,6 @@ use control::abb_rob;
 use crate::mapping::terr_map_sense::RealsenseCam;
 use crate::mapping::terr_map_tools::Heightmap;
 use crate::config::Config;
-use crate::control::trajectory_planner::relative_traj_gen;
 
 const VER_NUM: &str = "V0.5";
 //Program title
@@ -239,10 +238,17 @@ fn analyse(config : &Config) -> Result<(), anyhow::Error> {
 
     analyser.disp_overall_change();
 
-    analyser.disp_action_map(200, 200)?;
+    //analyser.disp_action_map(200, 200)?;
 
 
-    analyser.disp_force_map(200, 200, ForceSel::ForceAvg)?;
+    //analyser.disp_force_map(200, 200, ForceSel::ForceAvg)?;
+
+
+    analyser.regen_hmaps(10, 10);
+    analyser.disp_overall_change();
+
+
+
 
 
     //analyser.disp_iso_traj_path(50.0, 50.0);

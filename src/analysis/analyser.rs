@@ -19,7 +19,7 @@ pub struct Analyser {
     test_fp: String,
     //The struct containing all the raw pos/force info etc
     data_handler: DataHandler,
-    //Number of pointlcouds taken in this test
+    //Number of pointclouds taken in this test
     no_of_pcl: i32,
     //The camera information for the given test
     cam_info: CamInfo,
@@ -482,6 +482,53 @@ impl Analyser {
         }
         Ok(())
 
+    }
+
+
+    //Rotate all PCLs associated with the test, and regenerate the heightmaps
+    pub fn rotate_and_regen(&mut self, X : f32, Y : f32, Z:f32, width:u32, height:u32) -> Result<(), anyhow::Error>{
+
+        //Iterate through every pcl file in the test
+
+            //Rotate the PCL
+
+            //Resave the PCL
+
+        //Regenerate the heightmaps
+
+
+        Ok(())
+
+    }
+
+
+    //Regenerate the heightmaps associated with a test
+    pub fn regen_hmaps(&mut self, width :u32, height: u32) -> Result<(), anyhow::Error>{
+
+        //Iterate through each file
+        for path in fs::read_dir(&self.test_fp)? {
+            let path_str = path?.file_name();
+            let path_str = path_str.to_str().unwrap();
+
+            //Identify the pcl files
+            if path_str.starts_with("pcl_") {
+                let pcl_fp = format!("{}/{}", self.test_fp, path_str);
+
+                //create the newly sized hmap
+                let mut curr_hmap = Heightmap::create_from_pcl_file(pcl_fp, width, height)?;
+
+                //Get the suffix associated with the current pcl
+                let path_split : Vec<&str> = path_str.split("_").collect::<Vec<&str>>();
+
+                let hmap_filestring = format!("hmap_{}_{}", self.test_name, path_split.last().unwrap().strip_suffix(".txt").unwrap());
+                
+                let hmap_fp = format!("{}/{}", self.test_fp, hmap_filestring);
+                curr_hmap.save_to_file(&*hmap_fp)?;
+            }
+
+        }
+
+        Ok(())
     }
 
 
