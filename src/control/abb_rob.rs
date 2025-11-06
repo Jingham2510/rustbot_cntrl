@@ -386,7 +386,7 @@ impl AbbRob<'_> {
                 //Capture all other
                 other => {
                     //If the trajectory is valid - i.e. it has been programmed
-                    if let Some(traj) = trajectory_planner::traj_gen(other) {
+                    if let Ok(traj) = trajectory_planner::traj_gen(other) {
                         //Create the filename
                         println!("Please provide a test name");
 

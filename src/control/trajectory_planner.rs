@@ -4,6 +4,7 @@ use std::f32::consts::PI;
 use std::fs::File;
 use std::io::{stdin, BufRead};
 use std::{fs, io};
+use anyhow::bail;
 
 const IMPL_TRAJS: [&str; 4] = ["line", "circle", "slidedown", "custom"];
 
@@ -13,7 +14,7 @@ const DEFAULT_Z: f32 = 150.0;
 //TODO: Change option to Err (to handle invalid trajectories)
 
 //Selects a trajectory bsaed on string input from user
-pub fn traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>> {
+pub fn traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Error> {
     //Define the trajcetory - it will be of unknown size so have to store on the heap
     let mut trajectory: Vec<(f32, f32, f32)> = Vec::new();
 
@@ -68,8 +69,7 @@ pub fn traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>> {
             if let Some(traj) = cust_traj_handler() {
                 trajectory = traj;
             } else {
-                println!("Trajectory not selected!");
-                return None;
+                bail!("Trajectory not selected!")
             }
         }
 
@@ -80,11 +80,10 @@ pub fn traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>> {
             for traj in IMPL_TRAJS {
                 println!("\t {traj}");
             }
-            println!("Trajectory not selected!");
-            return None;
+            anyhow::bail!("Invalid Trajectory");
         }
     }
-    Option::from(trajectory)
+    Ok(trajectory)
 }
 
 //Reads a custom trajectory and returns it
@@ -173,10 +172,10 @@ fn cust_traj_handler() -> Option<Vec<(f32, f32, f32)>> {
 
 
 //Calculates the relative distance between points of a desired trajectory
-pub fn relative_traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>>{
+pub fn relative_traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Error>{
 
     //Check that the trajectory is valid
-    if let (desired_traj) = traj_gen(traj).unwrap(){
+    if let Ok(desired_traj) = traj_gen(traj){
         //The first value in the vector is the start position
         let mut rel_traj: Vec<(f32, f32, f32)> = vec![desired_traj[0]];
 
@@ -187,11 +186,11 @@ pub fn relative_traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>>{
 
         println!("{:?}", rel_traj);
         //Return the relative trajectory
-        Option::from(rel_traj)
-        
+        Ok(rel_traj)
+
 
     }else{
-        None
+        bail!("Invalid trajectory")
     }
 
 
