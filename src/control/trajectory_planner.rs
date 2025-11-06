@@ -9,6 +9,9 @@ const IMPL_TRAJS: [&str; 4] = ["line", "circle", "slidedown", "custom"];
 
 const DEFAULT_Z: f32 = 150.0;
 
+
+//TODO: Change option to Err (to handle invalid trajectories)
+
 //Selects a trajectory bsaed on string input from user
 pub fn traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>> {
     //Define the trajcetory - it will be of unknown size so have to store on the heap
@@ -81,7 +84,6 @@ pub fn traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>> {
             return None;
         }
     }
-
     Option::from(trajectory)
 }
 
@@ -167,4 +169,30 @@ fn cust_traj_handler() -> Option<Vec<(f32, f32, f32)>> {
         println!("Custom trajectory not found!");
         None
     }
+}
+
+
+//Calculates the relative distance between points of a desired trajectory
+pub fn relative_traj_gen(traj: &str) -> Option<Vec<(f32, f32, f32)>>{
+
+    //Check that the trajectory is valid
+    if let (desired_traj) = traj_gen(traj).unwrap(){
+        //The first value in the vector is the start position
+        let mut rel_traj: Vec<(f32, f32, f32)> = vec![desired_traj[0]];
+
+        //Calculate the relative difference between each point
+        for i in 1..desired_traj.len(){
+            rel_traj.push((desired_traj[i].0 - desired_traj[i - 1].0, desired_traj[i].1 - desired_traj[i - 1].1, desired_traj[i].2 - desired_traj[i - 1].2))
+        }
+
+        println!("{:?}", rel_traj);
+        //Return the relative trajectory
+        Option::from(rel_traj)
+        
+
+    }else{
+        None
+    }
+
+
 }
