@@ -236,7 +236,7 @@ fn analyse(config : &Config) -> Result<(), anyhow::Error> {
 
     //analyser.display_all();
 
-    analyser.disp_overall_change();
+    analyser.disp_overall_change()?;
 
     //analyser.disp_action_map(200, 200)?;
 
@@ -244,8 +244,9 @@ fn analyse(config : &Config) -> Result<(), anyhow::Error> {
     //analyser.disp_force_map(200, 200, ForceSel::ForceAvg)?;
 
 
-    analyser.regen_hmaps(10, 10);
-    analyser.disp_overall_change();
+    analyser.rotate_and_regen(0.0, 0.2618, 0.0, 200, 200)?;
+
+    analyser.disp_overall_change()?;
 
 
 

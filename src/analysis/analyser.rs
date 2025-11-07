@@ -486,16 +486,41 @@ impl Analyser {
 
 
     //Rotate all PCLs associated with the test, and regenerate the heightmaps
-    pub fn rotate_and_regen(&mut self, X : f32, Y : f32, Z:f32, width:u32, height:u32) -> Result<(), anyhow::Error>{
+    pub fn rotate_and_regen(&mut self, yaw : f32, pitch : f32, roll:f32, width:u32, height:u32) -> Result<(), anyhow::Error>{
+
+
+
+        let mut cnt = 0;
 
         //Iterate through every pcl file in the test
+        //Iterate through each file
+        for path in fs::read_dir(&self.test_fp)? {
+            let path_str = path?.file_name();
+            let path_str = path_str.to_str().unwrap();
 
-            //Rotate the PCL
+            //Identify the pcl files
+            if path_str.starts_with("pcl_") {
 
-            //Resave the PCL
+                println!("Rotating PCL: {}", cnt);
+
+                let pcl_fp = format!("{}/{}", self.test_fp, path_str);
+
+                let mut curr_pcl = PointCloud::create_from_file(pcl_fp.clone())?;
+
+                //Rotate the PCL
+                curr_pcl.rotate(yaw, pitch, roll);
+
+                //Resave the PCL
+                curr_pcl.save_to_file(pcl_fp.strip_suffix(".txt").unwrap())?;
+
+
+                cnt += 1;
+
+            }
+        }
 
         //Regenerate the heightmaps
-
+        self.regen_hmaps(width, height)?;
 
         Ok(())
 
@@ -505,6 +530,9 @@ impl Analyser {
     //Regenerate the heightmaps associated with a test
     pub fn regen_hmaps(&mut self, width :u32, height: u32) -> Result<(), anyhow::Error>{
 
+
+        let mut cnt = 0;
+
         //Iterate through each file
         for path in fs::read_dir(&self.test_fp)? {
             let path_str = path?.file_name();
@@ -512,6 +540,9 @@ impl Analyser {
 
             //Identify the pcl files
             if path_str.starts_with("pcl_") {
+
+                println!("Generating HMAP: {}", cnt);
+
                 let pcl_fp = format!("{}/{}", self.test_fp, path_str);
 
                 //create the newly sized hmap
@@ -524,6 +555,9 @@ impl Analyser {
                 
                 let hmap_fp = format!("{}/{}", self.test_fp, hmap_filestring);
                 curr_hmap.save_to_file(&*hmap_fp)?;
+
+                cnt += 1;
+
             }
 
         }
