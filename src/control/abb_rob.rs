@@ -117,15 +117,14 @@ impl AbbRob<'_> {
 
                 //Whatever function is being tested at the moment
                 "test" => {
-                    if let Ok(swap)=self.set_force_config("X", 123.0){
-                        println!("FORCE CONFIG SET OKAY");
-                    }else{
-                        println!("FAILED TO SET CORRECT CONFIG")
-                    }
-                    if let Err(swap)=self.set_force_config("D", 123.0){
-                        println!("FAILED TO SET CONFIG - {}",swap)
-                    }
+                    if let Ok(_) = self.rel_mv_queue_add((10.0, 11.0, 12.0)){
 
+                        println!("Sent okay! - check values in RAPID");
+
+                    }else{
+                        println!("FAILED");
+
+                    }
 
 
                 }
@@ -354,11 +353,35 @@ impl AbbRob<'_> {
             }else{
                 Ok(())
             }
-
-
-            
         }else{
             bail!("Error - no repsonse, cannot verify force config set!")
+        }
+    }
+
+
+    /*
+    Adds a relative move to the RAPID relative move queue (for force control)
+     */
+    fn rel_mv_queue_add(&mut self, rel_xyz : (f32, f32, f32)) -> Result<(), anyhow::Error>{
+
+        //Format the string request
+        let rel_mv_str = format!("RLAD:[{},{},{}]", rel_xyz.0, rel_xyz.1, rel_xyz.2);
+
+        //Check that the correct response is sent
+        if let Ok(resp) = self.socket.req(&*rel_mv_str){
+
+            let expected_resp = "OK";
+
+            println!("{}", resp);
+
+            if !resp.eq(expected_resp){
+                bail!("Incorrect response - Relative movement will be incorrect")
+            }else{
+                Ok(())
+            }
+
+        }else{
+            bail!("Error - no repsonse, cannot verify relative move added!")
         }
 
     }
