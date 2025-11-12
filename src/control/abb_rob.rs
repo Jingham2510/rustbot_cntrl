@@ -408,8 +408,20 @@ impl AbbRob<'_> {
 
                 //Capture all other
                 other => {
+
+                    let traj;
+
+                    if (self.force_mode_flag){
+                        traj = trajectory_planner::relative_traj_gen(other);
+
+                    }else{
+                        traj = trajectory_planner::traj_gen(other);
+                    }
                     //If the trajectory is valid - i.e. it has been programmed
-                    if let Ok(traj) = trajectory_planner::traj_gen(other) {
+                    if traj.is_ok() {
+
+                        let traj = traj.unwrap();
+
                         //Create the filename
                         println!("Please provide a test name");
 
@@ -452,7 +464,7 @@ impl AbbRob<'_> {
                         if let Ok(_) = tx.send(2){}
 
 
-                        let start_pos = (traj[0].0, traj[0].1, traj[0].2 + 25.0);
+                        let start_pos = (traj[0].0, traj[0].1, traj[0].2);
 
 
                         
@@ -461,10 +473,19 @@ impl AbbRob<'_> {
 
                         self.set_speed(10.0);
 
-                        //Place all the trajectories in the queue
-                        for pnt in traj {
-                            self.traj_queue_add_trans(pnt);
+                        if (self.force_mode_flag){
+                            for i in 1..traj.len(){
+                                self.rel_mv_queue_add((traj[i].0, traj[i].1, traj[i].2)).expect("Failed to add relative move - BAILING");
+                            }
+
+                        }else{
+                            //Place all the trajectories in the queue
+                            for pnt in traj {
+                                self.traj_queue_add_trans(pnt);
+                            }
+
                         }
+
 
 
                         //Start the trajectory
