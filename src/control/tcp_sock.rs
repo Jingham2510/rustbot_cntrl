@@ -23,7 +23,7 @@ impl TcpSock {
         if let Ok(stream) = TcpStream::connect(format!("{}:{}", self.ip, self.port)) {
             //Set the read timeout to 2 seconds - should stop blocking
             stream
-                .set_read_timeout(Some(Duration::from_secs(30)))
+                .set_read_timeout(Some(Duration::from_secs(60)))
                 .expect("Incorrect read timeout value!");
 
             self.stream = Option::from(stream);
@@ -89,8 +89,10 @@ impl TcpSock {
         self.write(msg);
 
         let s = self.read();
+
         match s {
             Ok(mut s) => {
+                //println!("{s}");
                 //Remove the ! character
                 s.pop();
                 Ok(s)

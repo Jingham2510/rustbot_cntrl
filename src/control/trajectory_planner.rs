@@ -182,7 +182,7 @@ pub fn relative_traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Err
             rel_traj.push((desired_traj[i].0 - desired_traj[i - 1].0, desired_traj[i].1 - desired_traj[i - 1].1, desired_traj[i].2 - desired_traj[i - 1].2))
         }
 
-        println!("{:?}", rel_traj);
+        //println!("{:?}", rel_traj);
         //Return the relative trajectory
         Ok(rel_traj)
 

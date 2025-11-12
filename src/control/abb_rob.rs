@@ -108,11 +108,15 @@ impl AbbRob<'_> {
                 }
 
                 "trajectory" => {
+                    self.set_force_control_mode(false).expect("FAILED TO SET FORCE MODE");
                     self.run_test();
                 }
 
                 "force traj" =>{
-                    todo!()
+                    self.set_force_control_mode(true).expect("FAILED TO SET FORCE MODE");
+                    self.set_force_config("Z", 10.0).expect("FAILED TO SET FORCE CONFIG");
+                    self.run_test();
+
                 }
 
                 //Whatever function is being tested at the moment
@@ -344,9 +348,6 @@ impl AbbRob<'_> {
             //Check that the robot has responded with the correct values (otherwise bail)
             let expected_resp = format!("FC:{}.{}", ax, target);
 
-            println!("{}", resp);
-            println!("{}", expected_resp);
-
 
             if !resp.eq_ignore_ascii_case(&*expected_resp){
                 bail!("Incorrect config! Force control will be incorrect")
@@ -365,14 +366,15 @@ impl AbbRob<'_> {
     fn rel_mv_queue_add(&mut self, rel_xyz : (f32, f32, f32)) -> Result<(), anyhow::Error>{
 
         //Format the string request
-        let rel_mv_str = format!("RLAD:[{},{},{}]", rel_xyz.0, rel_xyz.1, rel_xyz.2);
+        let rel_mv_str = format!("RLAD:[{},{},{}]", rel_xyz.0, -rel_xyz.1, rel_xyz.2);
 
         //Check that the correct response is sent
         if let Ok(resp) = self.socket.req(&*rel_mv_str){
 
             let expected_resp = "OK";
 
-            println!("{}", resp);
+            //println!("RECIEVED: {}", resp);
+            //println!("EXPECTED: {}", expected_resp);
 
             if !resp.eq(expected_resp){
                 bail!("Incorrect response - Relative movement will be incorrect")
