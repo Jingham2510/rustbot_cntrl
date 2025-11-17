@@ -22,6 +22,8 @@ pub struct AbbRob<'a> {
     traj_done_flag: bool,
     disconnected: bool,
     force_mode_flag : bool,
+    force_axis : String,
+    force_target : f32,
     //Programme setup config
     config : &'a Config
 }
@@ -59,6 +61,8 @@ impl AbbRob<'_> {
                 traj_done_flag: false,
                 disconnected: false,
                 force_mode_flag: false,
+                force_axis : "Z".to_string(),
+                force_target : 0.0,
                 config
             };
 
@@ -114,8 +118,25 @@ impl AbbRob<'_> {
 
                 "force traj" =>{
                     self.set_force_control_mode(true).expect("FAILED TO SET FORCE MODE");
-                    self.set_force_config("Z", 10.0).expect("FAILED TO SET FORCE CONFIG");
-                    self.run_test();
+
+
+                    println!("Please type the target force");
+
+                    let mut user_inp = String::new();
+                    stdin()
+                        .read_line(&mut user_inp)
+                        .expect("Failed to read line");
+                    
+                    if let  Ok(targ) = user_inp.trim().parse::<f32>(){
+
+                        self.set_force_config("Z", targ).expect("FAILED TO SET FORCE CONFIG");
+                        self.run_test();
+
+                    }else{
+                        println!("Invalid target.... returning");
+                        }
+
+
 
                 }
 
@@ -352,6 +373,8 @@ impl AbbRob<'_> {
             if !resp.eq_ignore_ascii_case(&*expected_resp){
                 bail!("Incorrect config! Force control will be incorrect")
             }else{
+                self.force_axis = ax.to_string();
+                self.force_target = target;
                 Ok(())
             }
         }else{
@@ -644,6 +667,8 @@ impl AbbRob<'_> {
     fn req_xyz(&mut self) {
         //Request the info
         if let Ok(recv) = self.socket.req("GTPS:0") {
+
+
             //Format the string
             let recv = string_tools::rem_first_and_last(&*recv);
             let xyz_vec = string_tools::str_to_vector(recv);
@@ -669,6 +694,8 @@ impl AbbRob<'_> {
     fn req_ori(&mut self) {
         //Request the info
         if let Ok(recv) = self.socket.req("GTOR:0") {
+
+
             //Format the string
             let recv = string_tools::rem_first_and_last(&*recv);
             let ori_vec = string_tools::str_to_vector(recv);
@@ -925,6 +952,38 @@ impl AbbRob<'_> {
 
 
     }
+
+
+    //Calculate the error between the
+    fn calc_force_err(&self) -> Result<f32, anyhow::Error>{
+
+        //Check that force mode is enabled (otherwise theres no point in calcing the error
+        if self.force_mode_flag{
+
+            let force_val : f32;
+
+            //Extract the correct axis information
+            match self.force_axis.as_str(){
+
+                //Cover both case values
+                 "Z" | "z" =>{
+                     force_val = self.force.2;
+                }
+
+                _ => {bail!("Not implemented for axis {} yet", self.force_axis)}
+
+            }
+
+            //Return the error (not absed because we want to know if we are over or under)
+            Ok(self.force_target - force_val)
+
+
+        }else{
+            bail!("Not in force mode! Force error meaningless");
+        }
+    }
+
+
 
 
 }
