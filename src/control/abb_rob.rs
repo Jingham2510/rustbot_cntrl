@@ -88,7 +88,7 @@ impl AbbRob<'_> {
             //Check user inout
             match user_inp.to_lowercase().trim() {
                 "info" => {
-                    println!("Robot controller connected to - {}", self.req_model());
+                    println!("Robot controller connected to - {}", self.req_model().unwrap());
                 }
                 //Print out the commands in the valid commands list
                 "cmds" => {
@@ -801,12 +801,12 @@ impl AbbRob<'_> {
     }
 
     //Requests the model name of the robot
-    fn req_model(&mut self) -> String {
+    fn req_model(&mut self) -> Result<String,anyhow::Error> {
         //Request the model name
         if let Ok(model) = self.socket.req("RMDL:0") {
-            model
+            Ok(model)
         } else {
-            String::from("[WRN - Unable to identify model]")
+            bail!("Unable to identify model]")
         }
     }
 
@@ -949,8 +949,6 @@ impl AbbRob<'_> {
         let line = format!("COORDS PRE-TRANSFORMED?:{}", TRANSFORM_TO_WORK_SPACE);
 
         writeln!(file, "{}", line).expect("FAILED TO WRITE TRANSFORM FLAG TO CONFIG - CLOSING");
-
-
     }
 
 
@@ -959,9 +957,7 @@ impl AbbRob<'_> {
 
         //Check that force mode is enabled (otherwise theres no point in calcing the error
         if self.force_mode_flag{
-
             let force_val : f32;
-
             //Extract the correct axis information
             match self.force_axis.as_str(){
 
@@ -969,15 +965,12 @@ impl AbbRob<'_> {
                  "Z" | "z" =>{
                      force_val = self.force.2;
                 }
-
                 _ => {bail!("Not implemented for axis {} yet", self.force_axis)}
 
             }
 
             //Return the error (not absed because we want to know if we are over or under)
             Ok(self.force_target - force_val)
-
-
         }else{
             bail!("Not in force mode! Force error meaningless");
         }
