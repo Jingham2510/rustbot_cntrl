@@ -11,6 +11,7 @@ use std::time::{Duration, SystemTime};
 use std::{fs, thread};
 use std::thread::sleep;
 use crate::config::{Config};
+use crate::control::force_control;
 
 pub struct AbbRob<'a> {
     socket: tcp_sock::TcpSock,
@@ -431,7 +432,7 @@ impl AbbRob<'_> {
                 //Print out the commands in the valid commands list
                 "exit" => return,
 
-                //Capture all other
+                //Parse the trajectory requested
                 other => {
 
                     let traj;
@@ -491,7 +492,6 @@ impl AbbRob<'_> {
 
                         let start_pos = (traj[0].0, traj[0].1, traj[0].2);
 
-
                         
                         //Move to a starting point - above the starting point
                         self.set_pos(start_pos);
@@ -510,8 +510,6 @@ impl AbbRob<'_> {
                             }
 
                         }
-
-
 
                         //Start the trajectory
                         self.traj_queue_go();
@@ -536,6 +534,10 @@ impl AbbRob<'_> {
                                 }
                             }
 
+                            //Calculate the force error and correct
+                            if self.force_mode_flag{
+                                self.calc_force_err().unwrap();
+                            }
                             //Increase the count
                             cnt = cnt + 1;
 
@@ -966,9 +968,7 @@ impl AbbRob<'_> {
                      force_val = self.force.2;
                 }
                 _ => {bail!("Not implemented for axis {} yet", self.force_axis)}
-
             }
-
             //Return the error (not absed because we want to know if we are over or under)
             Ok(self.force_target - force_val)
         }else{
