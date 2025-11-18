@@ -11,7 +11,7 @@ use std::time::{Duration, SystemTime};
 use std::{fs, thread};
 use std::thread::sleep;
 use crate::config::{Config};
-use crate::control::force_control;
+use crate::control::force_control::force_control;
 
 pub struct AbbRob<'a> {
     socket: tcp_sock::TcpSock,
@@ -26,7 +26,8 @@ pub struct AbbRob<'a> {
     force_axis : String,
     force_target : f32,
     //Programme setup config
-    config : &'a Config
+    config : &'a Config,
+    force_err: f32
 }
 
 pub const IMPL_COMMDS: [&str; 9] = [
@@ -64,6 +65,7 @@ impl AbbRob<'_> {
                 force_mode_flag: false,
                 force_axis : "Z".to_string(),
                 force_target : 0.0,
+                force_err : 0.0,
                 config
             };
 
@@ -536,7 +538,9 @@ impl AbbRob<'_> {
 
                             //Calculate the force error and correct
                             if self.force_mode_flag{
-                                self.calc_force_err().unwrap();
+                                //Calculate how much to move the end-effector by
+                                self.force_compensate(force_control::polarity_step_control);
+
                             }
                             //Increase the count
                             cnt = cnt + 1;
@@ -856,7 +860,7 @@ impl AbbRob<'_> {
         if !transform_to_work_space {
             //Format the line to write
             line = format!(
-                "{},{:?},[{},{},{}],[{},{},{}],[{},{},{},{},{},{}]",
+                "{},{:?},[{},{},{}],[{},{},{}],[{},{},{},{},{},{}],{}",
                 i,
                 SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
@@ -875,10 +879,11 @@ impl AbbRob<'_> {
                 self.force.3,
                 self.force.4,
                 self.force.5,
+                self.force_err
             );
         }else{
             line = format!(
-                "{},{:?},[{},{},{}],[{},{},{}],[{},{},{},{},{},{}]",
+                "{},{:?},[{},{},{}],[{},{},{}],[{},{},{},{},{},{}],{}",
                 i,
                 SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
@@ -897,6 +902,7 @@ impl AbbRob<'_> {
                 self.force.3,
                 self.force.4,
                 self.force.5,
+                self.force_err
             );
 
         }
@@ -951,11 +957,14 @@ impl AbbRob<'_> {
         let line = format!("COORDS PRE-TRANSFORMED?:{}", TRANSFORM_TO_WORK_SPACE);
 
         writeln!(file, "{}", line).expect("FAILED TO WRITE TRANSFORM FLAG TO CONFIG - CLOSING");
+
+        let line = format!("FC_MODE:{} FC_AXIS:{}, FC_TARGET:{}", self.force_mode_flag, self.force_axis, self.force_target);
+        writeln!(file, "{}", line).expect("FAILED TO WRITE FORCE CONTROL CONFIG - CLOSING");
     }
 
 
     //Calculate the error between the
-    fn calc_force_err(&self) -> Result<f32, anyhow::Error>{
+    fn calc_force_err(&mut self) -> Result<f32, anyhow::Error>{
 
         //Check that force mode is enabled (otherwise theres no point in calcing the error
         if self.force_mode_flag{
@@ -970,10 +979,34 @@ impl AbbRob<'_> {
                 _ => {bail!("Not implemented for axis {} yet", self.force_axis)}
             }
             //Return the error (not absed because we want to know if we are over or under)
+
+            self.force_err = self.force_target - force_val;
+
             Ok(self.force_target - force_val)
         }else{
             bail!("Not in force mode! Force error meaningless");
         }
+    }
+
+
+    //Requests the robot modifies its trajectory to achieve the target force
+    //callback function allows for a range of control functions to be tested/used
+    fn force_compensate(&mut self, control_func : fn(f32)->Result<f32, anyhow::Error>) -> Result<(), anyhow::Error>{
+
+        let err = self.calc_force_err()?;
+
+        let move_by = control_func(err)?;
+
+        let cmd_string = format!("FCCM:{}", move_by);
+
+
+        //Send the compensation command to the robot
+        if self.socket.req(&*cmd_string)?.eq("OK"){
+            Ok(())
+        }else{
+            bail!("Failed to set compensation movement");
+        }
+
     }
 
 
