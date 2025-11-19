@@ -45,7 +45,8 @@ impl PdController {
     pub fn calc_op(&mut self, err:f32) ->Result<f32, anyhow::Error>{
 
         //gain
-        const KD_GAIN : f32 = 1.0;
+        const KP_GAIN : f32 = 0.1;
+        const KD_GAIN : f32 = 0.1;
 
         //Get current time
         let now = chrono::offset::Local::now();
@@ -57,7 +58,7 @@ impl PdController {
         self.prev_time = now;
         self.prev_err = err;
 
-        Ok(derr)
+        Ok(KP_GAIN*err + KD_GAIN*derr)
     }
 
 }
