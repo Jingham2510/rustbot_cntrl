@@ -2,7 +2,7 @@ use crate::control::misc_tools::{angle_tools, string_tools};
 use crate::control::{tcp_sock, trajectory_planner};
 use crate::mapping::terr_map_sense;
 use crate::mapping::terr_map_tools::Heightmap;
-use anyhow::bail;
+use anyhow::{bail, Error};
 use std::fs::OpenOptions;
 use std::io::{prelude::*, stdin};
 use std::sync::mpsc;
@@ -522,6 +522,12 @@ impl AbbRob<'_> {
                         let mut cnt = 0;
                         const DEPTH_FREQ: i32 = 250;
 
+                        //Create a controller
+                        let mut controller = force_control::PdController{
+                            prev_err : 0.0,
+                            prev_time : chrono::offset::Local::now()
+                        };
+
                         //Read the values until the trajectory is reported as done
                         while !self.traj_done_flag {
                             self.update_rob_info();
@@ -538,8 +544,11 @@ impl AbbRob<'_> {
 
                             //Calculate the force error and correct
                             if self.force_mode_flag{
+
+                                let force_err  = self.calc_force_err().unwrap();
+
                                 //Calculate how much to move the end-effector by
-                                self.force_compensate(force_control::polarity_step_control);
+                                self.force_compensate(controller.calc_op(force_err).expect("failed to calc error compensation"));
 
                             }
                             //Increase the count
@@ -991,11 +1000,8 @@ impl AbbRob<'_> {
 
     //Requests the robot modifies its trajectory to achieve the target force
     //callback function allows for a range of control functions to be tested/used
-    fn force_compensate(&mut self, control_func : fn(f32)->Result<f32, anyhow::Error>) -> Result<(), anyhow::Error>{
+    fn force_compensate(&mut self, move_by : f32) -> Result<(), anyhow::Error>{
 
-        let err = self.calc_force_err()?;
-
-        let move_by = control_func(err)?;
 
         let cmd_string = format!("FCCM:{}", move_by);
 

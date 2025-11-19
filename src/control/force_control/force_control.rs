@@ -28,16 +28,16 @@ pub fn polarity_step_control(err :f32) -> Result<f32, anyhow::Error>{
 pub fn prop_gain_control(err:f32) -> Result<f32, anyhow::Error>{
 
     //How far the step should be if the error is a value of 1N
-    const BASE_STEP :f32 = 0.1;
+    const BASE_STEP :f32 = 0.01;
 
-    Ok(BASE_STEP * err)
+    Ok(BASE_STEP * -err)
 
 }
 
 
-struct PdController {
-    prev_err : f32,
-    prev_time : DateTime<Local>
+pub struct PdController {
+    pub(crate) prev_err : f32,
+    pub(crate) prev_time : DateTime<Local>
 }
 
 impl PdController {
@@ -45,7 +45,7 @@ impl PdController {
     pub fn calc_op(&mut self, err:f32) ->Result<f32, anyhow::Error>{
 
         //gain
-        const KP_GAIN : f32 = 0.1;
+        const KP_GAIN : f32 = 0.05;
         const KD_GAIN : f32 = 0.1;
 
         //Get current time
@@ -58,7 +58,7 @@ impl PdController {
         self.prev_time = now;
         self.prev_err = err;
 
-        Ok(KP_GAIN*err + KD_GAIN*derr)
+        Ok(KP_GAIN*-err + KD_GAIN*-derr)
     }
 
 }
