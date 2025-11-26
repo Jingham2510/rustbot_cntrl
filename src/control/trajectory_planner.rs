@@ -8,7 +8,7 @@ use anyhow::bail;
 
 const IMPL_TRAJS: [&str; 4] = ["line", "circle", "slidedown", "custom"];
 
-const DEFAULT_Z: f32 = 200.0;
+const DEFAULT_Z: f32 = 190.0;
 
 
 //Selects a trajectory bsaed on string input from user
@@ -23,7 +23,7 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Error> {
             let line_x = 265.0;
             let line_z = DEFAULT_Z;
             let start_y = 1550.0;
-            let end_y = 2550.0;
+            let end_y = 1750.0;
             let start_pos = (line_x, start_y, line_z);
             let end_pos = (line_x, end_y, line_z);
 

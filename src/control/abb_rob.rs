@@ -1,17 +1,17 @@
+use crate::config::Config;
+use crate::control::force_control::force_control;
 use crate::control::misc_tools::{angle_tools, string_tools};
 use crate::control::{tcp_sock, trajectory_planner};
 use crate::mapping::terr_map_sense;
 use crate::mapping::terr_map_tools::Heightmap;
-use anyhow::{bail, Error};
+use anyhow::bail;
 use std::fs::OpenOptions;
 use std::io::{prelude::*, stdin};
 use std::sync::mpsc;
 use std::sync::mpsc::Receiver;
+use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 use std::{fs, thread};
-use std::thread::sleep;
-use crate::config::{Config};
-use crate::control::force_control::force_control;
 
 pub struct AbbRob<'a> {
     socket: tcp_sock::TcpSock,
@@ -416,7 +416,7 @@ impl AbbRob<'_> {
 
     //Essentially another command line handler - just for running specific tests
     fn run_test(&mut self) {
-        println!("Specifiy the trajectory you wish to run");
+        println!("Specify the trajectory you wish to run");
 
         //Loop until command given
         loop {
@@ -523,10 +523,7 @@ impl AbbRob<'_> {
                         const DEPTH_FREQ: i32 = 250;
 
                         //Create a controller
-                        let mut controller = force_control::PdController{
-                            prev_err : 0.0,
-                            prev_time : chrono::offset::Local::now()
-                        };
+                        let mut controller = force_control::PIDController::create_PID(0.1, 0.001, 0.1);
 
                         //Read the values until the trajectory is reported as done
                         while !self.traj_done_flag {
@@ -545,10 +542,10 @@ impl AbbRob<'_> {
                             //Calculate the force error and correct
                             if self.force_mode_flag{
 
-                                let force_err  = self.calc_force_err().unwrap();
+                               self.calc_force_err().unwrap();
 
                                 //Calculate how much to move the end-effector by
-                                self.force_compensate(controller.calc_op(force_err).expect("failed to calc error compensation"));
+                                self.force_compensate(controller.calc_mv(self.force_err).unwrap()).expect("FORCE NOT COMPENSATED FOR");
 
                             }
                             //Increase the count
@@ -989,9 +986,9 @@ impl AbbRob<'_> {
             }
             //Return the error (not absed because we want to know if we are over or under)
 
-            self.force_err = self.force_target - force_val;
+            self.force_err = force_val - self.force_target;
 
-            Ok(self.force_target - force_val)
+            Ok(self.force_err)
         }else{
             bail!("Not in force mode! Force error meaningless");
         }

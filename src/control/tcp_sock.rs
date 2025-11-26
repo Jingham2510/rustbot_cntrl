@@ -23,7 +23,7 @@ impl TcpSock {
         if let Ok(stream) = TcpStream::connect(format!("{}:{}", self.ip, self.port)) {
             //Set the read timeout to 2 seconds - should stop blocking
             stream
-                .set_read_timeout(Some(Duration::from_secs(60)))
+                .set_read_timeout(Some(Duration::from_secs(120)))
                 .expect("Incorrect read timeout value!");
 
             self.stream = Option::from(stream);
