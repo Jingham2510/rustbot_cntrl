@@ -521,9 +521,10 @@ impl AbbRob<'_> {
 
                         let mut cnt = 0;
                         const DEPTH_FREQ: i32 = 250;
+                        const CNTRL_FREQ : i32 = 3;
 
                         //Create a controller
-                        let mut controller = force_control::PIDController::create_PID(0.1, 0.001, 0.1);
+                        let mut controller = force_control::PHPIDController::create_PHPID(0.06, 0.0003, 0.0008, 0.0, 0.006, 0.0001, 0.0001);
 
                         //Read the values until the trajectory is reported as done
                         while !self.traj_done_flag {
@@ -540,7 +541,7 @@ impl AbbRob<'_> {
                             }
 
                             //Calculate the force error and correct
-                            if self.force_mode_flag{
+                            if self.force_mode_flag & (cnt % CNTRL_FREQ == 0){
 
                                self.calc_force_err().unwrap();
 

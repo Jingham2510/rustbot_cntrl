@@ -8,7 +8,7 @@ use anyhow::bail;
 
 const IMPL_TRAJS: [&str; 4] = ["line", "circle", "slidedown", "custom"];
 
-const DEFAULT_Z: f32 = 190.0;
+const DEFAULT_Z: f32 = 120.0;
 
 
 //Selects a trajectory bsaed on string input from user
