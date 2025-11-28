@@ -439,7 +439,7 @@ impl AbbRob<'_> {
 
                     let traj;
 
-                    if (self.force_mode_flag){
+                    if self.force_mode_flag {
                         traj = trajectory_planner::relative_traj_gen(other);
 
                     }else{
@@ -500,7 +500,7 @@ impl AbbRob<'_> {
 
                         self.set_speed(10.0);
 
-                        if (self.force_mode_flag){
+                        if self.force_mode_flag {
                             for i in 1..traj.len(){
                                 self.rel_mv_queue_add((traj[i].0, traj[i].1, traj[i].2)).expect("Failed to add relative move - BAILING");
                             }
@@ -524,7 +524,7 @@ impl AbbRob<'_> {
                         const CNTRL_FREQ : i32 = 3;
 
                         //Create a controller
-                        let mut controller = force_control::PHPIDController::create_PHPID(0.06, 0.0003, 0.0008, 0.0, 0.006, 0.0001, 0.0001);
+                        let mut controller = force_control::PHPIDController::create_PHPID(0.07, 0.001, 0.0008, 0.0, 0.07, 0.005, 0.0001);
 
                         //Read the values until the trajectory is reported as done
                         while !self.traj_done_flag {
@@ -861,7 +861,7 @@ impl AbbRob<'_> {
             .open(filename.trim())
             .unwrap();
 
-        let mut line = String::new();
+        let line : String;
 
         //See whether to transofmr the data by the
         if !transform_to_work_space {
@@ -873,7 +873,7 @@ impl AbbRob<'_> {
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
                     .as_secs_f64(),
-                //Make sure that you dont print a lack of information in the data
+                //Make sure that you don't print a lack of information in the data
                 self.pos.0,
                 self.pos.1,
                 self.pos.2,
@@ -896,7 +896,7 @@ impl AbbRob<'_> {
                     .duration_since(SystemTime::UNIX_EPOCH)
                     .unwrap()
                     .as_secs_f64(),
-                //Make sure that you dont print a lack of information in the data
+                //Make sure that you don't print a lack of information in the data
                 self.pos.0 - self.config.rob_info.pos_to_zero()[0],
                 self.pos.1 - self.config.rob_info.pos_to_zero()[1],
                 self.pos.2 - self.config.rob_info.pos_to_zero()[2],
@@ -973,7 +973,7 @@ impl AbbRob<'_> {
     //Calculate the error between the
     fn calc_force_err(&mut self) -> Result<f32, anyhow::Error>{
 
-        //Check that force mode is enabled (otherwise theres no point in calcing the error
+        //Check that force mode is enabled (otherwise there's no point in calcing the error
         if self.force_mode_flag{
             let force_val : f32;
             //Extract the correct axis information
