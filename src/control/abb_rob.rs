@@ -30,6 +30,92 @@ pub struct AbbRob<'a> {
     force_err: f32
 }
 
+//Stores all the relevant test data for when a test starts
+struct TestData{
+    traj :Vec<(f32, f32, f32)>,
+    test_name : String,
+    filepath : String,
+    data_filename: String,
+    config_filename : String
+}
+impl TestData{
+
+    fn create_test_data(config_fp : String, forcemode : bool) -> TestData{
+
+        let traj = Self::pick_trajectory(forcemode).unwrap();
+
+        let test_name = Self::get_test_name();
+
+        let filepath =  format!("{}/{}", config_fp, test_name.clone());
+        let data_filename = format!("{}/data_{}.txt", filepath, test_name.clone());
+        let config_filename = format!("{}/conf_{}.txt", filepath, test_name.clone());
+
+        //Create the test data structure
+        let t_data = TestData{
+            traj : traj,
+            test_name : test_name.clone(),
+            filepath,
+            data_filename,
+            config_filename
+        };
+
+        //Create all the directories that the test needs
+        fs::create_dir(t_data.filepath.clone()).expect("FAILED TO CREATE NEW DIRECTORY");
+
+        t_data
+
+    }
+
+    fn pick_trajectory(forcemode : bool) -> Result<Vec<(f32, f32, f32)>, anyhow::Error> {
+        let mut traj;
+        //Loop until command given
+        loop {
+            println!("Specify the trajectory you wish to run");
+
+            //Get user input
+            let mut user_inp = String::new();
+            stdin()
+                .read_line(&mut user_inp)
+                .expect("Failed to read line");
+
+            //Check user inout
+            let user_inp = user_inp.to_lowercase();
+            let user_inp = user_inp.trim();
+
+
+            if forcemode {
+                traj = trajectory_planner::relative_traj_gen(user_inp);
+            } else {
+                traj = trajectory_planner::traj_gen(user_inp);
+            }
+
+
+            if traj.is_ok() {
+                return traj
+            }else{
+                println!("Invalid trajectory!");
+                continue
+            }
+        }
+    }
+
+    fn get_test_name() -> String{
+        //Create the filename
+        println!("Please provide a test name");
+
+        //Get user input
+        let mut user_inp = String::new();
+        stdin()
+            .read_line(&mut user_inp)
+            .expect("Failed to read line");
+
+        //TODO : Chcek uesr input
+
+        user_inp.trim().to_string()
+    }
+
+}
+
 pub const IMPL_COMMDS: [&str; 9] = [
     "info",
     "cmds",
@@ -416,170 +502,118 @@ impl AbbRob<'_> {
 
     //Essentially another command line handler - just for running specific tests
     fn run_test(&mut self) {
-        println!("Specify the trajectory you wish to run");
 
-        //Loop until command given
-        loop {
-            //Get user input
-            let mut user_inp = String::new();
-            stdin()
-                .read_line(&mut user_inp)
-                .expect("Failed to read line");
+        //Creates the test data and the filepaths
+        let test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
 
-            //Check user inout
-            match user_inp.to_lowercase().trim() {
-                "info" => {
-                    println!("Specify the trajectory you wish to run");
-                }
-                //Print out the commands in the valid commands list
-                "exit" => return,
-
-                //Parse the trajectory requested
-                other => {
-
-                    let traj;
-
-                    if self.force_mode_flag {
-                        traj = trajectory_planner::relative_traj_gen(other);
-
-                    }else{
-                        traj = trajectory_planner::traj_gen(other);
-                    }
-                    //If the trajectory is valid - i.e. it has been programmed
-                    if traj.is_ok() {
-
-                        let traj = traj.unwrap();
-
-                        //Create the filename
-                        println!("Please provide a test name");
-
-                        //Get user input
-                        let mut user_inp = String::new();
-                        stdin()
-                            .read_line(&mut user_inp)
-                            .expect("Failed to read line");
-
-                        //Create a folder to hold the test data
-                        let new_fp = format!("{}/{}", self.config.test_fp(), user_inp.trim());
-                        fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
-
-                        let data_filename = format!("{}/data_{}.txt", new_fp, user_inp.trim());
-
-                        let config_filename = format!("{}/conf_{}.txt", new_fp, user_inp.trim());
-
-                        //Log the camera config
-                        self.log_config(config_filename);
-
-                        //Create a threading channel to trigger the camera
-                        let (tx, rx) = mpsc::channel();
-
-                        //Clone the cam configs to avoid handing ownership to the thread
-                        let rel_pos = self.config.cam_info.rel_pos().clone();
-                        let rel_ori = self.config.cam_info.rel_ori().clone();
-                        let scale = self.config.cam_info.x_scale();
+        //Log the camera config
+        self.log_config(test_data.config_filename);
 
 
-                        //Create the thread that handles the depth camera
-                        thread::spawn(move || Self::depth_sensing(rx, new_fp, &*user_inp.trim(), true, rel_pos, rel_ori, scale));
+        //Create a threading channel to trigger the camera
+        let (tx, rx) = mpsc::channel();
 
-                        sleep(Duration::from_secs(2));
-
-                        if let Ok(_) = tx.send(4){}
-                        //Move to the home position - blocker
-                        self.go_home_pos();
-
-                        //Trigger before the test begins
-                        if let Ok(_) = tx.send(2){}
+        //Clone the cam configs to avoid handing ownership to the thread
+        let rel_pos = self.config.cam_info.rel_pos().clone();
+        let rel_ori = self.config.cam_info.rel_ori().clone();
+        let scale = self.config.cam_info.x_scale();
 
 
-                        let start_pos = (traj[0].0, traj[0].1, traj[0].2);
+        //Create the thread that handles the depth camera
+        thread::spawn(move || Self::depth_sensing(rx, test_data.filepath.clone(), &*test_data.test_name.clone(), true, rel_pos, rel_ori, scale));
 
-                        
-                        //Move to a starting point - above the starting point
-                        self.set_pos(start_pos);
+        sleep(Duration::from_secs(2));
 
-                        self.set_speed(10.0);
+        if let Ok(_) = tx.send(4) {}
+        //Move to the home position - blocker
+        self.go_home_pos();
 
-                        if self.force_mode_flag {
-                            for i in 1..traj.len(){
-                                self.rel_mv_queue_add((traj[i].0, traj[i].1, traj[i].2)).expect("Failed to add relative move - BAILING");
-                            }
+        //Trigger before the test begins
+        if let Ok(_) = tx.send(2) {}
 
-                        }else{
-                            //Place all the trajectories in the queue
-                            for pnt in traj {
-                                self.traj_queue_add_trans(pnt);
-                            }
+        let start_pos = (test_data.traj[0].0, test_data.traj[0].1, test_data.traj[0].2);
 
-                        }
+        //Move to a starting point
+        self.set_pos(start_pos);
 
-                        //Start the trajectory
-                        self.traj_queue_go();
+        self.set_speed(5.0);
 
-                        //Read the values once
-                        self.update_rob_info();
-
-                        let mut cnt = 0;
-                        const DEPTH_FREQ: i32 = 250;
-                        const CNTRL_FREQ : i32 = 3;
-
-                        //Create a controller
-                        let mut controller = force_control::PHPIDController::create_PHPID(0.07, 0.001, 0.0008, 0.0, 0.07, 0.005, 0.0001);
-
-                        //Read the values until the trajectory is reported as done
-                        while !self.traj_done_flag {
-                            self.update_rob_info();
-                            self.store_state(&data_filename, cnt, TRANSFORM_TO_WORK_SPACE);
-
-                            //Trigger at the start - or at a specified interval
-                            if cnt % DEPTH_FREQ == 0 || cnt == 0 {
-                                if let Ok(_) = tx.send(1) {
-                                    //Do nothing here - normal operation
-                                } else {
-                                    println!("Warning - Cam thread dead!");
-                                }
-                            }
-
-                            //Calculate the force error and correct
-                            if self.force_mode_flag & (cnt % CNTRL_FREQ == 0){
-
-                               self.calc_force_err().unwrap();
-
-                                //Calculate how much to move the end-effector by
-                                self.force_compensate(controller.calc_mv(self.force_err).unwrap()).expect("FORCE NOT COMPENSATED FOR");
-
-                            }
-                            //Increase the count
-                            cnt = cnt + 1;
-
-                            if self.disconnected {
-                                println!("Warning - disconnected during test");
-                                tx.send(0);
-                                return;
-                            }
-                        }
-                        
-
-                        //Go back to home pos
-                        self.go_home_pos();
-                        //No point error handling - if this fails the test is done anyway
-                        tx.send(3);
-                        
-                        println!("Trajectory done!");
-
-                        tx.send(0);
-
-                        return;
-                    } else {
-                        return;
-                    }
-                }
+        if self.force_mode_flag {
+            for i in 1..test_data.traj.len() {
+                self.rel_mv_queue_add((test_data.traj[i].0, test_data.traj[i].1, test_data.traj[i].2)).expect("Failed to add relative move - BAILING");
+            }
+        } else {
+            //Place all the trajectories in the queue
+            for pnt in test_data.traj {
+                self.traj_queue_add_trans(pnt);
             }
         }
+
+        //Start the trajectory
+        self.traj_queue_go();
+
+        //Read the values once
+        self.update_rob_info();
+
+        let mut cnt = 0;
+        const DEPTH_FREQ: i32 = 250;
+        const CNTRL_FREQ: i32 = 1;
+
+        //Create a controller
+        let mut controller = force_control::PHPIDController::create_PHPID(0.015, 0.0002, 0.0005, 0.0, 0.0001, 0.0, 0.00001);
+
+        //Read the values until the trajectory is reported as done
+        while !self.traj_done_flag {
+            self.update_rob_info();
+            self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+
+            //Trigger at the start - or at a specified interval
+            if cnt % DEPTH_FREQ == 0 || cnt == 0 {
+                if let Ok(_) = tx.send(1) {
+                    //Do nothing here - normal operation
+                } else {
+                    println!("Warning - Cam thread dead!");
+                }
+            }
+
+            //Calculate the force error and correct
+            if self.force_mode_flag & (cnt % CNTRL_FREQ == 0) {
+                self.calc_force_err().unwrap();
+
+                //Calculate how much to move the end-effector by
+                self.force_compensate(controller.calc_mv(self.force_err).unwrap()).expect("FORCE NOT COMPENSATED FOR");
+            }
+            //Increase the count
+            cnt = cnt + 1;
+
+            if self.disconnected {
+                println!("Warning - disconnected during test");
+                tx.send(0);
+                return;
+            }
+        }
+
+        //Go back to home pos
+        self.go_home_pos();
+        //No point error handling - if this fails the test is done anyway
+        tx.send(3);
+
+        println!("Trajectory done!");
+
+        tx.send(0);
+
+        return;
     }
 
-    //Function which repeatedly takes depth measurements on trigger from another thread
-    fn depth_sensing(rx: Receiver<u32>, filepath : String, test_name: &str, hmap: bool, rel_pos : [f32;3], rel_ori : [f32;3], scale : f32) {
+
+    fn geo_test_regime(&mut self) {}
+
+
+
+
+
+//Function which repeatedly takes depth measurements on trigger from another thread
+fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: bool, rel_pos : [f32;3], rel_ori : [f32;3], scale : f32) {
         //Create a camera
         let mut cam = terr_map_sense::RealsenseCam::initialise().expect("Failed to create camera");
 

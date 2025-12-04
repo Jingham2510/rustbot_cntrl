@@ -1,5 +1,3 @@
-use anyhow::bail;
-
 use chrono;
 use chrono::{DateTime, Local};
 //NOTE - all control functions must have a footprint of fn function_name(err: f32)->Result<f32, anyhow::Error>
@@ -38,8 +36,8 @@ pub fn prop_gain_control(err:f32) -> Result<f32, anyhow::Error>{
 pub struct PDController {
     prev_err : f32,
     prev_time : DateTime<Local>,
-    KP_gain : f32,
-    KD_gain : f32
+    kp_gain: f32,
+    kd_gain: f32
 }
 
 impl PDController {
@@ -51,9 +49,8 @@ impl PDController {
         PDController{
             prev_err : 0.0,
             prev_time : chrono::offset::Local::now(),
-            KP_gain,
-            KD_gain
-
+            kp_gain: KP_gain,
+            kd_gain: KD_gain
         }
 
 
@@ -73,7 +70,7 @@ impl PDController {
         self.prev_time = now;
         self.prev_err = err;
 
-        Ok(self.KP_gain*-err + self.KD_gain*-derr)
+        Ok(self.kp_gain *-err + self.kd_gain *-derr)
     }
 
 }
@@ -82,9 +79,9 @@ pub struct PIDController{
     errs : Vec<f32>,
     timestamps : Vec<DateTime<Local>>,
     curr_integral : f32,
-    KP_gain : f32,
-    KI_gain :f32,
-    KD_gain :f32
+    kp_gain: f32,
+    ki_gain:f32,
+    kd_gain:f32
 }
 
 impl PIDController {
@@ -96,9 +93,9 @@ impl PIDController {
             errs : vec![0.0],
             timestamps : vec![Local::now()],
             curr_integral : 0.0,
-            KP_gain,
-            KI_gain,
-            KD_gain
+            kp_gain: KP_gain,
+            ki_gain: KI_gain,
+            kd_gain: KD_gain
         }
 
     }
@@ -121,7 +118,7 @@ impl PIDController {
 
         println!("KP - {}, KI - {}, KD - {}", err, ierr, derr);
 
-        let move_dist = (self.KP_gain * err) + (self.KI_gain * ierr) + (self.KD_gain * derr);
+        let move_dist = (self.kp_gain * err) + (self.ki_gain * ierr) + (self.kd_gain * derr);
 
         println!("dist to move - {}", move_dist);
 
@@ -180,13 +177,13 @@ pub struct PHPIDController{
     errs : Vec<f32>,
     timestamps : Vec<DateTime<Local>>,
     curr_integral : f32,
-    Hi_KP_gain : f32,
-    Hi_KI_gain :f32,
-    Hi_KD_gain :f32,
+    hi_kp_gain: f32,
+    hi_ki_gain:f32,
+    hi_kd_gain:f32,
     heaviside_val : f32,
-    Lo_KP_gain : f32,
-    Lo_KI_gain :f32,
-    Lo_KD_gain :f32,
+    lo_kp_gain: f32,
+    lo_ki_gain:f32,
+    lo_kd_gain:f32,
 
 }
 
@@ -199,13 +196,13 @@ impl PHPIDController {
             errs : vec![0.0],
             timestamps : vec![Local::now()],
             curr_integral : 0.0,
-            Hi_KP_gain,
-            Hi_KI_gain,
-            Hi_KD_gain,
+            hi_kp_gain: Hi_KP_gain,
+            hi_ki_gain: Hi_KI_gain,
+            hi_kd_gain: Hi_KD_gain,
             heaviside_val,
-            Lo_KP_gain,
-            Lo_KI_gain,
-            Lo_KD_gain
+            lo_kp_gain: Lo_KP_gain,
+            lo_ki_gain: Lo_KI_gain,
+            lo_kd_gain: Lo_KD_gain
         }
 
     }
@@ -231,11 +228,10 @@ impl PHPIDController {
         let move_dist :f32;
 
         if err > self.heaviside_val {
-            move_dist = (self.Hi_KP_gain * err) + (self.Hi_KI_gain * ierr) + (self.Hi_KD_gain * derr);
+            move_dist = (self.hi_kp_gain * err) + (self.hi_ki_gain * ierr) + (self.hi_kd_gain * derr);
         }else{
-            move_dist = (self.Lo_KP_gain * err) + (self.Lo_KI_gain * ierr) + (self.Lo_KD_gain * derr);
+            move_dist = (self.lo_kp_gain * err) + (self.lo_ki_gain * ierr) + (self.lo_kd_gain * derr);
         }
-        println!("dist to move - {}", move_dist);
 
         Ok(move_dist)
 
