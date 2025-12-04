@@ -767,7 +767,7 @@ impl AbbRob<'_> {
 
             self.calc_force_err();
             //Calculate how much to move the end-effector by
-            self.force_compensate(phase2_cntrl.calc_mv(self.force_err).unwrap()).expect("FORCE NOT COMPENSATED FOR");
+            self.force_compensate(phase3_cntrl.calc_mv(self.force_err).unwrap()).expect("FORCE NOT COMPENSATED FOR");
 
             //Increase the count
             cnt = cnt + 1;
