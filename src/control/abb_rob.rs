@@ -654,8 +654,8 @@ impl AbbRob<'_> {
         self.update_rob_info();
 
         //Setup the seperate PID controllers
-        let phase2_cntrl = PHPIDController::create_PHPID(0.015, 0.0002, 0.0005, 0.0, 0.0001, 0.0, 0.00001);
-        let phase3_cntrl = PHPIDController::create_PHPID(0.015, 0.0002, 0.0005, 0.0, 0.0001, 0.0, 0.00001);
+        let mut phase2_cntrl = PHPIDController::create_PHPID(0.015, 0.0002, 0.0005, 0.0, 0.0001, 0.0, 0.00001);
+        let mut phase3_cntrl = PHPIDController::create_PHPID(0.015, 0.0002, 0.0005, 0.0, 0.0001, 0.0, 0.00001);
 
 
         let mut cnt = 0;
@@ -683,12 +683,112 @@ impl AbbRob<'_> {
         //Take snapshot
         tx.send(1);
 
-        println!("GEOTECH- Phase 1 Complete!")
+        println!("GEOTECH- Phase 1 Complete!");
 
         //Phase 2 - force control until target force is stabilised (PID 1)
+        let mut force_stable = false;
+        let mut force_errs:Vec<f32> = vec![];
+        let mut force_sum : f32;
+        let mut force_avg : f32;
+        const FORCE_ERR_ROLL_AVG : usize = 50;
+        //rolling average has to be within 5% of the desired force
+        const FORCE_THRESHOLD : f32 = 0.05;
 
+        //update the robot info
+        self.update_rob_info();
+        self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+        cnt = cnt+1;
+        //Check the force error
+        self.calc_force_err();
+        while !force_stable{
+
+            //Use the error to calculate the amount to move & request the robot do the move to compensate for error
+            self.move_tool((0.0, 0.0, phase2_cntrl.calc_mv(self.force_err).unwrap()));
+
+
+            //Update the robot info
+            self.update_rob_info();
+            //Store the state of the robot
+            self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+            cnt = cnt+1;
+
+            //Calc the force error and add to rolling average list
+            if(force_errs.len() < FORCE_ERR_ROLL_AVG){
+                force_errs.push(self.force_err);
+            }else{
+                force_errs.remove(0);
+                force_errs.push(self.force_err);
+            }
+
+            //Check if the rolling average is within an acceptable range
+            //ROLLING BECAUSE WE WANT THE LOCAL ERROR TO BE RIGHT NOT THE OVERALL ERROR
+            force_sum = 0.0;
+            force_avg = 0.0;
+            for fc in force_errs.iter(){
+                force_sum = force_sum + fc;
+            }
+            force_avg = force_sum/force_errs.len() as f32;
+
+            println!("FC AVG: {}", force_avg);
+
+            //Check if the force average is within the allowed threshold
+            if(force_avg/self.force_target <= FORCE_THRESHOLD){
+                //Count the force as stable
+                force_stable = true;
+                //update the robot info
+                self.update_rob_info();
+                self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+                cnt = cnt+1;
+            }
+        }
+
+        //Take snapshot
+        tx.send(1);
         //Phase 3 - Complete trajectory whilst (PID 2)
 
+        self.set_speed(5.0);
+        //Start the trajectory
+        self.traj_queue_go();
+
+        const DEPTH_FREQ: i32 = 250;
+        //Read the values until the trajectory is reported as done
+        while !self.traj_done_flag {
+            self.update_rob_info();
+            self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+
+            //Trigger at the start - or at a specified interval
+            if cnt % DEPTH_FREQ == 0 || cnt == 0 {
+                if let Ok(_) = tx.send(1) {
+                    //Do nothing here - normal operation
+                } else {
+                    println!("Warning - Cam thread dead!");
+                }
+            }
+
+            self.calc_force_err();
+            //Calculate how much to move the end-effector by
+            self.force_compensate(phase2_cntrl.calc_mv(self.force_err).unwrap()).expect("FORCE NOT COMPENSATED FOR");
+
+            //Increase the count
+            cnt = cnt + 1;
+
+            if self.disconnected {
+                println!("Warning - disconnected during test");
+                tx.send(0);
+                return;
+            }
+        }
+
+        //Go back to home pos
+        self.go_home_pos();
+        //No point error handling - if this fails the test is done anyway
+        tx.send(3);
+
+        println!("Trajectory done!");
+
+        tx.send(0);
+
+        return;
 
     }
 
