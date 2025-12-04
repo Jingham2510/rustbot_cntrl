@@ -12,6 +12,7 @@ use std::sync::mpsc::Receiver;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 use std::{fs, thread};
+use crate::control::force_control::force_control::PHPIDController;
 
 pub struct AbbRob<'a> {
     socket: tcp_sock::TcpSock,
@@ -109,7 +110,7 @@ impl TestData{
             .read_line(&mut user_inp)
             .expect("Failed to read line");
 
-        //TODO : Chcek uesr input
+        //TODO : Chcek user for valid strings
 
         user_inp.trim().to_string()
     }
@@ -224,8 +225,6 @@ impl AbbRob<'_> {
                     }else{
                         println!("Invalid target.... returning");
                         }
-
-
 
                 }
 
@@ -518,7 +517,6 @@ impl AbbRob<'_> {
         let rel_ori = self.config.cam_info.rel_ori().clone();
         let scale = self.config.cam_info.x_scale();
 
-
         //Create the thread that handles the depth camera
         thread::spawn(move || Self::depth_sensing(rx, test_data.filepath.clone(), &*test_data.test_name.clone(), true, rel_pos, rel_ori, scale));
 
@@ -539,8 +537,8 @@ impl AbbRob<'_> {
         self.set_speed(5.0);
 
         if self.force_mode_flag {
-            for i in 1..test_data.traj.len() {
-                self.rel_mv_queue_add((test_data.traj[i].0, test_data.traj[i].1, test_data.traj[i].2)).expect("Failed to add relative move - BAILING");
+            for pnt in test_data.traj {
+                self.rel_mv_queue_add(pnt).expect("Failed to add relative move - BAILING");
             }
         } else {
             //Place all the trajectories in the queue
@@ -606,7 +604,93 @@ impl AbbRob<'_> {
     }
 
 
-    fn geo_test_regime(&mut self) {}
+    fn geo_test_regime(&mut self) {
+
+        if !self.force_mode_flag{
+            println!("Force mode not set! Returning!");
+            return
+        }
+
+        //Setup the test data
+        //Creates the test data and the filepaths
+        let test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
+
+        //Log the camera config
+        self.log_config(test_data.config_filename);
+
+        //Create a threading channel to trigger the camera
+        let (tx, rx) = mpsc::channel();
+
+        //Clone the cam configs to avoid handing ownership to the thread
+        let rel_pos = self.config.cam_info.rel_pos().clone();
+        let rel_ori = self.config.cam_info.rel_ori().clone();
+        let scale = self.config.cam_info.x_scale();
+
+        //Create the thread that handles the depth camera
+        thread::spawn(move || Self::depth_sensing(rx, test_data.filepath.clone(), &*test_data.test_name.clone(), true, rel_pos, rel_ori, scale));
+
+        sleep(Duration::from_secs(2));
+
+        if let Ok(_) = tx.send(4) {}
+        //Move to the home position - blocker
+        self.go_home_pos();
+
+        //Trigger before the test begins
+        if let Ok(_) = tx.send(2) {}
+
+        let start_pos = (test_data.traj[0].0, test_data.traj[0].1, test_data.traj[0].2 + 50.0);
+
+        //Move to the starting point
+        self.set_pos(start_pos);
+
+        self.set_speed(2.0);
+
+        //Send the trajectory
+        for pnt in test_data.traj {
+            self.rel_mv_queue_add(pnt).expect("Failed to add relative move - BAILING");
+        }
+
+        //Read the values once
+        self.update_rob_info();
+
+        //Setup the seperate PID controllers
+        let phase2_cntrl = PHPIDController::create_PHPID(0.015, 0.0002, 0.0005, 0.0, 0.0001, 0.0, 0.00001);
+        let phase3_cntrl = PHPIDController::create_PHPID(0.015, 0.0002, 0.0005, 0.0, 0.0001, 0.0, 0.00001);
+
+
+        let mut cnt = 0;
+
+
+        //SETUP COMPLETE-----------------------
+        //Phase 1 - position control until target force reached
+
+
+        //Request the robot find the vert force
+        self.req_find_vert_force();
+
+        //While vert force not found
+        while(!self.get_vert_force_found_flag().unwrap()) {
+            //Update robot info
+            self.update_rob_info();
+            //Update force error
+            self.calc_force_err();
+            //report to data log
+            self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+
+            cnt = cnt + 1;
+        }
+
+        //Take snapshot
+        tx.send(1);
+
+        println!("GEOTECH- Phase 1 Complete!")
+
+        //Phase 2 - force control until target force is stabilised (PID 1)
+
+        //Phase 3 - Complete trajectory whilst (PID 2)
+
+
+    }
 
 
 
@@ -1044,9 +1128,36 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
         }else{
             bail!("Failed to set compensation movement");
         }
-
     }
 
+    //Request the robot find the vertical force taret
+    fn req_find_vert_force(&mut self){
+
+        if self.socket.req("RQVF:0").is_ok(){
+            return
+        }else{
+            panic!("Failed to ask the robot to find the vertical force spot!")
+        }
+    }
+
+    fn get_vert_force_found_flag(&mut self) -> Result<bool, anyhow::Error>{
+
+        //Check to see if the vertical force found flag has been set
+        match self.socket.req("GTVF:?") {
+            Ok(recv) => {
+                if recv == "TRUE" {
+                    self.traj_done_flag = true;
+                    Ok(true)
+                }else{
+                    Ok(false)
+                }
+            }
+            Err(recv)=>{
+                println!("WARNING - INVALID RESP TO VERT FORCE FLAG CHECK");
+                bail!("INVALID RESP TO VERT FORCE FLAG CHECK")
+            }
+        }
+    }
 
 
 
