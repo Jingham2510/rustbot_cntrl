@@ -223,7 +223,7 @@ impl PHPIDController {
         self.calc_integral_trap_approx();
         ierr = self.curr_integral;
 
-        println!("KP - {}, KI - {}, KD - {}", err, ierr, derr);
+        //println!("KP - {}, KI - {}, KD - {}", err, ierr, derr);
 
         let move_dist :f32;
 

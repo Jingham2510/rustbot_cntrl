@@ -228,6 +228,27 @@ impl AbbRob<'_> {
 
                 }
 
+                "geo test" =>{
+                    self.set_force_control_mode(true).expect("FAILED TO SET FORCE MODE");
+
+
+                    println!("Please type the target force");
+
+                    let mut user_inp = String::new();
+                    stdin()
+                        .read_line(&mut user_inp)
+                        .expect("Failed to read line");
+
+                    if let  Ok(targ) = user_inp.trim().parse::<f32>(){
+
+                        self.set_force_config("Z", targ).expect("FAILED TO SET FORCE CONFIG");
+                        self.geo_test_regime();
+
+                    }else{
+                        println!("Invalid target.... returning");
+                    }
+                }
+
                 //Whatever function is being tested at the moment
                 "test" => {
                     if let Ok(_) = self.rel_mv_queue_add((10.0, 11.0, 12.0)){
@@ -503,7 +524,7 @@ impl AbbRob<'_> {
     fn run_test(&mut self) {
 
         //Creates the test data and the filepaths
-        let test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
+        let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
 
         //Log the camera config
         self.log_config(test_data.config_filename);
@@ -537,8 +558,11 @@ impl AbbRob<'_> {
         self.set_speed(5.0);
 
         if self.force_mode_flag {
-            for pnt in test_data.traj {
-                self.rel_mv_queue_add(pnt).expect("Failed to add relative move - BAILING");
+            for (i, pnt) in test_data.traj.iter_mut().enumerate() {
+                if i == 0{
+                    continue;
+                }
+                self.rel_mv_queue_add(*pnt).expect("Failed to add relative move - BAILING");
             }
         } else {
             //Place all the trajectories in the queue
@@ -613,7 +637,7 @@ impl AbbRob<'_> {
 
         //Setup the test data
         //Creates the test data and the filepaths
-        let test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
+        let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
 
         //Log the camera config
         self.log_config(test_data.config_filename);
@@ -638,7 +662,7 @@ impl AbbRob<'_> {
         //Trigger before the test begins
         if let Ok(_) = tx.send(2) {}
 
-        let start_pos = (test_data.traj[0].0, test_data.traj[0].1, test_data.traj[0].2 + 50.0);
+        let start_pos = (test_data.traj[0].0, test_data.traj[0].1, test_data.traj[0].2);
 
         //Move to the starting point
         self.set_pos(start_pos);
@@ -646,8 +670,11 @@ impl AbbRob<'_> {
         self.set_speed(2.0);
 
         //Send the trajectory
-        for pnt in test_data.traj {
-            self.rel_mv_queue_add(pnt).expect("Failed to add relative move - BAILING");
+        for (i, pnt) in test_data.traj.iter_mut().enumerate() {
+            if i == 0{
+                continue;
+            }
+            self.rel_mv_queue_add(*pnt).expect("Failed to add relative move - BAILING");
         }
 
         //Read the values once
@@ -690,9 +717,9 @@ impl AbbRob<'_> {
         let mut force_errs:Vec<f32> = vec![];
         let mut force_sum : f32;
         let mut force_avg : f32;
-        const FORCE_ERR_ROLL_AVG : usize = 50;
+        const FORCE_ERR_ROLL_AVG : usize = 100;
         //rolling average has to be within 5% of the desired force
-        const FORCE_THRESHOLD : f32 = 0.05;
+        const FORCE_THRESHOLD : f32 = 0.10;
 
         //update the robot info
         self.update_rob_info();
@@ -708,6 +735,7 @@ impl AbbRob<'_> {
 
             //Update the robot info
             self.update_rob_info();
+            self.calc_force_err();
             //Store the state of the robot
             self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
             cnt = cnt+1;
@@ -723,7 +751,6 @@ impl AbbRob<'_> {
             //Check if the rolling average is within an acceptable range
             //ROLLING BECAUSE WE WANT THE LOCAL ERROR TO BE RIGHT NOT THE OVERALL ERROR
             force_sum = 0.0;
-            force_avg = 0.0;
             for fc in force_errs.iter(){
                 force_sum = force_sum + fc;
             }
@@ -732,7 +759,9 @@ impl AbbRob<'_> {
             println!("FC AVG: {}", force_avg);
 
             //Check if the force average is within the allowed threshold
-            if(force_avg/self.force_target <= FORCE_THRESHOLD){
+            //Check above 0 to preserve directionality of problem (i.e. negative force)
+            //Also ensure that a proper rolling average is taken
+            if(force_errs.len() == FORCE_ERR_ROLL_AVG) & (force_avg/self.force_target > 0.0) & (force_avg/self.force_target <= FORCE_THRESHOLD){
                 //Count the force as stable
                 force_stable = true;
                 //update the robot info
@@ -741,6 +770,8 @@ impl AbbRob<'_> {
                 cnt = cnt+1;
             }
         }
+
+        println!("GEOTECH - PHASE 2 COMPLETE!");
 
         //Take snapshot
         tx.send(1);
@@ -754,6 +785,7 @@ impl AbbRob<'_> {
         //Read the values until the trajectory is reported as done
         while !self.traj_done_flag {
             self.update_rob_info();
+            self.calc_force_err();
             self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
 
             //Trigger at the start - or at a specified interval
@@ -765,7 +797,7 @@ impl AbbRob<'_> {
                 }
             }
 
-            self.calc_force_err();
+
             //Calculate how much to move the end-effector by
             self.force_compensate(phase3_cntrl.calc_mv(self.force_err).unwrap()).expect("FORCE NOT COMPENSATED FOR");
 
