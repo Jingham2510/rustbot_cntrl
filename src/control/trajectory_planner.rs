@@ -8,6 +8,7 @@ use anyhow::bail;
 
 const IMPL_TRAJS: [&str; 4] = ["line", "circle", "slidedown", "custom"];
 
+//120
 const DEFAULT_Z: f32 = 120.0;
 
 
@@ -20,14 +21,41 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Error> {
         //Line trajectory
         "line" => {
             //Define all the starting points etc
-            let line_x = 265.0;
+            let line_x = 400.0;
             let line_z = DEFAULT_Z;
-            let start_y = 1550.0;
-            let end_y = 1750.0;
+            let start_y = 1600.0;
+            let end_y = 2200.0;
             let start_pos = (line_x, start_y, line_z);
             let end_pos = (line_x, end_y, line_z);
 
             trajectory = vec![start_pos, end_pos];
+        }
+
+        //Straight line trajectory - discretised into multiple points
+        "dline" =>{
+            //Define all the starting points etc
+            let line_x = 400.0;
+            let line_z = DEFAULT_Z;
+            let start_y = 1800.0;
+            let end_y = 2800.0;
+            let start_pos = (line_x, start_y, line_z);
+            let end_pos = (line_x, end_y, line_z);
+
+            let num_of_points = 500;
+
+            let dist_per_pnt = (end_y - start_y)/ num_of_points as f32;
+
+            trajectory = vec![start_pos];
+
+            //Add all the middle points
+            for i in (1..num_of_points){
+                trajectory.push((line_x, start_y + (i as f32 * dist_per_pnt), DEFAULT_Z));
+            }
+
+
+            trajectory.push(end_pos);
+
+
         }
 
         "circle" => {

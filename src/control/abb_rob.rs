@@ -117,12 +117,13 @@ impl TestData{
 
 }
 
-pub const IMPL_COMMDS: [&str; 9] = [
+pub const IMPL_COMMDS: [&str; 10] = [
     "info",
     "cmds",
     "disconnect",
     "trajectory",
     "force traj",
+    "geo test",
     "test",
     "home",
     "req xyz",
@@ -681,8 +682,8 @@ impl AbbRob<'_> {
         self.update_rob_info();
 
         //Setup the seperate PID controllers
-        let mut phase2_cntrl = PHPIDController::create_PHPID(0.015, 0.0002, 0.0005, 0.0, 0.0001, 0.0, 0.00001);
-        let mut phase3_cntrl = PHPIDController::create_PHPID(0.015, 0.0002, 0.0005, 0.0, 0.0001, 0.0, 0.00001);
+        let mut phase2_cntrl = PHPIDController::create_PHPID(0.015, 0.0002, 0.0005, 0.0, 0.001, 0.0002, 0.00001);
+        let mut phase3_cntrl = PHPIDController::create_PHPID(0.001, 0.0002, 0.0005, 0.0, 0.001, 0.0001, 0.00001);
 
 
         let mut cnt = 0;
@@ -756,7 +757,8 @@ impl AbbRob<'_> {
             }
             force_avg = force_sum/force_errs.len() as f32;
 
-            println!("FC AVG: {}", force_avg);
+            //println!("Force err avg: {force_avg}");
+
 
             //Check if the force average is within the allowed threshold
             //Check above 0 to preserve directionality of problem (i.e. negative force)
