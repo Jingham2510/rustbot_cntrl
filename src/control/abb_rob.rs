@@ -710,22 +710,34 @@ impl AbbRob<'_> {
 
         //Take snapshot
         tx.send(1);
+        //Update robot info
+        self.update_rob_info();
+        //Update force error
+        self.calc_force_err();
+        //report to data log
+        self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+        cnt = cnt + 1;
 
         println!("GEOTECH- Phase 1 Complete!");
 
         //Phase 2 - force control until target force is stabilised (PID 1)
         let mut force_stable = false;
         let mut force_errs:Vec<f32> = vec![];
-        const FORCE_ERR_ROLL_AVG : usize = 250;
         //rolling average has to be within 10% of the desired force
-        const FORCE_THRESHOLD : f32 = 0.10;
+        const FORCE_ERR_ROLL_AVG : usize = 1000;
+        const FORCE_AVG_THRESHOLD : f32 = 0.10;
+
+        //Actual values have to be within 30% of the desired force
+        const FORCE_THRESH_CNT : usize = 100;
+        const FORCE_THRESHOLD : f32 = 0.30;
 
         //update the robot info
         self.update_rob_info();
-        self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
-        cnt = cnt+1;
         //Check the force error
         self.calc_force_err();
+        self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+        cnt = cnt+1;
+
         while !force_stable{
 
             //Use the error to calculate the amount to move & request the robot do the move to compensate for error
@@ -756,24 +768,41 @@ impl AbbRob<'_> {
             //Check if every value in the rolling queue is within the required threshold
             if(force_errs.len() == FORCE_ERR_ROLL_AVG){
 
-                let mut all_within = true;
+                let mut force_sum = 0.0;
+                let force_avg : f32;
 
-                for force in force_errs.clone(){
-                    let curr_val = force/self.force_target;
-                    if (curr_val > FORCE_THRESHOLD) | (curr_val < 0.0){
-                         all_within = false;
-                        break;
+                let mut avg_pass = false;
+                let mut all_within = true;
+                //Check that the rolling average is within 10% (globally correct)
+                for (i, force) in force_errs.iter().enumerate(){
+
+                    force_sum = force_sum + force;
+
+                    //Check that the actual previous values are within 30% (locally correct)
+                    //Higher threshold to account for noise
+                    if i > FORCE_THRESH_CNT{
+                        let curr_val = force/self.force_target;
+                        if (curr_val > FORCE_THRESHOLD) | (curr_val < 0.0){
+                            all_within = false;
+                            break;
+                        }
                     }
                 }
 
-                if all_within {
-                    //Count the force as stable
-                    force_stable = true;
-                    //update the robot info
-                    self.update_rob_info();
-                    self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
-                    cnt = cnt+1;
+                if all_within{
+                    //Check that the global average is okay
+                    force_avg = force_sum/FORCE_ERR_ROLL_AVG as f32;
+                    if force_avg < FORCE_AVG_THRESHOLD {
+                        //Count the force as stable
+                        force_stable = true;
+                        //update the robot info
+                        self.update_rob_info();
+                        self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+                        cnt = cnt+1;
+                    }
                 }
+
+
             }
         }
 
