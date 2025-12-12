@@ -780,7 +780,7 @@ impl AbbRob<'_> {
 
                     //Check that the actual previous values are within 30% (locally correct)
                     //Higher threshold to account for noise
-                    if i > FORCE_THRESH_CNT{
+                    if i >= FORCE_THRESH_CNT{
                         let curr_val = force/self.force_target;
                         if (curr_val > FORCE_THRESHOLD) | (curr_val < 0.0){
                             all_within = false;
@@ -1209,6 +1209,33 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
         if let Err(e) = writeln!(file, "{}", line) {
             eprint!("Couldn't write to file: {}", e);
         }
+    }
+
+    //Write a marker to the given file with a timestamp (used for marking certain milestones in tests)
+    fn write_marker(&mut self, filename: &String, comment : String){
+        //Open the file (or create if it doesn't exist)
+        let mut file = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(filename.trim())
+            .unwrap();
+
+        let line : String;
+
+        line = format!(
+            "!{:?}: {}",
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs_f64(),
+            comment
+        );
+
+        //Write to the file - indicating if writing failed (but don't worry about it!)
+        if let Err(e) = writeln!(file, "{}", line) {
+            eprint!("Couldn't write to file: {}", e);
+        }
+
     }
 
     fn log_config(&mut self, filepath: String){
