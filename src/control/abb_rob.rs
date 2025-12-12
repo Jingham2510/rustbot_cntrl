@@ -163,6 +163,7 @@ impl AbbRob<'_> {
 
     //Disconnect from the robot - don't change any robot info, chances are the robot is going out of scope after this
     pub fn disconnect_rob(&mut self) {
+        self.socket.req("CLOS").expect("FAILED TO CLOSE SOCKET");
         self.socket.disconnect();
         println!("Disconnected... Moving back to core command handler");
     }
@@ -682,8 +683,8 @@ impl AbbRob<'_> {
         self.update_rob_info();
 
         //Setup the seperate PID controllers
-        let mut phase2_cntrl = PHPIDController::create_PHPID(0.015, 0.0002, 0.0005, 0.0, 0.001, 0.0002, 0.00001);
-        let mut phase3_cntrl = PHPIDController::create_PHPID(0.001, 0.0002, 0.0005, 0.0, 0.001, 0.0001, 0.00001);
+        let mut phase2_cntrl = PHPIDController::create_PHPID(0.001, 0.000, 0.0002, 0.0, 0.001, 0.0002, 0.00001);
+        let mut phase3_cntrl = PHPIDController::create_PHPID(0.0003, 0.00001, 0.0000, 0.0, 0.0001, 0.00001, 0.000);
 
 
         let mut cnt = 0;
@@ -704,7 +705,6 @@ impl AbbRob<'_> {
             self.calc_force_err();
             //report to data log
             self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
-
             cnt = cnt + 1;
         }
 
@@ -716,10 +716,8 @@ impl AbbRob<'_> {
         //Phase 2 - force control until target force is stabilised (PID 1)
         let mut force_stable = false;
         let mut force_errs:Vec<f32> = vec![];
-        let mut force_sum : f32;
-        let mut force_avg : f32;
-        const FORCE_ERR_ROLL_AVG : usize = 100;
-        //rolling average has to be within 5% of the desired force
+        const FORCE_ERR_ROLL_AVG : usize = 250;
+        //rolling average has to be within 10% of the desired force
         const FORCE_THRESHOLD : f32 = 0.10;
 
         //update the robot info
@@ -751,29 +749,38 @@ impl AbbRob<'_> {
 
             //Check if the rolling average is within an acceptable range
             //ROLLING BECAUSE WE WANT THE LOCAL ERROR TO BE RIGHT NOT THE OVERALL ERROR
-            force_sum = 0.0;
-            for fc in force_errs.iter(){
-                force_sum = force_sum + fc;
-            }
-            force_avg = force_sum/force_errs.len() as f32;
-
-            //println!("Force err avg: {force_avg}");
 
 
-            //Check if the force average is within the allowed threshold
-            //Check above 0 to preserve directionality of problem (i.e. negative force)
-            //Also ensure that a proper rolling average is taken
-            if(force_errs.len() == FORCE_ERR_ROLL_AVG) & (force_avg/self.force_target > 0.0) & (force_avg/self.force_target <= FORCE_THRESHOLD){
-                //Count the force as stable
-                force_stable = true;
-                //update the robot info
-                self.update_rob_info();
-                self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
-                cnt = cnt+1;
+
+
+            //Check if every value in the rolling queue is within the required threshold
+            if(force_errs.len() == FORCE_ERR_ROLL_AVG){
+
+                let mut all_within = true;
+
+                for force in force_errs.clone(){
+                    let curr_val = force/self.force_target;
+                    if (curr_val > FORCE_THRESHOLD) | (curr_val < 0.0){
+                         all_within = false;
+                        break;
+                    }
+                }
+
+                if all_within {
+                    //Count the force as stable
+                    force_stable = true;
+                    //update the robot info
+                    self.update_rob_info();
+                    self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+                    cnt = cnt+1;
+                }
             }
         }
 
         println!("GEOTECH - PHASE 2 COMPLETE!");
+
+        /*
+
 
         //Take snapshot
         tx.send(1);
@@ -812,6 +819,9 @@ impl AbbRob<'_> {
                 return;
             }
         }
+        */
+
+
 
         //Go back to home pos
         self.go_home_pos();

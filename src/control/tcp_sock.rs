@@ -103,6 +103,10 @@ impl TcpSock {
 
     //Close the stream by shutting it down
     pub fn disconnect(&mut self) {
+
+
+
+
         self.stream
             .as_ref()
             .unwrap()
