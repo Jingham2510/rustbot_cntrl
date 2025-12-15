@@ -53,7 +53,7 @@ impl TestData{
 
         //Create the test data structure
         let t_data = TestData{
-            traj : traj,
+            traj,
             test_name : test_name.clone(),
             filepath,
             data_filename,
@@ -133,7 +133,7 @@ pub const IMPL_COMMDS: [&str; 10] = [
 const TRANSFORM_TO_WORK_SPACE : bool = true;
 
 impl AbbRob<'_> {
-    pub fn create_rob(ip: String, port: u32, config : &Config) -> Result<AbbRob, anyhow::Error> {
+    pub fn create_rob(ip: String, port: u32, config : &'_ Config) -> Result<AbbRob<'_>, anyhow::Error> {
         //Create the robots socket
         let mut rob_sock = tcp_sock::create_sock(ip, port);
         //Attempt to connect to the robot
@@ -588,7 +588,7 @@ impl AbbRob<'_> {
         const CNTRL_FREQ: i32 = 1;
 
         //Create a controller
-        let mut controller = force_control::PHPIDController::create_PHPID(0.015, 0.0002, 0.0005, 0.0, 0.0001, 0.0, 0.00001);
+        let mut controller = PHPIDController::create_PHPID(0.015, 0.0002, 0.0005, 0.0, 0.0001, 0.0, 0.00001);
 
         //Read the values until the trajectory is reported as done
         while !self.traj_done_flag {
@@ -642,7 +642,7 @@ impl AbbRob<'_> {
             return
         }
 
-        //Setup the test data
+        //Set up the test data
         //Creates the test data and the filepaths
         let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
 
@@ -706,7 +706,7 @@ impl AbbRob<'_> {
         self.req_find_vert_force();
 
         //While vert force not found
-        while(!self.get_vert_force_found_flag().unwrap()) {
+        while !self.get_vert_force_found_flag().unwrap() {
             //Update robot info
             self.update_rob_info();
             //Update force error
@@ -732,13 +732,27 @@ impl AbbRob<'_> {
         //Phase 2 - force control until target force is stabilised (PID 1)
         let mut force_stable = false;
         let mut force_errs:Vec<f32> = vec![];
-        //rolling average has to be within 10% of the desired force
-        const FORCE_ERR_ROLL_AVG : usize = 1000;
-        const FORCE_AVG_THRESHOLD : f32 = 0.10;
+        //Minimum of 500 measurements taken - just to prove its stable
+        const FORCE_ERR_ROLL_AVG : usize = 500;
+        let force_avg_threshold: f32 = match self.force_target{
+
+            -5.0 => 0.45,
+            -10.0 => 0.30,
+            -25.0 => 0.20,
+            _ => 0.10
+        };
 
         //Actual values have to be within 30% of the desired force
         const FORCE_THRESH_CNT : usize = 100;
-        const FORCE_THRESHOLD : f32 = 0.30;
+        //The force threshold is based on the inverse of the magnitude
+        let force_threshold: f32 = match self.force_target{
+
+            -5.0 => 1.0,
+            -10.0 => 0.6,
+            -25.0 => 0.5,
+            -50.0 => 0.25,
+            _ => 0.10
+        };
 
         //update the robot info
         self.update_rob_info();
@@ -762,7 +776,7 @@ impl AbbRob<'_> {
             cnt = cnt+1;
 
             //Calc the force error and add to rolling average list
-            if(force_errs.len() < FORCE_ERR_ROLL_AVG){
+            if force_errs.len() < FORCE_ERR_ROLL_AVG {
                 force_errs.push(self.force_err);
             }else{
                 force_errs.remove(0);
@@ -770,18 +784,12 @@ impl AbbRob<'_> {
             }
 
             //Check if the rolling average is within an acceptable range
-            //ROLLING BECAUSE WE WANT THE LOCAL ERROR TO BE RIGHT NOT THE OVERALL ERROR
-
-
-
-
             //Check if every value in the rolling queue is within the required threshold
-            if(force_errs.len() == FORCE_ERR_ROLL_AVG){
+            if force_errs.len() == FORCE_ERR_ROLL_AVG {
 
                 let mut force_sum = 0.0;
                 let force_avg : f32;
 
-                let mut avg_pass = false;
                 let mut all_within = true;
                 //Check that the rolling average is within 10% (globally correct)
                 for (i, force) in force_errs.iter().enumerate(){
@@ -792,7 +800,8 @@ impl AbbRob<'_> {
                     //Higher threshold to account for noise
                     if i >= FORCE_THRESH_CNT{
                         let curr_val = force/self.force_target;
-                        if (curr_val > FORCE_THRESHOLD) | (curr_val < 0.0){
+                        if curr_val.abs() > force_threshold {
+                            println!("Failed at: {curr_val}");
                             all_within = false;
                             break;
                         }
@@ -802,13 +811,15 @@ impl AbbRob<'_> {
                 if all_within{
                     //Check that the global average is okay
                     force_avg = force_sum/FORCE_ERR_ROLL_AVG as f32;
-                    if force_avg < FORCE_AVG_THRESHOLD {
+                    if (force_avg/self.force_target).abs() < force_avg_threshold {
                         //Count the force as stable
                         force_stable = true;
                         //update the robot info
                         self.update_rob_info();
                         self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
                         cnt = cnt+1;
+                    }else{
+                        println!("GLOBAL AVG INCORRECT: {force_avg}")
                     }
                 }
 
