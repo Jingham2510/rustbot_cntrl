@@ -556,7 +556,7 @@ impl AbbRob<'_> {
 
         let start_pos = (test_data.traj[0].0, test_data.traj[0].1, test_data.traj[0].2);
 
-        self.write_marker(&test_data.config_filename, "TEST STARTED");
+        self.write_marker(&test_data.data_filename, "TEST STARTED");
 
         //Move to a starting point
         self.set_pos(start_pos);
@@ -627,7 +627,7 @@ impl AbbRob<'_> {
         tx.send(3);
 
         println!("Trajectory done!");
-        self.write_marker(&test_data.config_filename, "TEST END");
+        self.write_marker(&test_data.data_filename, "TEST END");
 
         tx.send(0);
 
@@ -671,7 +671,7 @@ impl AbbRob<'_> {
 
         let start_pos = (test_data.traj[0].0, test_data.traj[0].1, test_data.traj[0].2);
 
-        self.write_marker(&test_data.config_filename, "TEST STARTED");
+        self.write_marker(&test_data.data_filename, "TEST STARTED");
 
         //Move to the starting point
         self.set_pos(start_pos);
@@ -700,7 +700,7 @@ impl AbbRob<'_> {
         //SETUP COMPLETE-----------------------
         //Phase 1 - position control until target force reached
 
-        self.write_marker(&test_data.config_filename, "PHASE 1 STARTED");
+        self.write_marker(&test_data.data_filename, "PHASE 1 STARTED");
 
         //Request the robot find the vert force
         self.req_find_vert_force();
@@ -727,7 +727,7 @@ impl AbbRob<'_> {
         cnt = cnt + 1;
 
         println!("GEOTECH- Phase 1 Complete!");
-        self.write_marker(&test_data.config_filename, "PHASE 1 END");
+        self.write_marker(&test_data.data_filename, "PHASE 1 END");
 
         //Phase 2 - force control until target force is stabilised (PID 1)
         let mut force_stable = false;
@@ -761,7 +761,7 @@ impl AbbRob<'_> {
         self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
         cnt = cnt+1;
 
-        self.write_marker(&test_data.config_filename, "PHASE 2 STARTED");
+        self.write_marker(&test_data.data_filename, "PHASE 2 STARTED");
         while !force_stable{
 
             //Use the error to calculate the amount to move & request the robot do the move to compensate for error
@@ -828,7 +828,7 @@ impl AbbRob<'_> {
         }
 
         println!("GEOTECH - PHASE 2 COMPLETE!");
-        self.write_marker(&test_data.config_filename, "PHASE 2 ENDED");
+        self.write_marker(&test_data.data_filename, "PHASE 2 ENDED");
 
         /*
 
@@ -839,7 +839,7 @@ impl AbbRob<'_> {
 
         self.set_speed(5.0);
         //Start the trajectory
-        self.write_marker(&test_data.config_filename, "PHASE 3 STARTED");
+        self.write_marker(&test_data.data_filename, "PHASE 3 STARTED");
         self.traj_queue_go();
 
         const DEPTH_FREQ: i32 = 250;
@@ -873,7 +873,7 @@ impl AbbRob<'_> {
         }
         */
 
-        self.write_marker(&test_data.config_filename, "PHASE 3 ENDED");
+        self.write_marker(&test_data.data_filename, "PHASE 3 ENDED");
 
         //Go back to home pos
         self.go_home_pos();
@@ -884,7 +884,7 @@ impl AbbRob<'_> {
 
         tx.send(0);
 
-        self.write_marker(&test_data.config_filename, "TEST END");
+        self.write_marker(&test_data.data_filename, "TEST END");
 
         return;
     }
