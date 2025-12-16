@@ -729,6 +729,8 @@ impl AbbRob<'_> {
         println!("GEOTECH- Phase 1 Complete!");
         self.write_marker(&test_data.data_filename, "PHASE 1 END");
 
+
+
         //Phase 2 - force control until target force is stabilised (PID 1)
         let mut force_stable = false;
         let mut force_errs:Vec<f32> = vec![];
@@ -830,7 +832,6 @@ impl AbbRob<'_> {
         println!("GEOTECH - PHASE 2 COMPLETE!");
         self.write_marker(&test_data.data_filename, "PHASE 2 ENDED");
 
-        /*
 
 
         //Take snapshot
@@ -871,7 +872,7 @@ impl AbbRob<'_> {
                 return;
             }
         }
-        */
+
 
         self.write_marker(&test_data.data_filename, "PHASE 3 ENDED");
 

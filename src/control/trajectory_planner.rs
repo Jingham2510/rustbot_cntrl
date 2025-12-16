@@ -90,6 +90,60 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Error> {
             trajectory = vec![start_pos, end_pos];
         }
 
+        //Small vibrational movements
+        "wiggle" =>{
+
+            let start_x = 200.0;
+            let start_y = 2160.0;
+
+            //Define all characteristics of the circle
+            let centre = (start_x, start_y, DEFAULT_Z);
+
+            for i in 1..100{
+                if i % 2 == 0 {
+                    trajectory.push((
+                        start_x + 1.0,
+                        start_y,
+                        DEFAULT_Z
+                        ));
+                }
+                if i % 3 == 0{
+                    trajectory.push((
+                        start_x,
+                        start_y,
+                        DEFAULT_Z
+                    ));
+                }
+                if i % 4 == 0{
+                    trajectory.push((
+                        start_x - 1.0,
+                        start_y,
+                        DEFAULT_Z
+                    ));
+                }
+                if i % 5 == 0{
+                    trajectory.push((
+                        start_x,
+                        start_y + 1.0,
+                        DEFAULT_Z
+                    ));
+                }
+                if i % 6 == 0{
+                    trajectory.push((
+                        start_x,
+                        start_y - 1.0,
+                        DEFAULT_Z
+                    ));
+                }
+
+
+
+
+
+
+            }
+        }
+
         //Draw a trajectory from a custom file
         "custom" => {
             if let Some(traj) = cust_traj_handler() {
