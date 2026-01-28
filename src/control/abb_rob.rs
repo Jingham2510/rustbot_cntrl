@@ -1,5 +1,4 @@
 use crate::config::Config;
-use crate::control::force_control::force_control;
 use crate::control::misc_tools::{angle_tools, string_tools};
 use crate::control::{tcp_sock, trajectory_planner};
 use crate::mapping::terr_map_sense;
@@ -681,6 +680,23 @@ impl AbbRob<'_> {
         //Read the values once
         self.update_rob_info();
 
+
+        //Create the controllers filepath
+        let phase2_cntrl_filepath = format!("{}/p2_cntrl_errs_{}.txt",self.config.test_fp(),&test_data.data_filename.clone());
+        let phase3_cntrl_filepath = format!("{}/p3_cntrl_errs_{}.txt",self.config.test_fp(),&test_data.data_filename.clone());
+
+        let mut phase2_cntrl_file = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(phase2_cntrl_filepath)
+            .unwrap();
+
+        let mut phase3_cntrl_file = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(phase3_cntrl_filepath)
+            .unwrap();
+
         //Setup the seperate PID controllers
         let mut phase2_cntrl = PHPIDController::create_PHPID(0.001, 0.000, 0.00002, 0.0, 0.001, 0.0001, 0.00001);
         let mut phase3_cntrl = PIDController::create_PID(0.00005, 0.000005, 0.000);
@@ -771,6 +787,12 @@ impl AbbRob<'_> {
             self.calc_force_err();
             //Store the state of the robot
             self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+
+            let cntrl_line = format!("{}, {}", cnt, phase2_cntrl.to_string());
+
+            phase2_cntrl_file.write_all(cntrl_line.as_ref()).expect("Cant write to controller");
+
+
             cnt = cnt+1;
 
             //Calc the force error and add to rolling average list
@@ -847,6 +869,9 @@ impl AbbRob<'_> {
             self.update_rob_info();
             self.calc_force_err();
             self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+
+            let cntrl_line = format!("{}, {}", cnt, phase3_cntrl.to_string());
+            phase3_cntrl_file.write_all(cntrl_line.as_ref()).expect("Cant write to controller");
 
             //Trigger at the start - or at a specified interval
             if cnt % DEPTH_FREQ == 0 || cnt == 0 {
@@ -1393,7 +1418,7 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
                     Ok(false)
                 }
             }
-            Err(recv)=>{
+            Err(_recv)=>{
                 println!("WARNING - INVALID RESP TO VERT FORCE FLAG CHECK");
                 bail!("INVALID RESP TO VERT FORCE FLAG CHECK")
             }

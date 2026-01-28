@@ -1,5 +1,6 @@
 use chrono;
 use chrono::{DateTime, Local};
+use std::fmt::Display;
 //NOTE - all control functions must have a footprint of fn function_name(err: f32)->Result<f32, anyhow::Error>
 //This is to comply with the callback function used in the main test procedure
 
@@ -82,6 +83,18 @@ pub struct PIDController{
     kp_gain: f32,
     ki_gain:f32,
     kd_gain:f32
+}
+
+impl Display for PIDController{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let string = format!("P:{},I:{},D:{}",
+                             self.kp_gain,
+                             self.ki_gain,
+                             self.kd_gain
+        );
+
+        write!(f, "{}", string)
+    }
 }
 
 impl PIDController {
@@ -169,7 +182,6 @@ impl PIDController {
         self.curr_integral
 
     }
-
 }
 
 //Proportional Heaviside PID Controller (basically two PID controllers)
@@ -185,6 +197,21 @@ pub struct PHPIDController{
     lo_ki_gain:f32,
     lo_kd_gain:f32,
 
+}
+
+impl Display for PHPIDController{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let string = format!("HP:{},HI:{},HD:{},LP:{},LI:{},LD:{}",
+                             self.hi_kp_gain,
+                             self.hi_ki_gain,
+                             self.hi_kd_gain,
+                             self.lo_kp_gain,
+                             self.lo_ki_gain,
+                             self.lo_kd_gain
+        );
+
+        write!(f, "{}", string)
+    }
 }
 
 impl PHPIDController {
