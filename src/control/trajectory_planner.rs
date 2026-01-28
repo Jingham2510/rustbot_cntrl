@@ -93,16 +93,19 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Error> {
         //Small vibrational movements
         "wiggle" =>{
 
+            const WIGGLE_MOVE :f32 = 0.25;
+
             let start_x = 200.0;
             let start_y = 2160.0;
 
             //Define all characteristics of the circle
             let centre = (start_x, start_y, DEFAULT_Z);
 
-            for i in 1..100{
+            //NORMALLY 300
+            for i in 1..1000{
                 if i % 2 == 0 {
                     trajectory.push((
-                        start_x + 1.0,
+                        start_x + WIGGLE_MOVE,
                         start_y,
                         DEFAULT_Z
                         ));
@@ -116,7 +119,7 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Error> {
                 }
                 if i % 4 == 0{
                     trajectory.push((
-                        start_x - 1.0,
+                        start_x - WIGGLE_MOVE,
                         start_y,
                         DEFAULT_Z
                     ));
@@ -124,14 +127,14 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Error> {
                 if i % 5 == 0{
                     trajectory.push((
                         start_x,
-                        start_y + 1.0,
+                        start_y + WIGGLE_MOVE,
                         DEFAULT_Z
                     ));
                 }
                 if i % 6 == 0{
                     trajectory.push((
                         start_x,
-                        start_y - 1.0,
+                        start_y - WIGGLE_MOVE,
                         DEFAULT_Z
                     ));
                 }

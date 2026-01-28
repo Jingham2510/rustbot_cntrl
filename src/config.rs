@@ -30,7 +30,9 @@ pub struct RobInfo{
     rob_name : String,
     //Position and orientation information required for transformation to global world frame (0,0 in terrian box)
     pos_for_zero : [f32;3],
-    ori_for_zero : [f32;3]
+    ori_for_zero : [f32;3],
+    //Height that the robot registers where the end effector sits minimally above the soil
+    min_embed_height : f32
 }
 
 impl RobInfo {
@@ -73,6 +75,7 @@ impl Default for RobInfo{
             rob_name : "ABB-IRB6400".parse().unwrap(),
             pos_for_zero : [2400.0, 1300.0, 1250.0],
             ori_for_zero : [60.0, 60.0, 40.0],
+            min_embed_height : 176.0
         }
     }
 }
@@ -242,8 +245,6 @@ impl CamInfo{
     }
 
 
-
-
     fn extract_scale(line : String) -> Result<f32, anyhow::Error>{
         //Access the value
         let line_split : Vec<&str> = line.split("[").collect();
@@ -283,6 +284,7 @@ impl RobInfo{
         let mut rob_name = String::new();
         let mut pos_for_zero = [0.0, 0.0, 0.0];
         let mut ori_for_zero = [0.0, 0.0, 0.0];
+        let mut min_embed_height = 0.0;
 
 
         //Open the file and iterate line by line
@@ -301,6 +303,8 @@ impl RobInfo{
                 pos_for_zero = pos_ori_parser(curr_line)?;
             }else if curr_line.starts_with("ORI_TO_ZERO"){
                 ori_for_zero = pos_ori_parser(curr_line)?;
+            }else if curr_line.starts_with("MIN_EMBED"){
+                min_embed_height = curr_line.parse()?;
             }
 
 
@@ -316,7 +320,8 @@ impl RobInfo{
         Ok(Self{
             rob_name,
             pos_for_zero,
-            ori_for_zero
+            ori_for_zero,
+            min_embed_height
 
         })
     }
@@ -357,7 +362,9 @@ impl RobInfo{
         Ok(RobInfo{
             rob_name : rob_name.to_string(),
             pos_for_zero,
-            ori_for_zero
+            ori_for_zero,
+            //TODO: read properly - for now just manual
+            min_embed_height : 80.0
         })
     }
 
@@ -366,6 +373,7 @@ impl RobInfo{
     pub fn rob_name(&self) -> String {self.rob_name.clone()}
     pub fn pos_to_zero(&self) -> [f32;3] {self.pos_for_zero}
     pub fn ori_to_zero(&self) -> [f32;3] {self.ori_for_zero}
+    pub fn min_embed_height(&self) -> f32 {self.min_embed_height}
 
 
 

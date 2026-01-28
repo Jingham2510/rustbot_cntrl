@@ -101,7 +101,7 @@ impl PIDController {
     }
 
 
-    pub fn calc_mv(&mut self, err:f32) -> Result<f32, anyhow::Error>{
+    pub fn calc_op(&mut self, err:f32) -> Result<f32, anyhow::Error>{
 
         self.timestamps.push(Local::now());
         self.errs.push(err);
@@ -116,11 +116,11 @@ impl PIDController {
         self.calc_integral_trap_approx();
         ierr = self.curr_integral;
 
-        println!("KP - {}, KI - {}, KD - {}", err, ierr, derr);
+        //println!("KP - {}, KI - {}, KD - {}", err, ierr, derr);
 
         let move_dist = (self.kp_gain * err) + (self.ki_gain * ierr) + (self.kd_gain * derr);
 
-        println!("dist to move - {}", move_dist);
+        //println!("dist to move - {}", move_dist);
 
         Ok(move_dist)
 
@@ -208,7 +208,7 @@ impl PHPIDController {
     }
 
 
-    pub fn calc_mv(&mut self, err:f32) -> Result<f32, anyhow::Error>{
+    pub fn calc_op(&mut self, err:f32) -> Result<f32, anyhow::Error>{
 
         self.timestamps.push(Local::now());
         self.errs.push(err);

@@ -12,7 +12,7 @@ use std::sync::mpsc::Receiver;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 use std::{fs, thread};
-use crate::control::force_control::force_control::PHPIDController;
+use crate::control::force_control::force_control::{PHPIDController, PIDController};
 
 pub struct AbbRob<'a> {
     socket: tcp_sock::TcpSock,
@@ -253,15 +253,7 @@ impl AbbRob<'_> {
 
                 //Whatever function is being tested at the moment
                 "test" => {
-                    if let Ok(_) = self.rel_mv_queue_add((10.0, 11.0, 12.0)){
-
-                        println!("Sent okay! - check values in RAPID");
-
-                    }else{
-                        println!("FAILED");
-
-                    }
-
+                    self.set_pos((219.0, 1800.0, 176.0))
 
                 }
 
@@ -561,7 +553,7 @@ impl AbbRob<'_> {
         //Move to a starting point
         self.set_pos(start_pos);
 
-        self.set_speed(5.0);
+        self.set_speed(2.0);
 
         if self.force_mode_flag {
             for (i, pnt) in test_data.traj.iter_mut().enumerate() {
@@ -609,7 +601,7 @@ impl AbbRob<'_> {
                 self.calc_force_err().unwrap();
 
                 //Calculate how much to move the end-effector by
-                self.force_compensate(controller.calc_mv(self.force_err).unwrap()).expect("FORCE NOT COMPENSATED FOR");
+                self.force_compensate_move(controller.calc_op(self.force_err).unwrap()).expect("FORCE NOT COMPENSATED FOR");
             }
             //Increase the count
             cnt = cnt + 1;
@@ -690,8 +682,8 @@ impl AbbRob<'_> {
         self.update_rob_info();
 
         //Setup the seperate PID controllers
-        let mut phase2_cntrl = PHPIDController::create_PHPID(0.001, 0.000, 0.0002, 0.0, 0.001, 0.0002, 0.00001);
-        let mut phase3_cntrl = PHPIDController::create_PHPID(0.0003, 0.00001, 0.0000, 0.0, 0.0001, 0.00001, 0.000);
+        let mut phase2_cntrl = PHPIDController::create_PHPID(0.001, 0.000, 0.00002, 0.0, 0.001, 0.0001, 0.00001);
+        let mut phase3_cntrl = PIDController::create_PID(0.00005, 0.000005, 0.000);
 
 
         let mut cnt = 0;
@@ -735,7 +727,7 @@ impl AbbRob<'_> {
         let mut force_stable = false;
         let mut force_errs:Vec<f32> = vec![];
         //Minimum of 500 measurements taken - just to prove its stable
-        const FORCE_ERR_ROLL_AVG : usize = 500;
+        const FORCE_ERR_ROLL_AVG : usize = 300;
         let force_avg_threshold: f32 = match self.force_target{
 
             -5.0 => 0.45,
@@ -763,11 +755,15 @@ impl AbbRob<'_> {
         self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
         cnt = cnt+1;
 
+        //Set the speed of the robot
+        self.set_speed(0.1);
+
+
         self.write_marker(&test_data.data_filename, "PHASE 2 STARTED");
         while !force_stable{
 
             //Use the error to calculate the amount to move & request the robot do the move to compensate for error
-            self.move_tool((0.0, 0.0, phase2_cntrl.calc_mv(self.force_err).unwrap()));
+            self.move_tool((0.0, 0.0, phase2_cntrl.calc_op(self.force_err).unwrap()));
 
 
             //Update the robot info
@@ -836,9 +832,11 @@ impl AbbRob<'_> {
 
         //Take snapshot
         tx.send(1);
-        //Phase 3 - Complete trajectory whilst (PID 2)
+        //Phase 3 - Complete trajectory whilst (PID)
 
-        self.set_speed(5.0);
+        //Set the speed of the robot
+        self.set_speed(0.1);
+
         //Start the trajectory
         self.write_marker(&test_data.data_filename, "PHASE 3 STARTED");
         self.traj_queue_go();
@@ -861,7 +859,7 @@ impl AbbRob<'_> {
 
 
             //Calculate how much to move the end-effector by
-            self.force_compensate(phase3_cntrl.calc_mv(self.force_err).unwrap()).expect("FORCE NOT COMPENSATED FOR");
+            self.force_compensate_zspeed(phase3_cntrl.calc_op(self.force_err).unwrap()).expect("FORCE NOT COMPENSATED FOR");
 
             //Increase the count
             cnt = cnt + 1;
@@ -875,6 +873,8 @@ impl AbbRob<'_> {
 
 
         self.write_marker(&test_data.data_filename, "PHASE 3 ENDED");
+
+
 
         //Go back to home pos
         self.go_home_pos();
@@ -1290,7 +1290,7 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
         writeln!(file, "{}", line).expect("FAILED TO WRITE CAM TO CONFIG - CLOSING");
 
         //Save another line with the robot pos/ori config data
-        let line = format!("ROB: NAME: \"{}\" POS:[{},{},{}] ORI:[{},{},{}]",
+        let line = format!("ROB: NAME: \"{}\" POS:[{},{},{}] ORI:[{},{},{}][ EMB:[{}]",
                            self.config.rob_info.rob_name(),
                            self.config.rob_info.pos_to_zero()[0],
                            self.config.rob_info.pos_to_zero()[1],
@@ -1298,6 +1298,7 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
                            self.config.rob_info.ori_to_zero()[0],
                            self.config.rob_info.ori_to_zero()[1],
                            self.config.rob_info.ori_to_zero()[2],
+                           self.config.rob_info.min_embed_height()
         );
 
         writeln!(file, "{}", line).expect("FAILED TO WRITE ROB TO CONFIG - CLOSING");
@@ -1341,7 +1342,8 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
 
     //Requests the robot modifies its trajectory to achieve the target force
     //callback function allows for a range of control functions to be tested/used
-    fn force_compensate(&mut self, move_by : f32) -> Result<(), anyhow::Error>{
+    //To be used if the PID output is a distance to move
+    fn force_compensate_move(&mut self, move_by : f32) -> Result<(), anyhow::Error>{
 
 
         let cmd_string = format!("FCCM:{}", move_by);
@@ -1352,6 +1354,20 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
             Ok(())
         }else{
             bail!("Failed to set compensation movement");
+        }
+    }
+
+    //Gives the robot a desired z-speed which it then uses to calculate the target height that will achieve that
+    fn force_compensate_zspeed(&mut self, desired_z_speed : f32) -> Result<(), anyhow::Error>{
+
+
+        let cmd_string = format!("FCCS:{}", desired_z_speed);
+
+        //Send the compensation command to the robot
+        if self.socket.req(&*cmd_string)?.eq("OK"){
+            Ok(())
+        }else{
+            bail!("Failed to set desired z speed");
         }
     }
 
