@@ -26,7 +26,7 @@ pub struct AbbRob<'a> {
     force_axis : String,
     force_target : f32,
     //Programme setup config
-    config : &'a Config,
+    config : &'a mut Config,
     force_err: f32
 }
 
@@ -132,7 +132,7 @@ pub const IMPL_COMMDS: [&str; 10] = [
 const TRANSFORM_TO_WORK_SPACE : bool = true;
 
 impl AbbRob<'_> {
-    pub fn create_rob(ip: String, port: u32, config : &'_ Config) -> Result<AbbRob<'_>, anyhow::Error> {
+    pub fn create_rob(ip: String, port: u32, config : &'_ mut Config) -> Result<AbbRob<'_>, anyhow::Error> {
         //Create the robots socket
         let mut rob_sock = tcp_sock::create_sock(ip, port);
         //Attempt to connect to the robot
@@ -196,6 +196,7 @@ impl AbbRob<'_> {
 
                 "req xyz" => {
                     self.req_xyz();
+                    println!("X:{}, Y:{}, Z:{}", self.pos.0, self.pos.1, self.pos.2);
                 }
 
                 "req ori" => {
@@ -637,6 +638,8 @@ impl AbbRob<'_> {
         //Creates the test data and the filepaths
         let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
 
+
+
         //Log the camera config
         self.log_config(&test_data.config_filename);
 
@@ -681,26 +684,13 @@ impl AbbRob<'_> {
         self.update_rob_info();
 
 
-        //Create the controllers filepath
-        let phase2_cntrl_filepath = format!("{}/p2_cntrl_errs_{}.txt",self.config.test_fp(),&test_data.data_filename.clone());
-        let phase3_cntrl_filepath = format!("{}/p3_cntrl_errs_{}.txt",self.config.test_fp(),&test_data.data_filename.clone());
-
-        let mut phase2_cntrl_file = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(phase2_cntrl_filepath)
-            .unwrap();
-
-        let mut phase3_cntrl_file = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(phase3_cntrl_filepath)
-            .unwrap();
-
         //Setup the seperate PID controllers
         let mut phase2_cntrl = PHPIDController::create_PHPID(0.001, 0.000, 0.00002, 0.0, 0.001, 0.0001, 0.00001);
         let mut phase3_cntrl = PIDController::create_PID(0.00005, 0.000005, 0.000);
 
+        //Setup the config information
+        self.config.set_phase2_cntrl(phase2_cntrl.to_string());
+        self.config.set_phase3_cntrl(phase3_cntrl.to_string());
 
         let mut cnt = 0;
 
@@ -772,7 +762,7 @@ impl AbbRob<'_> {
         cnt = cnt+1;
 
         //Set the speed of the robot
-        self.set_speed(0.1);
+        self.set_speed(5.0);
 
 
         self.write_marker(&test_data.data_filename, "PHASE 2 STARTED");
@@ -787,11 +777,6 @@ impl AbbRob<'_> {
             self.calc_force_err();
             //Store the state of the robot
             self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
-
-            let cntrl_line = format!("{}, {}", cnt, phase2_cntrl.to_string());
-
-            phase2_cntrl_file.write_all(cntrl_line.as_ref()).expect("Cant write to controller");
-
 
             cnt = cnt+1;
 
@@ -857,7 +842,7 @@ impl AbbRob<'_> {
         //Phase 3 - Complete trajectory whilst (PID)
 
         //Set the speed of the robot
-        self.set_speed(0.1);
+        self.set_speed(5.0);
 
         //Start the trajectory
         self.write_marker(&test_data.data_filename, "PHASE 3 STARTED");
@@ -870,8 +855,6 @@ impl AbbRob<'_> {
             self.calc_force_err();
             self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
 
-            let cntrl_line = format!("{}, {}", cnt, phase3_cntrl.to_string());
-            phase3_cntrl_file.write_all(cntrl_line.as_ref()).expect("Cant write to controller");
 
             //Trigger at the start - or at a specified interval
             if cnt % DEPTH_FREQ == 0 || cnt == 0 {
@@ -1290,7 +1273,7 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
 
     fn log_config(&mut self, filepath: &String){
 
-        println!("{filepath}");
+        //println!("{filepath}");
 
         //Create the config file and save the config info
         let mut file = OpenOptions::new()
@@ -1336,7 +1319,18 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
 
         let line = format!("FC_MODE:{} FC_AXIS:{}, FC_TARGET:{}", self.force_mode_flag, self.force_axis, self.force_target);
         writeln!(file, "{}", line).expect("FAILED TO WRITE FORCE CONTROL CONFIG - CLOSING");
+
+        //If the force mode is high - store the controller configs
+        if self.force_mode_flag{
+            let line = format!("PHASE2 CONTROLLER: {}", self.config.phase2_cntrl_settings);
+            writeln!(file, "{}", line).expect("FAILED TO WRITE PHASE 2 CONTROLLER CONFIG - CLOSING");
+
+            let line = format!("PHASE3 CONTROLLER: {}", self.config.phase3_cntrl_settings);
+            writeln!(file, "{}", line).expect("FAILED TO WRITE PHASE 3 CONTROLLER CONFIG - CLOSING");
+
+        }
     }
+
 
 
     //Calculate the error between the

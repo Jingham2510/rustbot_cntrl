@@ -98,11 +98,9 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Error> {
             let start_x = 200.0;
             let start_y = 2160.0;
 
-            //Define all characteristics of the circle
-            let centre = (start_x, start_y, DEFAULT_Z);
 
             //NORMALLY 300
-            for i in 1..1000{
+            for i in 1..300{
                 if i % 2 == 0 {
                     trajectory.push((
                         start_x + WIGGLE_MOVE,

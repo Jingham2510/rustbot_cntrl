@@ -13,6 +13,9 @@ pub struct Config{
     test_fp : String,
     pub cam_info : CamInfo,
     pub rob_info : RobInfo,
+    pub phase2_cntrl_settings : String,
+    pub phase3_cntrl_settings : String,
+
     //Indicator for test processing (in case of erroneous analyses)
     default : bool
 }
@@ -48,6 +51,8 @@ impl Default for Config{
             test_fp : "C:/Users/User/Documents/Results/DEPTH_TESTS".parse().unwrap(),
             cam_info : CamInfo::default(),
             rob_info : RobInfo::default(),
+            phase2_cntrl_settings : "NONE".parse().unwrap(),
+            phase3_cntrl_settings : "NONE".parse().unwrap(),
             default : true
         }
     }
@@ -92,6 +97,8 @@ impl Config{
             test_fp,
             cam_info : CamInfo::read_cam_info_from_file()?,
             rob_info : RobInfo::read_rob_info_from_file()?,
+            phase2_cntrl_settings : "NONE".parse()?,
+            phase3_cntrl_settings : "NONE".parse()?,
             default : false
         })
     }
@@ -122,6 +129,13 @@ impl Config{
         self.test_fp.clone()
     }
 
+
+    pub fn set_phase2_cntrl(&mut self, config_string : String){
+        self.phase2_cntrl_settings = config_string;
+    }
+    pub fn set_phase3_cntrl(&mut self, config_string : String){
+        self.phase3_cntrl_settings = config_string;
+    }
 
 
     pub fn is_default(&self) -> bool{
@@ -364,7 +378,7 @@ impl RobInfo{
             pos_for_zero,
             ori_for_zero,
             //TODO: read properly - for now just manual
-            min_embed_height : 80.0
+            min_embed_height : 178.0
         })
     }
 

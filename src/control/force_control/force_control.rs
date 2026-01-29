@@ -87,7 +87,7 @@ pub struct PIDController{
 
 impl Display for PIDController{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let string = format!("P:{},I:{},D:{}",
+        let string = format!("PID - P:{},I:{},D:{}",
                              self.kp_gain,
                              self.ki_gain,
                              self.kd_gain
@@ -201,7 +201,7 @@ pub struct PHPIDController{
 
 impl Display for PHPIDController{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let string = format!("HP:{},HI:{},HD:{},LP:{},LI:{},LD:{}",
+        let string = format!("PHPID - HP:{},HI:{},HD:{},LP:{},LI:{},LD:{}",
                              self.hi_kp_gain,
                              self.hi_ki_gain,
                              self.hi_kd_gain,
