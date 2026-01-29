@@ -62,6 +62,7 @@ impl TestData{
         //Create all the directories that the test needs
         fs::create_dir(t_data.filepath.clone()).expect("FAILED TO CREATE NEW DIRECTORY");
 
+
         t_data
 
     }
@@ -112,6 +113,48 @@ impl TestData{
         //TODO : Chcek user for valid strings
 
         user_inp.trim().to_string()
+    }
+
+    fn store_desired_trajectory(&mut self, forcemode : bool){
+
+        //Store the desired trajectory in the filepath
+        let traj_fp = format!("{}/des_traj_{}.txt", self.filepath, self.test_name);
+        //Store a copy of the desired trajectory
+        //Create the config file and save the config info
+        let mut file = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(traj_fp)
+            .unwrap();
+
+        //If the trajectory is a relative one
+        if forcemode{
+
+            let mut point : (f32, f32, f32) = (0.0, 0.0, 0.0);
+
+            for (i, pnt) in self.traj.iter_mut().enumerate() {
+                if i == 0{
+                    point = *pnt;
+                }else{
+                    point.0 = point.0 + pnt.0;
+                    point.1 = point.1 + pnt.1;
+                    point.2 = point.2 + pnt.2;
+                }
+
+                let line = format!("{:?}", point);
+                writeln!(file, "{}", line).expect("FAILED TO WRITE TRAJ - CLOSING");
+            }
+
+
+        }else{
+            for pnt in self.traj.iter() {
+                let line = format!("{:?}", pnt);
+                writeln!(file, "{}", line).expect("FAILED TO WRITE TRAJ - CLOSING");
+            }
+
+        }
+
+
     }
 
 }
@@ -637,7 +680,8 @@ impl AbbRob<'_> {
         //Set up the test data
         //Creates the test data and the filepaths
         let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
-
+        //Store the desired trajectory
+        test_data.store_desired_trajectory(self.force_mode_flag);
 
 
         //Create a threading channel to trigger the camera
@@ -728,29 +772,6 @@ impl AbbRob<'_> {
 
         println!("GEOTECH- Phase 1 Complete!");
         self.write_marker(&test_data.data_filename, "PHASE 1 END");
-
-
-        let start_time = SystemTime::now();
-        let mut curr_time = SystemTime::now();
-
-        //TEMP TEST - post phase 1 completion, dont move end-effector and look at the effect of the bleed
-        while curr_time.duration_since(start_time).unwrap().as_secs_f64() <= 60.0{
-            //Update robot info
-            self.update_rob_info();
-            //Update force error
-            self.calc_force_err();
-            //report to data log
-            self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
-            cnt = cnt + 1;
-
-            curr_time = SystemTime::now();
-
-        }
-
-        self.go_home_pos();
-
-        return;
-
 
 
         //Phase 2 - force control until target force is stabilised (PID 1)
