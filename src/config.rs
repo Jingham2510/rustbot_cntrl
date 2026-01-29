@@ -80,7 +80,7 @@ impl Default for RobInfo{
             rob_name : "ABB-IRB6400".parse().unwrap(),
             pos_for_zero : [2400.0, 1300.0, 1250.0],
             ori_for_zero : [60.0, 60.0, 40.0],
-            min_embed_height : 176.0
+            min_embed_height : 161.0
         }
     }
 }
@@ -378,7 +378,7 @@ impl RobInfo{
             pos_for_zero,
             ori_for_zero,
             //TODO: read properly - for now just manual
-            min_embed_height : 178.0
+            min_embed_height : 161.0
         })
     }
 

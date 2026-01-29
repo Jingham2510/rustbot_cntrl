@@ -129,7 +129,7 @@ pub const IMPL_COMMDS: [&str; 10] = [
     "req ori",
 ];
 
-const TRANSFORM_TO_WORK_SPACE : bool = true;
+const TRANSFORM_TO_WORK_SPACE : bool = false;
 
 impl AbbRob<'_> {
     pub fn create_rob(ip: String, port: u32, config : &'_ mut Config) -> Result<AbbRob<'_>, anyhow::Error> {
@@ -640,9 +640,6 @@ impl AbbRob<'_> {
 
 
 
-        //Log the camera config
-        self.log_config(&test_data.config_filename);
-
         //Create a threading channel to trigger the camera
         let (tx, rx) = mpsc::channel();
 
@@ -650,6 +647,18 @@ impl AbbRob<'_> {
         let rel_pos = self.config.cam_info.rel_pos().clone();
         let rel_ori = self.config.cam_info.rel_ori().clone();
         let scale = self.config.cam_info.x_scale();
+
+
+        //Setup the seperate PID controllers
+        let mut phase2_cntrl = PHPIDController::create_PHPID(0.001, 0.000, 0.00002, 0.0, 0.001, 0.0001, 0.00001);
+        let mut phase3_cntrl = PIDController::create_PID(0.00005, 0.000005, 0.000);
+
+        //Setup the config information
+        self.config.set_phase2_cntrl(phase2_cntrl.to_string());
+        self.config.set_phase3_cntrl(phase3_cntrl.to_string());
+
+        //Log the config
+        self.log_config(&test_data.config_filename);
 
         //Create the thread that handles the depth camera
         thread::spawn(move || Self::depth_sensing(rx, test_data.filepath.clone(), &*test_data.test_name.clone(), true, rel_pos, rel_ori, scale));
@@ -664,6 +673,7 @@ impl AbbRob<'_> {
         if let Ok(_) = tx.send(2) {}
 
         let start_pos = (test_data.traj[0].0, test_data.traj[0].1, test_data.traj[0].2);
+        println!("START POSIITON: {}", test_data.traj[0].2);
 
         self.write_marker(&test_data.data_filename, "TEST STARTED");
 
@@ -674,6 +684,7 @@ impl AbbRob<'_> {
 
         //Send the trajectory
         for (i, pnt) in test_data.traj.iter_mut().enumerate() {
+            //Ignore the first point
             if i == 0{
                 continue;
             }
@@ -682,15 +693,6 @@ impl AbbRob<'_> {
 
         //Read the values once
         self.update_rob_info();
-
-
-        //Setup the seperate PID controllers
-        let mut phase2_cntrl = PHPIDController::create_PHPID(0.001, 0.000, 0.00002, 0.0, 0.001, 0.0001, 0.00001);
-        let mut phase3_cntrl = PIDController::create_PID(0.00005, 0.000005, 0.000);
-
-        //Setup the config information
-        self.config.set_phase2_cntrl(phase2_cntrl.to_string());
-        self.config.set_phase3_cntrl(phase3_cntrl.to_string());
 
         let mut cnt = 0;
 
@@ -726,6 +728,28 @@ impl AbbRob<'_> {
 
         println!("GEOTECH- Phase 1 Complete!");
         self.write_marker(&test_data.data_filename, "PHASE 1 END");
+
+
+        let start_time = SystemTime::now();
+        let mut curr_time = SystemTime::now();
+
+        //TEMP TEST - post phase 1 completion, dont move end-effector and look at the effect of the bleed
+        while curr_time.duration_since(start_time).unwrap().as_secs_f64() <= 60.0{
+            //Update robot info
+            self.update_rob_info();
+            //Update force error
+            self.calc_force_err();
+            //report to data log
+            self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+            cnt = cnt + 1;
+
+            curr_time = SystemTime::now();
+
+        }
+
+        self.go_home_pos();
+
+        return;
 
 
 
@@ -1005,7 +1029,6 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
         //Request the info
         if let Ok(recv) = self.socket.req("GTPS:0") {
 
-
             //Format the string
             let recv = string_tools::rem_first_and_last(&*recv);
             let xyz_vec = string_tools::str_to_vector(recv);
@@ -1016,8 +1039,11 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
                 self.pos = (f32::NAN, f32::NAN, f32::NAN);
                 return;
             } else {
+
                 //Store the pos in the robot info
                 self.pos = (xyz_vec[0], xyz_vec[1], xyz_vec[2]);
+
+                //println!("CURR POS: {:?}", self.pos);
             }
         } else {
             //If the socket request returns nothing
@@ -1171,7 +1197,6 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
         if self.disconnected {
             return;
         }
-
 
         self.get_traj_done_flag();
     }

@@ -34,7 +34,7 @@ fn main() -> Result<(), anyhow::Error>{
     println!("RUSTBOT_CNTRL STARTUP....");
 
     //Load the program config
-    let config : Config;
+    let mut config : Config;
     if let Ok(conf) = Config::setup_config(){
         config = conf;
         println!("Set config loaded");
@@ -46,7 +46,7 @@ fn main() -> Result<(), anyhow::Error>{
 
 
     //Run the command handler
-    core_cmd_handler(&config);
+    core_cmd_handler(&mut config);
 
     println!("Shutting down");
 
@@ -54,7 +54,7 @@ fn main() -> Result<(), anyhow::Error>{
 }
 
 //Handles commands given by the user - without a robot
-fn core_cmd_handler(config : &Config) {
+fn core_cmd_handler(config: &mut Config) {
     //Array of implemented commands
     const VALID_CMDS: [&str; 7] = [
         "info - get title and version number",
@@ -92,7 +92,7 @@ fn core_cmd_handler(config : &Config) {
             }
             "quit" => break,
 
-            "connect" => rob_connect(&config),
+            "connect" => rob_connect(config),
 
             "analyse" => {
                 if let Err(e) = analyse(&config) {
@@ -120,7 +120,7 @@ fn core_cmd_handler(config : &Config) {
 }
 
 //Command line for logging into and controlling a robot
-fn rob_connect(config : &Config) {
+fn rob_connect(config : &mut Config) {
     //Not const because you cant make constant hashmaps
 
     let profiles = HashMap::from([
