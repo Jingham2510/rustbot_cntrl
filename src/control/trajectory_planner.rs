@@ -41,7 +41,7 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Error> {
             let start_pos = (line_x, start_y, line_z);
             let end_pos = (line_x, end_y, line_z);
 
-            let num_of_points = 500;
+            let num_of_points = 1000;
 
             let dist_per_pnt = (end_y - start_y)/ num_of_points as f32;
 

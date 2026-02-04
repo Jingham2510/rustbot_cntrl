@@ -773,7 +773,7 @@ impl AbbRob<'_> {
         println!("GEOTECH- Phase 1 Complete!");
         self.write_marker(&test_data.data_filename, "PHASE 1 END");
 
-
+        
         //Phase 2 - force control until target force is stabilised (PID 1)
         let mut force_stable = false;
         let mut force_errs:Vec<f32> = vec![];
@@ -882,6 +882,7 @@ impl AbbRob<'_> {
 
 
 
+
         //Take snapshot
         tx.send(1);
         //Phase 3 - Complete trajectory whilst (PID)
@@ -913,6 +914,8 @@ impl AbbRob<'_> {
 
             //Calculate how much to move the end-effector by
             self.force_compensate_zspeed(phase3_cntrl.calc_op(self.force_err).unwrap()).expect("FORCE NOT COMPENSATED FOR");
+
+
 
             //Increase the count
             cnt = cnt + 1;

@@ -1,6 +1,5 @@
 //rustbot control!
 //A rust and headerless version of the robot controller designed to run tests in the soilbed
-//Version 0.0.0
 //Author - Joe Ingham
 
 use std::collections::HashMap;
@@ -9,7 +8,6 @@ use std::fs::File;
 use std::io::{stdin, Write};
 use std::thread::sleep;
 use std::time::Duration;
-use anyhow::bail;
 
 mod analysis;
 mod control;
@@ -17,6 +15,8 @@ mod mapping;
 mod config;
 
 mod helper_funcs;
+mod modelling;
+
 
 
 use crate::analysis::analyser::{Analyser, ForceSel};
@@ -24,6 +24,7 @@ use control::abb_rob;
 use crate::mapping::terr_map_sense::RealsenseCam;
 use crate::mapping::terr_map_tools::Heightmap;
 use crate::config::Config;
+use crate::modelling::irb6400_model::IRB6400Model;
 
 const VER_NUM: &str = "V0.5";
 //Program title
@@ -110,6 +111,20 @@ fn core_cmd_handler(config: &mut Config) {
                 if let Err(e) = take_pointcloud(&config){
                     println!("PCL ERROR - {e}")
                 }
+            }
+
+            "test" =>{
+
+                let mut model: IRB6400Model = IRB6400Model::create_model();
+
+                //eprint!("{}", model.get_transform());
+
+                println!("--------MOVED------");
+
+                model.update_joints([40.0_f32.to_radians(), -20.0_f32.to_radians(), 20.0_f32.to_radians(), -50.0_f32.to_radians(), 50.0_f32.to_radians(), 210.0_f32.to_radians()]);
+
+
+                //eprint!("{}", model.get_transform());
             }
 
 
