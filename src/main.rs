@@ -119,13 +119,14 @@ fn core_cmd_handler(config: &mut Config) {
 
                 //eprint!("{}", model.get_transform());
 
-                println!("--------MOVED------");
+                //println!("--------MOVED------");
 
-                model.update_joints([40.0_f32.to_radians(), -20.0_f32.to_radians(), 20.0_f32.to_radians(), -50.0_f32.to_radians(), 50.0_f32.to_radians(), 210.0_f32.to_radians()]);
+                //model.update_joints([20.0_f32.to_radians(), 20.0_f32.to_radians(), 20.0_f32.to_radians(), 20.0_f32.to_radians(), 20.0_f32.to_radians(), 20.0_f32.to_radians()]);
+                eprint!("{}", model.get_transform());
 
-
-                //eprint!("{}", model.get_transform());
+                model.calc_simple_jacobian();
             }
+
 
 
             //Catch all else
