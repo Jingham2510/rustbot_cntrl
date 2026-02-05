@@ -24,7 +24,8 @@ use control::abb_rob;
 use crate::mapping::terr_map_sense::RealsenseCam;
 use crate::mapping::terr_map_tools::Heightmap;
 use crate::config::Config;
-use crate::modelling::irb6400_model::IRB6400Model;
+use crate::control::trajectory_planner::traj_gen;
+use crate::modelling::experiment_model::ExpModel;
 
 const VER_NUM: &str = "V0.5";
 //Program title
@@ -115,17 +116,12 @@ fn core_cmd_handler(config: &mut Config) {
 
             "test" =>{
 
-                let mut model: IRB6400Model = IRB6400Model::create_model();
+                let mut exp_model = ExpModel::create_exp_model(traj_gen("circle").unwrap(), 10.0).unwrap();
 
-                //eprint!("{}", model.get_transform());
+                println!("{:?}", exp_model.calc_xy_timing())
 
-                println!("--------MOVED------");
-
-                model.update_joints([40.0_f32.to_radians(), -20.0_f32.to_radians(), 20.0_f32.to_radians(), -50.0_f32.to_radians(), 50.0_f32.to_radians(), 210.0_f32.to_radians()]);
-
-
-                //eprint!("{}", model.get_transform());
             }
+
 
 
             //Catch all else

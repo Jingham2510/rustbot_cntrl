@@ -2,6 +2,9 @@
 extern crate nalgebra as na;
 
 use na::Matrix4;
+use nalgebra::{Matrix6, Vector6};
+use std::ops::Mul;
+use std::time::Duration;
 
 const PI_2 : f32 = std::f32::consts::FRAC_PI_2;
 const PI : f32 = std::f32::consts::PI;
@@ -25,9 +28,11 @@ pub struct IRB6400Model {
     //Theta offsets (radians) - stored dynamically because 3rd joint changes
     joint_offsets : [f32;6],
 
+    t_matrices : [Matrix4<f32>; 7],
     //The final transformation matrix
-    dh_trans: Matrix4<f32>,
+    dh_trans: Matrix4<f32>
 }
+
 
 impl IRB6400Model{
 
@@ -42,22 +47,26 @@ impl IRB6400Model{
         let joint_twists: [f32;6] = [0.0, joint_offsets[1], 0.0, 0.0, 30.0_f32.to_radians(), 0.0];
 
 
+        let t_matrices = calc_t_matrices(joint_twists);
 
-        let dh_trans = calc_inital_transform(joint_twists);
+        let dh_trans = t_matrices[6];
 
 
         IRB6400Model {
             joint_offsets,
             joint_twists,
+            t_matrices,
             dh_trans
-
         }
     }
 
 
     //Calculate an updated transform
     fn calc_transform(&mut self) {
-        self.dh_trans = calc_inital_transform(self.joint_twists);
+
+        self.t_matrices = calc_t_matrices(self.joint_twists);
+
+        self.dh_trans = self.t_matrices[6];
     }
 
 
@@ -76,23 +85,116 @@ impl IRB6400Model{
                 self.joint_twists[jnt] = *angle;
             }
 
-
         }
         self.calc_transform();
     }
 
-    //Return the transform
+    //Return the transform to the end effecto
     pub fn get_transform(&self) -> Matrix4<f32>{
         self.dh_trans
     }
 
+    //Calculate the jacobian of the transformation (i.e. the matrix that relates joint speed to end-effector speed)
+    //This simplified version assumes that the end effector is an extension of the end plate of the robot (i.e. jacobian is 6x6 as such is computationally easier to invert)
+    //Also assumes that the end effector is completely axially symmetrical (a sphere)
+    //I.e. This is the jacobian of the first 6 joints in the robot.
+    pub fn calc_simple_jacobian(&self) -> Matrix6<f32>{
+
+
+        //The jacobian is constructed from the joint axis of rotation and the translated origin for the joint
+        let mut jacobian: Matrix6<f32> = Matrix6::zeros();
+
+        let o_6 = na::Vector3::new(self.t_matrices[5].m14, self.t_matrices[5].m24, self.t_matrices[5].m34);
+
+        //Exclude the final link
+        for (index, mut col) in jacobian.column_iter_mut().enumerate(){
+            println!("{}", self.t_matrices[index]);
+            let z_i;
+            let o_i;
+
+            //First frame is the base frame (reference frame)
+            if index == 0{
+                z_i = na::Vector3::new(0.0, 0.0, 1.0);
+                o_i = na::Vector3::new(0.0, 0.0, 0.0);
+            }else {
+                z_i = na::Vector3::new(self.t_matrices[index - 1].m13, self.t_matrices[index - 1].m23, self.t_matrices[index - 1].m33);
+
+
+                o_i = na::Vector3::new(self.t_matrices[index - 1].m14, self.t_matrices[index - 1].m24, self.t_matrices[index - 1].m34);
+            }
+
+
+            let j_v = z_i.cross(&(o_6 - o_i));
+
+
+            col.x = j_v.x;
+            col.y = j_v.y;
+            col.z = j_v.z;
+            col.w = z_i.x;
+            col.a = z_i.y;
+            col.b = z_i.z;
+        }
+
+
+
+        jacobian
+
+    }
+
+    //Attemps to inverts the simplified jacobian
+    pub fn get_inv_simple_jacobian(&self) -> Option<Matrix6<f32>>{
+
+        let jacobian = self.calc_simple_jacobian();
+
+        jacobian.try_inverse()
+    }
+
+    //Check if the robot is at a singularity (loss of motion possibilities)
+    fn check_singularity(&self) -> bool{
+
+        //Theory shows that if the determinant of jacobian is 0 - the robot is at a singularity
+        let det_j = self.calc_simple_jacobian().determinant();
+
+        det_j == 0.0
+
+    }
+
+    //Moves the current joints based on a joint speed and an amount of time passed (rad/s and seconds)
+    pub fn move_joints(&mut self, joint_pos: [f32; 6], time_secs: Duration) {
+        //Get the new joint positions - from raw joints (no offsets)
+        let new_joints = [self.joint_twists[0] + (joint_pos[0] * time_secs.as_secs_f32()),
+            (self.joint_twists[1] - self.joint_offsets[1]) + (joint_pos[1] * time_secs.as_secs_f32()),
+            (self.joint_twists[2] - self.joint_offsets[2]) + (joint_pos[2] * time_secs.as_secs_f32()),
+            self.joint_twists[3] + (joint_pos[3] * time_secs.as_secs_f32()),
+            self.joint_twists[4] + (joint_pos[4] * time_secs.as_secs_f32()),
+            self.joint_twists[5] + (joint_pos[5] * time_secs.as_secs_f32())
+        ];
+
+        self.update_joints(new_joints);
+
+    }
+
+    //Calculates and returns the required joint speed for a given desired end effector linear speed
+    pub(crate) fn get_joint_speed(&self, des_end_eff_speed: (f32, f32, f32)) -> [f32; 6] {
+
+        //Assume no rotational speed required
+        let des_end_eff_vec = Vector6::new(des_end_eff_speed.0, des_end_eff_speed.1, des_end_eff_speed.2, 0.0, 0.0, 0.0);
+
+        //Multiply the inverse jacobian by the desried end_effector speed
+        let j_speed_vec = self.get_inv_simple_jacobian().unwrap().mul(des_end_eff_vec);
+
+        [j_speed_vec.x, j_speed_vec.y, j_speed_vec.z, j_speed_vec.w, j_speed_vec.a, j_speed_vec.b]
+    }
 
 }
 
 
-fn calc_inital_transform(joint_twists : [f32;6]) -> Matrix4<f32>{
 
-    let mut curr_trans : Matrix4<f32> = Matrix4::zeros();
+
+fn calc_t_matrices(joint_twists : [f32;6]) -> [Matrix4<f32>; 7]{
+
+    let mut t_matrices : [Matrix4<f32>;7] = [Matrix4::zeros(), Matrix4::zeros(), Matrix4::zeros(),
+                          Matrix4::zeros(), Matrix4::zeros(), Matrix4::zeros(), Matrix4::zeros()];
 
 
     //Iterate through the transformation
@@ -110,39 +212,27 @@ fn calc_inital_transform(joint_twists : [f32;6]) -> Matrix4<f32>{
             let s_jtwist = joint_twists[index].sin();
 
 
-
-
-
-
             if i == 0 {
                 //Calculate the base transformation matrix
-                curr_trans = Matrix4::new(c_jtwist, -s_jtwist * c_ltwist, s_jtwist * s_ltwist, l_length * c_jtwist,
+                t_matrices[index] = Matrix4::new(c_jtwist, -s_jtwist * c_ltwist, s_jtwist * s_ltwist, l_length * c_jtwist,
                                           s_jtwist, c_jtwist * c_ltwist, -c_jtwist * s_ltwist, l_length * s_jtwist,
                                           0.0, s_ltwist, c_ltwist, LINK_OFFSETS[index],
                                           0.0, 0.0, 0.0, 1.0);
             } else {
-                curr_trans = curr_trans * Matrix4::new(c_jtwist, -s_jtwist * c_ltwist, s_jtwist * s_ltwist, l_length * c_jtwist,
+                t_matrices[index] = t_matrices[index-1] * Matrix4::new(c_jtwist, -s_jtwist * c_ltwist, s_jtwist * s_ltwist, l_length * c_jtwist,
                                                        s_jtwist, c_jtwist * c_ltwist, -c_jtwist * s_ltwist, l_length * s_jtwist,
                                                        0.0, s_ltwist, c_ltwist, LINK_OFFSETS[index],
                                                        0.0, 0.0, 0.0, 1.0);
             }
         }else{
             //No joint angles - just link info
-            curr_trans = curr_trans * Matrix4::new(1.0, 0.0, 0.0, l_length,
+            t_matrices[index] = t_matrices[index-1] * Matrix4::new(1.0, 0.0, 0.0, l_length,
                                                    0.0, 1. * c_ltwist, 0.0, 0.0,
                                                    0.0, s_ltwist, c_ltwist, LINK_OFFSETS[index],
                                                    0.0, 0.0, 0.0, 1.0);
         }
 
-        eprintln!("{}", curr_trans);
-
-
     }
 
-    curr_trans
-
-
-
-
-
+    t_matrices
 }
