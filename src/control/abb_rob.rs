@@ -12,6 +12,7 @@ use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 use std::{fs, thread};
 use crate::control::force_control::force_control::{PHPIDController, PIDController};
+use crate::modelling::experiment_model::ExpModel;
 
 pub struct AbbRob<'a> {
     socket: tcp_sock::TcpSock,
@@ -292,6 +293,12 @@ impl AbbRob<'_> {
                     }else{
                         println!("Invalid target.... returning");
                     }
+                }
+
+                "eff speed" =>{
+                    self.set_force_control_mode(false).expect("FAIELD TO SET FORCE MODE");
+
+                    self.end_eff_speed_set_test();
                 }
 
                 //Whatever function is being tested at the moment
@@ -944,6 +951,68 @@ impl AbbRob<'_> {
         self.write_marker(&test_data.data_filename, "TEST END");
 
         return;
+    }
+
+
+    //A test regime for whether we can control the end effector linear speeds without EGM
+    fn end_eff_speed_set_test(&mut self){
+        //Set up the test data
+        //Creates the test data and the filepaths
+        let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
+        //Store the desired trajectory
+        test_data.store_desired_trajectory(self.force_mode_flag);
+
+        //Log the config
+        self.log_config(&test_data.config_filename);
+
+
+        //Go to the start position
+        self.set_pos(test_data.traj[0]);
+
+        //Create the experiment model
+        let mut exp_model = ExpModel::create_exp_model(test_data.traj, 10.0).unwrap();
+
+        let (trig_tx, trig_rx) : (mpsc::Sender<bool>, mpsc::Receiver<bool>) = mpsc::channel();
+        let (jnt_send, jnt_recv) : (mpsc::Sender<[f32;6]>, mpsc::Receiver<[f32;6]>) = mpsc::channel();
+        let (z_pub, z_recv) : (mpsc::Sender<f32>, mpsc::Receiver<f32>) = mpsc::channel();
+
+
+
+        //Setup the experiment model test
+        self.req_jnt_angs();
+        exp_model.run_model_traj(<[f32; 6]>::from(self.jnt_angles), trig_rx, jnt_send, z_recv);
+        let mut cnt = 0;
+
+        //log the info
+        self.update_rob_info();
+        self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+        cnt = cnt + 1;
+
+
+        //Trigger the experiment model to start
+        trig_tx.send(true).unwrap();
+
+        loop {
+            if let Ok(jnt_angles) = jnt_recv.recv(){
+                //Get the joint angles and send to robot
+                self.set_joints(<(f32, f32, f32, f32, f32, f32)>::from(jnt_angles));
+
+
+                //Get all info from robot
+                self.update_rob_info();
+                self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+
+                //Send the requested z heigt (0 for this)
+                z_pub.send(0.0);
+
+            }else{
+                break;
+            }
+        }
+
+        //Go to the home position
+        self.go_home_pos();
+
     }
 
 

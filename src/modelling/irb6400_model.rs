@@ -38,8 +38,6 @@ impl IRB6400Model{
 
     pub fn create_model() -> IRB6400Model{
 
-
-
         //No joint twist yet so we can predefine this
         let joint_offsets = [0.0, -PI_2, 0.0, 0.0, 0.0, 0.0];
 
@@ -157,6 +155,11 @@ impl IRB6400Model{
 
         det_j == 0.0
 
+    }
+
+    //Get the raw joint values (w/o offset rotation)
+    pub fn get_raw_joints(&self) -> [f32; 6] {
+        [self.joint_twists[0], self.joint_twists[1] - self.joint_offsets[1], self.joint_twists[2] - self.joint_offsets[2], self.joint_twists[3], self.joint_twists[4], self.joint_twists[5]]
     }
 
     //Moves the current joints based on a joint speed and an amount of time passed (rad/s and seconds)

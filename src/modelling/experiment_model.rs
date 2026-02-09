@@ -6,6 +6,7 @@ Used to control the XYZ speeds for an experiment with predetermined lateral spee
 use anyhow::bail;
 use crate::modelling::irb6400_model::IRB6400Model;
 use std::sync::mpsc::{Sender, Receiver};
+use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 
 //Agnostic model type so it could work with other robot DH models
@@ -147,12 +148,15 @@ impl ExpModel<IRB6400Model> {
                 joint_speed = self.rob_model.get_joint_speed(des_end_eff_speed);
 
                 //Send the joint angles out of the thread
-                self.rob_model.get_joints();
+                pub_j.send(self.rob_model.get_raw_joints()).expect("Failed to publish new joint angles!");
 
                 //Check if current time reached
                 if start_time.elapsed().unwrap() > time_lim {
                     break
                 }
+
+                //Wait 10us - dont overload the joint angle queue
+                //sleep(Duration::from_micros(10));
             }
             //Update index
             index = index + 1;

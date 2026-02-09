@@ -110,15 +110,13 @@ fn core_cmd_handler(config: &mut Config) {
 
             "takepcl" =>{
                 if let Err(e) = take_pointcloud(&config){
-                    println!("PCL ERROR - {e}")
+                    println!("PCL ERROR - {e}");
                 }
             }
 
             "test" =>{
 
-                let mut exp_model = ExpModel::create_exp_model(traj_gen("circle").unwrap(), 10.0).unwrap();
-
-                println!("{:?}", exp_model.calc_xy_timing())
+                println!("NOTHING TESTING ATM");
 
             }
 
