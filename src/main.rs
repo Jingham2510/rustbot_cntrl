@@ -26,6 +26,7 @@ use crate::mapping::terr_map_tools::Heightmap;
 use crate::config::Config;
 use crate::control::trajectory_planner::traj_gen;
 use crate::modelling::experiment_model::ExpModel;
+use crate::modelling::irb6400_model::IRB6400Model;
 
 const VER_NUM: &str = "V0.5";
 //Program title
@@ -116,7 +117,11 @@ fn core_cmd_handler(config: &mut Config) {
 
             "test" =>{
 
-                println!("NOTHING TESTING ATM");
+                let model = IRB6400Model::create_model();
+
+                println!("{}", model.get_transform());
+
+                println!("{}", model.calc_simple_jacobian());
 
             }
 

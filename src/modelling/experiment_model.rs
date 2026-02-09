@@ -111,10 +111,16 @@ impl ExpModel<IRB6400Model> {
     pub fn run_model_traj(&mut self, initial_joint_cfg : [f32;6],trig : Receiver<bool>, pub_j : Sender<[f32; 6]>, desired_z : Receiver<f32>){
 
         //Set the initial joint configuration
-        self.rob_model.update_joints(initial_joint_cfg);
+
+        //Convert the initial joint configuation to radians
+        let initial_joint_cfg_rads = [initial_joint_cfg[0].to_radians(), initial_joint_cfg[1].to_radians(), initial_joint_cfg[2].to_radians(),
+            initial_joint_cfg[3].to_radians(), initial_joint_cfg[4].to_radians(), initial_joint_cfg[5].to_radians()];
+
+        self.rob_model.update_joints(initial_joint_cfg_rads);
 
         //Calculate the timing instructions
         let timing_instructions = self.calc_xy_timing();
+
 
         //Get the length of the instruction list
         let no_of_instructions = timing_instructions.len();
@@ -123,40 +129,50 @@ impl ExpModel<IRB6400Model> {
         let mut joint_speed = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
 
         //Wait for the first trigger
-        while trig.recv().unwrap(){}
+        while trig.recv().unwrap() != true {}
+
 
         while index < no_of_instructions{
 
             let curr_instruction = timing_instructions[index];
 
-            //Start timer
-            let start_time = SystemTime::now();
 
             //Get current time limit
             let time_lim = Duration::from_secs_f32(curr_instruction.0);
 
+            //Start timer
+            let start_time = SystemTime::now();
+            let mut last_tick = start_time;
+
+
             //Continue computing at the prescribed speed until time limit is reached
             loop {
 
+
                 //Update joint angles in model based on time passed and currently modelled speed
-                self.rob_model.move_joints(joint_speed, start_time.elapsed().unwrap());
+                self.rob_model.move_joints(joint_speed, last_tick.elapsed().unwrap().as_secs_f32());
+                last_tick = SystemTime::now();
+
+                //Send the joint angles out of the thread
+                pub_j.send(self.rob_model.get_raw_joints_as_degs()).expect("Failed to publish new joint angles!");
+
 
 
                 //Get the desired speed for the current instruction (and desired veritcal speed)
                 let des_end_eff_speed = (curr_instruction.1.0,curr_instruction.1.1,desired_z.recv().unwrap());
+
                 //Set the joint speed required to achieve this
                 joint_speed = self.rob_model.get_joint_speed(des_end_eff_speed);
 
-                //Send the joint angles out of the thread
-                pub_j.send(self.rob_model.get_raw_joints()).expect("Failed to publish new joint angles!");
+                //println!("{:?}", joint_speed);
 
                 //Check if current time reached
                 if start_time.elapsed().unwrap() > time_lim {
                     break
                 }
 
-                //Wait 10us - dont overload the joint angle queue
-                //sleep(Duration::from_micros(10));
+
+
             }
             //Update index
             index = index + 1;

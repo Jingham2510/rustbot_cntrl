@@ -327,11 +327,12 @@ impl AbbRob<'_> {
     fn set_joints(&mut self, angs: (f32, f32, f32, f32, f32, f32)) {
         //Check to see if a response was returned
         if let Ok(_resp) = self.socket.req(&format!(
-            "STJT:[[{},{},{},{},{},{}], [9E9,9E9,9E9,9E9,9E9,9E9]]",
+            "STJT:[{},{},{},{},{},{}]",
             angs.0, angs.1, angs.2, angs.3, angs.4, angs.5
-        )) {
+        ))
+        {
             //Update the robot info
-            self.update_rob_info();
+            //self.update_rob_info();
         } else {
             //Warn the user that the robot didn't respond
             println!("Warning no response! Robot may not have moved");
@@ -970,17 +971,21 @@ impl AbbRob<'_> {
         self.set_pos(test_data.traj[0]);
 
         //Create the experiment model
-        let mut exp_model = ExpModel::create_exp_model(test_data.traj, 10.0).unwrap();
+        let mut exp_model = ExpModel::create_exp_model(test_data.traj, 1.0).unwrap();
 
-        let (trig_tx, trig_rx) : (mpsc::Sender<bool>, mpsc::Receiver<bool>) = mpsc::channel();
-        let (jnt_send, jnt_recv) : (mpsc::Sender<[f32;6]>, mpsc::Receiver<[f32;6]>) = mpsc::channel();
-        let (z_pub, z_recv) : (mpsc::Sender<f32>, mpsc::Receiver<f32>) = mpsc::channel();
+        let (trig_tx, trig_rx) : (mpsc::Sender<bool>, Receiver<bool>) = mpsc::channel();
+        let (jnt_send, jnt_recv) : (mpsc::Sender<[f32;6]>, Receiver<[f32;6]>) = mpsc::channel();
+        let (z_pub, z_recv) : (mpsc::Sender<f32>, Receiver<f32>) = mpsc::channel();
 
 
 
         //Setup the experiment model test
         self.req_jnt_angs();
-        exp_model.run_model_traj(<[f32; 6]>::from(self.jnt_angles), trig_rx, jnt_send, z_recv);
+
+        let curr_jnt = self.jnt_angles;
+
+        thread::spawn(move || exp_model.run_model_traj(<[f32; 6]>::from(curr_jnt), trig_rx, jnt_send, z_recv));
+
         let mut cnt = 0;
 
         //log the info
@@ -992,8 +997,16 @@ impl AbbRob<'_> {
         //Trigger the experiment model to start
         trig_tx.send(true).unwrap();
 
+        z_pub.send(0.0);
+
         loop {
+
+
             if let Ok(jnt_angles) = jnt_recv.recv(){
+
+                println!("{:?}", jnt_angles);
+
+
                 //Get the joint angles and send to robot
                 self.set_joints(<(f32, f32, f32, f32, f32, f32)>::from(jnt_angles));
 
@@ -1004,6 +1017,8 @@ impl AbbRob<'_> {
 
                 //Send the requested z heigt (0 for this)
                 z_pub.send(0.0);
+
+                cnt = cnt + 1;
 
             }else{
                 break;

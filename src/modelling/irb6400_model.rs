@@ -78,11 +78,9 @@ impl IRB6400Model{
                 self.joint_offsets[2] = -*angle;
             }else if jnt == 2 {
                 self.joint_twists[jnt] = *angle + self.joint_offsets[2];
-                println!("JOINT {}",  self.joint_twists[jnt]);
             }else{
                 self.joint_twists[jnt] = *angle;
             }
-
         }
         self.calc_transform();
     }
@@ -106,7 +104,6 @@ impl IRB6400Model{
 
         //Exclude the final link
         for (index, mut col) in jacobian.column_iter_mut().enumerate(){
-            println!("{}", self.t_matrices[index]);
             let z_i;
             let o_i;
 
@@ -117,23 +114,30 @@ impl IRB6400Model{
             }else {
                 z_i = na::Vector3::new(self.t_matrices[index - 1].m13, self.t_matrices[index - 1].m23, self.t_matrices[index - 1].m33);
 
-
-                o_i = na::Vector3::new(self.t_matrices[index - 1].m14, self.t_matrices[index - 1].m24, self.t_matrices[index - 1].m34);
-            }
+                o_i = na::Vector3::new(self.t_matrices[index - 1].m14, self.t_matrices[index - 1].m24, self.t_matrices[index - 1].m34);            }
 
 
             let j_v = z_i.cross(&(o_6 - o_i));
 
-
+            //BOOK WAY
             col.x = j_v.x;
             col.y = j_v.y;
             col.z = j_v.z;
             col.w = z_i.x;
             col.a = z_i.y;
             col.b = z_i.z;
+
+            //MATLAB WAY - opposite to Spongs book
+
+            /*
+            col.w = j_v.x;
+            col.a = j_v.y;
+            col.b = j_v.z;
+            col.x = z_i.x;
+            col.y = z_i.y;
+            col.z = z_i.z;
+            */
         }
-
-
 
         jacobian
 
@@ -162,30 +166,36 @@ impl IRB6400Model{
         [self.joint_twists[0], self.joint_twists[1] - self.joint_offsets[1], self.joint_twists[2] - self.joint_offsets[2], self.joint_twists[3], self.joint_twists[4], self.joint_twists[5]]
     }
 
+    //Return the raw joints in degrees
+    pub fn get_raw_joints_as_degs(&self) -> [f32; 6]{
+        [self.joint_twists[0].to_degrees(), (self.joint_twists[1] - self.joint_offsets[1]).to_degrees(), (self.joint_twists[2] - self.joint_offsets[2]).to_degrees(), self.joint_twists[3].to_degrees(), self.joint_twists[4].to_degrees(), self.joint_twists[5].to_degrees()]
+    }
+
     //Moves the current joints based on a joint speed and an amount of time passed (rad/s and seconds)
-    pub fn move_joints(&mut self, joint_pos: [f32; 6], time_secs: Duration) {
+    pub fn move_joints(&mut self, joint_speed: [f32; 6], time_secs: f32) {
+
+
         //Get the new joint positions - from raw joints (no offsets)
-        let new_joints = [self.joint_twists[0] + (joint_pos[0] * time_secs.as_secs_f32()),
-            (self.joint_twists[1] - self.joint_offsets[1]) + (joint_pos[1] * time_secs.as_secs_f32()),
-            (self.joint_twists[2] - self.joint_offsets[2]) + (joint_pos[2] * time_secs.as_secs_f32()),
-            self.joint_twists[3] + (joint_pos[3] * time_secs.as_secs_f32()),
-            self.joint_twists[4] + (joint_pos[4] * time_secs.as_secs_f32()),
-            self.joint_twists[5] + (joint_pos[5] * time_secs.as_secs_f32())
+        let new_joints = [self.joint_twists[0] + (joint_speed[0] * time_secs),
+            (self.joint_twists[1] - self.joint_offsets[1]) + (joint_speed[1] * time_secs),
+            (self.joint_twists[2] - self.joint_offsets[2]) + (joint_speed[2] * time_secs),
+            self.joint_twists[3] + (joint_speed[3] * time_secs),
+            self.joint_twists[4] + (joint_speed[4] * time_secs),
+            self.joint_twists[5] + (joint_speed[5] * time_secs)
         ];
 
         self.update_joints(new_joints);
 
     }
 
-    //Calculates and returns the required joint speed for a given desired end effector linear speed
-    pub(crate) fn get_joint_speed(&self, des_end_eff_speed: (f32, f32, f32)) -> [f32; 6] {
+    //Calculates and returns the required joint speed (rad/s) for a given desired end effector linear speed (mm/s)
+    pub fn get_joint_speed(&self, des_end_eff_speed: (f32, f32, f32)) -> [f32; 6] {
 
         //Assume no rotational speed required
-        let des_end_eff_vec = Vector6::new(des_end_eff_speed.0, des_end_eff_speed.1, des_end_eff_speed.2, 0.0, 0.0, 0.0);
-
         //Multiply the inverse jacobian by the desried end_effector speed
-        let j_speed_vec = self.get_inv_simple_jacobian().unwrap().mul(des_end_eff_vec);
+        let j_speed_vec = self.get_inv_simple_jacobian().unwrap() * Vector6::new(des_end_eff_speed.0, des_end_eff_speed.1, des_end_eff_speed.2, 0.0, 0.0, 0.0);
 
+        //These are the joint speeds required (transposed)
         [j_speed_vec.x, j_speed_vec.y, j_speed_vec.z, j_speed_vec.w, j_speed_vec.a, j_speed_vec.b]
     }
 
