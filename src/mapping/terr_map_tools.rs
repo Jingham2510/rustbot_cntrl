@@ -1,11 +1,11 @@
+use crate::helper_funcs;
+use crate::helper_funcs::helper_funcs::ColOpt;
 use anyhow::bail;
 use chrono::{DateTime, Utc};
-use rand::Rng;
+use rand::RngExt;
 use realsense_sys::rs2_vertex;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
-use crate::helper_funcs;
-use crate::helper_funcs::helper_funcs::ColOpt;
 
 //Pointcloud structure - contains purely point information
 //Basically a fancy vector wrapper

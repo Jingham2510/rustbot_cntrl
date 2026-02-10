@@ -3,10 +3,9 @@ The experiment model, calculates/estimates the states of the experiment
 It is mainly used to generate the joint positions required to control the velocity of the end-effector.
 Used to control the XYZ speeds for an experiment with predetermined lateral speeds
  */
-use anyhow::bail;
 use crate::modelling::irb6400_model::IRB6400Model;
-use std::sync::mpsc::{Sender, Receiver};
-use std::thread::sleep;
+use anyhow::bail;
+use std::sync::mpsc::{Receiver, Sender};
 use std::time::{Duration, SystemTime};
 
 //Agnostic model type so it could work with other robot DH models
@@ -152,6 +151,8 @@ impl ExpModel<IRB6400Model> {
                 //Update joint angles in model based on time passed and currently modelled speed
                 self.rob_model.move_joints(joint_speed, last_tick.elapsed().unwrap().as_secs_f32());
                 last_tick = SystemTime::now();
+
+
 
                 //Send the joint angles out of the thread
                 pub_j.send(self.rob_model.get_raw_joints_as_degs()).expect("Failed to publish new joint angles!");

@@ -1001,10 +1001,8 @@ impl AbbRob<'_> {
 
         loop {
 
-
             if let Ok(jnt_angles) = jnt_recv.recv(){
 
-                println!("{:?}", jnt_angles);
 
 
                 //Get the joint angles and send to robot
@@ -1016,7 +1014,7 @@ impl AbbRob<'_> {
                 self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
 
                 //Send the requested z heigt (0 for this)
-                z_pub.send(0.0);
+                z_pub.send(-1.0);
 
                 cnt = cnt + 1;
 
