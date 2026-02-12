@@ -36,6 +36,7 @@ impl EgmCartesian{
 }
 
 impl EgmQuaternion {
+    //Create a quaternion the robot uses to set the TCP orientation
     pub fn create_egm_quart(wxyz : [f64;4]) -> Self{
         EgmQuaternion{
             u0 : wxyz[0],
@@ -51,6 +52,7 @@ impl EgmQuaternion {
 }
 
 impl EgmEuler {
+    //Creates a set of euler angles the robot uses to determine TCP orientation
     pub fn create_egm_euler(xyz : [f64; 3]) -> Self{
         EgmEuler{
             x : xyz[0],
@@ -114,6 +116,7 @@ impl From<(u64, u64)> for EgmClock{
 }
 
 impl EgmTimestamp{
+    //Timestamp for logging and reporting
     pub fn create_egm_timestamp(sec : u64, nsec : u64) -> Self{
         EgmTimestamp{
             sec : Some(sec),
@@ -157,6 +160,7 @@ impl EgmJoints{
 
 
 impl EgmPlanned{
+    //Create a set of joint angles that the robot will move to
     pub fn create_egm_planned_joints(joint_list : [f64;6], time : (u64, u64)) -> Self{
         EgmPlanned{
             joints : Some(EgmJoints::create_egm_joints(joint_list)),
@@ -167,6 +171,7 @@ impl EgmPlanned{
         }
     }
 
+    //Create an xyz position and wxyz quaternion that the robot will move to
     pub fn create_egm_planned_cartesian(xyz : [f64;3], wxyz : [f64; 4], time : (u64, u64)) -> Self{
         EgmPlanned{
             cartesian : Some(EgmPose::create_egm_pose(xyz, wxyz)),
@@ -181,6 +186,7 @@ impl EgmPlanned{
 //Creates a speed reference either linear (xyz mm/s) or joint speed (deg/s)
 impl EgmSpeedRef{
 
+    //Create a desired joint speed (deg/s) for the robot to move at
     pub fn create_egm_speed_joints(joints : [f64;6]) -> Self{
         EgmSpeedRef{
             joints : Some(EgmJoints::create_egm_joints(joints)),
@@ -189,6 +195,7 @@ impl EgmSpeedRef{
         }
     }
 
+    //Create a desired linear speed (mm/s) that the TCP will move at
     pub fn create_egm_speed_linear(xyz : [f64;3]) -> Self{
         EgmSpeedRef{
             cartesians : Some(EgmCartesianSpeed::create_egm_cart_speed(xyz)),
@@ -241,6 +248,7 @@ impl EgmRobot{
 
 impl EgmSensor {
 
+    //Create a desired pose message that the robot should move to
     pub fn set_pose(seqno : u32, time : (u64, u64), xyz : [f64;3], wxyz : [f64;4]) -> Self{
         let clock = EgmClock::from(time);
 
@@ -252,7 +260,7 @@ impl EgmSensor {
         }
     }
 
-    //Assume already in correct orientation
+    //Createa desired pose message with a desired speed
     pub fn set_pose_set_speed(seqno : u32, time : (u64, u64), xyz : [f64;3], wxyz : [f64; 4], xyz_speed : [f64;3]) -> Self{
 
         let clock = EgmClock::from(time);
@@ -265,6 +273,7 @@ impl EgmSensor {
         }
     }
 
+    //Create a set of desired joint positions
     pub fn set_joints(seqno : u32, time : (u64, u64), joints : [f64; 6]) -> Self{
         let clock = EgmClock::from(time);
 
@@ -276,6 +285,7 @@ impl EgmSensor {
         }
     }
 
+    //Create a set of desired joint positions with a desired joint speed
     pub fn set_joints_set_speed(seqno : u32, time : (u64, u64), joints : [f64; 6], joints_speed : [f64; 6]) -> Self{
         let clock = EgmClock::from(time);
 
