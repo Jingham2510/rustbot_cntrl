@@ -3,8 +3,6 @@ extern crate nalgebra as na;
 
 use na::Matrix4;
 use nalgebra::{Matrix6, Vector6};
-use std::ops::Mul;
-use std::time::Duration;
 
 const PI_2 : f32 = std::f32::consts::FRAC_PI_2;
 const PI : f32 = std::f32::consts::PI;

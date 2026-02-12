@@ -13,6 +13,7 @@ mod analysis;
 mod control;
 mod mapping;
 mod config;
+mod networking;
 
 mod helper_funcs;
 mod modelling;

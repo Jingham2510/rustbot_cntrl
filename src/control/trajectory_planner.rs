@@ -48,7 +48,7 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Error> {
             trajectory = vec![start_pos];
 
             //Add all the middle points
-            for i in (1..num_of_points){
+            for i in 1..num_of_points {
                 trajectory.push((line_x, start_y + (i as f32 * dist_per_pnt), DEFAULT_Z));
             }
 

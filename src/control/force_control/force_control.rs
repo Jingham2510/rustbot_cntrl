@@ -154,13 +154,13 @@ impl PIDController {
 
         //Check the sign of the error and the previous error
         //BOTH ERRS POS
-        if((curr_err>= 0.0) & (prev_err >= 0.0)) {
+        if (curr_err>= 0.0) & (prev_err >= 0.0) {
             new_area = (time_delta as f32)*((prev_err + curr_err)/2.0)
 
         }
             //BOTH ERRS NEGATIVE
-        else if((curr_err <= 0.0) & (prev_err <= 0.0)){
-            new_area = ((time_delta as f32)*((prev_err + curr_err)/2.0))
+        else if (curr_err <= 0.0) & (prev_err <= 0.0){
+            new_area = (time_delta as f32)*((prev_err + curr_err)/2.0)
 
         }else{
             //Calc the midpoint (where it crosses the polarity approx)
@@ -169,9 +169,9 @@ impl PIDController {
             new_area = 0.0;
 
             //ERR SHIFT TO POSITIVE
-            if ((curr_err >= 0.0) & (prev_err <= 0.0)){}
+            if (curr_err >= 0.0) & (prev_err <= 0.0) {}
             //ERR SHIFT TO NEGATIVE
-            else if ((curr_err <= 0.0) & (prev_err >= 0.0)){}
+            else if (curr_err <= 0.0) & (prev_err >= 0.0) {}
         }
 
 
@@ -279,13 +279,13 @@ impl PHPIDController {
 
         //Check the sign of the error and the previous error
         //BOTH ERRS POS
-        if((curr_err>= 0.0) & (prev_err >= 0.0)) {
+        if (curr_err>= 0.0) & (prev_err >= 0.0) {
             new_area = (time_delta as f32)*((prev_err + curr_err)/2.0)
 
         }
         //BOTH ERRS NEGATIVE
-        else if((curr_err <= 0.0) & (prev_err <= 0.0)){
-            new_area = ((time_delta as f32)*((prev_err + curr_err)/2.0))
+        else if (curr_err <= 0.0) & (prev_err <= 0.0) {
+            new_area = (time_delta as f32)*((prev_err + curr_err)/2.0)
 
         }else{
             //Calc the midpoint (where it crosses the polarity approx)
@@ -294,9 +294,9 @@ impl PHPIDController {
             new_area = 0.0;
 
             //ERR SHIFT TO POSITIVE
-            if ((curr_err >= 0.0) & (prev_err <= 0.0)){}
+            if (curr_err >= 0.0) & (prev_err <= 0.0) {}
             //ERR SHIFT TO NEGATIVE
-            else if ((curr_err <= 0.0) & (prev_err >= 0.0)){}
+            else if (curr_err <= 0.0) & (prev_err >= 0.0) {}
         }
 
 

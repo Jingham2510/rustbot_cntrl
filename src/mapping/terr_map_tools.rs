@@ -670,7 +670,7 @@ impl Heightmap {
         let mut bnd_cnt = 0;
 
         //Split the line into 3 sections
-        let mut bnd_split = bnd_line.split("[");
+        let bnd_split = bnd_line.split("[");
 
         let mut ignore = true;
 

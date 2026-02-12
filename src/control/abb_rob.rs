@@ -1,6 +1,7 @@
 use crate::config::Config;
 use crate::control::misc_tools::{angle_tools, string_tools};
-use crate::control::{tcp_sock, trajectory_planner};
+use crate::control:: trajectory_planner;
+use crate::networking::tcp_sock;
 use crate::mapping::terr_map_sense;
 use crate::mapping::terr_map_tools::Heightmap;
 use anyhow::bail;
