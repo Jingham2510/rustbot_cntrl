@@ -14,6 +14,8 @@ use std::time::{Duration, SystemTime};
 use std::{fs, thread};
 use crate::control::force_control::force_control::{PHPIDController, PIDController};
 use crate::modelling::experiment_model::ExpModel;
+use crate::control::egm_control::egm_udp;
+use crate::control::egm_control::egm_udp::EgmServer;
 
 pub struct AbbRob<'a> {
     socket: tcp_sock::TcpSock,
@@ -304,7 +306,11 @@ impl AbbRob<'_> {
 
                 //Whatever function is being tested at the moment
                 "test" => {
-                    self.set_pos((219.0, 1800.0, 176.0))
+                    let egm_cntrl = egm_udp::EgmServer::default();
+
+                    self.socket.req("EGPS:0");
+
+                    println!("{:?}", egm_cntrl.recv_egm());
 
                 }
 
@@ -1549,6 +1555,42 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
                 bail!("INVALID RESP TO VERT FORCE FLAG CHECK")
             }
         }
+    }
+
+    //EGM commands
+
+    //Create a UDP EGM socket and ask the robot to connect
+    fn connect_EGM_pose(&mut self, local : bool) -> Result<EgmServer, anyhow::Error>{
+
+        let serv;
+
+        if local{
+            serv = EgmServer::local()
+        }else{
+            serv = EgmServer::remote()
+        }
+
+        //Request the robot connect to the UDP socket
+        self.socket.req("EGPS:0")?;
+
+        Ok(serv)
+
+    }
+
+    //Request the robot to start the EGM stream
+    fn start_egm_stream(&mut self) -> Result<(), anyhow::Error>{
+
+        self.socket.req("EGST:0")?;
+
+        Ok(())
+    }
+
+    //Request the robot to stop the EGM stream
+    fn stop_egm_stream(&mut self) -> Result<(), anyhow::Error>{
+
+        self.socket.req("EGSP:0")?;
+
+        Ok(())
     }
 
 

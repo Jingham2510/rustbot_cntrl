@@ -1,4 +1,4 @@
 mod abb_egm;
 
-mod data_gen;
-mod egm_udp;
+pub mod data_gen;
+pub mod egm_udp;
