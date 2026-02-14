@@ -7,6 +7,8 @@ use std::time::Duration;
 use crate::control::egm_control::abb_egm::*;
 use crate::control::egm_control::abb_egm::egm_header::MessageType;
 
+
+
 impl EgmHeader {
 
     //This device will only create messages that are of the correction type (i.e. not a header the robot will generate)
@@ -86,6 +88,11 @@ impl EgmClock {
     pub fn as_timestamp_ms(&self) -> u32 {
         self.sec.wrapping_mul(1_000).wrapping_add(self.usec / 1_000) as u32
     }
+
+
+    pub fn as_tuple(&self) -> (u64, u64){
+        (self.sec, self.usec)
+    }
 }
 
 impl Add<Duration> for EgmClock {
@@ -143,7 +150,7 @@ impl EgmCartesianSpeed {
     //Create a speed reference in mm/s (xyz only - not interested in rotation)
     pub fn create_egm_cart_speed(xyz : [f64;3]) -> Self{
         EgmCartesianSpeed{
-            value : vec![xyz[0], xyz[1], xyz[2]]
+            value : vec![xyz[0], xyz[1], xyz[2], 0.0, 0.0, 0.0]
         }
     }
 

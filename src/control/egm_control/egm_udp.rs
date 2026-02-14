@@ -3,11 +3,10 @@ Handles all UPD EGM processes
 Based on abbegm-rs by robohouse
  */
 
-use std::net::UdpSocket;
-use anyhow::{bail, Error};
-use prost::Message;
 use crate::control::egm_control::abb_egm::{EgmRobot, EgmSensor};
-use crate::control::egm_control::data_gen;
+use anyhow::bail;
+use prost::Message;
+use std::net::UdpSocket;
 
 //The UDP socket that sends/recieves egm protobuffer
 pub struct EgmServer {
@@ -47,10 +46,10 @@ impl EgmServer {
         let encoded_msg = msg.encode_to_vec();
 
         //Send the bytes over the UDP socket
-        let bytes_sent = self.socket.send(&encoded_msg)?;
+        let bytes_sent = self.socket.send(&encoded_msg);
 
         //Check to make sure that the entire message was sent
-        if bytes_sent != encoded_msg.len() {
+        if bytes_sent? != encoded_msg.len() {
             bail!("Failed to send all bytes")
         }
         Ok(())
@@ -61,7 +60,23 @@ impl EgmServer {
         //Allocate a MB for recieving the data
         let mut buffer = vec![0u8; 1024];
         //Recieve the data
-        let bytes_recieved = self.socket.recv(&mut buffer)?;
+        let (bytes_recieved) = self.socket.recv(&mut buffer)?;
+        //Decode the bytes
+        Ok(EgmRobot::decode(&buffer[..bytes_recieved])?)
+    }
+
+
+    //Recieves a message from any UDP and then attempts to connect to it for sending messages
+    pub fn recv_and_connect(&self) -> Result<EgmRobot, anyhow::Error>{
+
+        //Allocate a MB for recieving the data
+        let mut buffer = vec![0u8; 1024];
+        //Recieve the data
+        let (bytes_recieved, addr) = self.socket.recv_from(&mut buffer)?;
+
+        //Attempt to connect to the socket address
+        self.socket.connect(addr)?;
+
         //Decode the bytes
         Ok(EgmRobot::decode(&buffer[..bytes_recieved])?)
 

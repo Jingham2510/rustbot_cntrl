@@ -1,9 +1,13 @@
 use crate::config::Config;
+use crate::control::egm_control::abb_egm::EgmSensor;
+use crate::control::egm_control::egm_udp::EgmServer;
+use crate::control::force_control::force_control::{PHPIDController, PIDController};
 use crate::control::misc_tools::{angle_tools, string_tools};
-use crate::control:: trajectory_planner;
-use crate::networking::tcp_sock;
+use crate::control::trajectory_planner;
 use crate::mapping::terr_map_sense;
 use crate::mapping::terr_map_tools::Heightmap;
+use crate::modelling::experiment_model::ExpModel;
+use crate::networking::tcp_sock;
 use anyhow::bail;
 use std::fs::OpenOptions;
 use std::io::{prelude::*, stdin};
@@ -12,11 +16,6 @@ use std::sync::mpsc::Receiver;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 use std::{fs, thread};
-use crate::control::force_control::force_control::{PHPIDController, PIDController};
-use crate::modelling::experiment_model::ExpModel;
-use crate::control::egm_control::egm_udp;
-use crate::control::egm_control::egm_udp::EgmServer;
-
 pub struct AbbRob<'a> {
     socket: tcp_sock::TcpSock,
     pos: (f32, f32, f32),
@@ -306,11 +305,7 @@ impl AbbRob<'_> {
 
                 //Whatever function is being tested at the moment
                 "test" => {
-                    let egm_cntrl = egm_udp::EgmServer::default();
-
-                    self.socket.req("EGPS:0");
-
-                    println!("{:?}", egm_cntrl.recv_egm());
+                    self.egm_test();
 
                 }
 
@@ -1517,7 +1512,6 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
     //Gives the robot a desired z-speed which it then uses to calculate the target height that will achieve that
     fn force_compensate_zspeed(&mut self, desired_z_speed : f32) -> Result<(), anyhow::Error>{
 
-
         let cmd_string = format!("FCCS:{}", desired_z_speed);
 
         //Send the compensation command to the robot
@@ -1557,8 +1551,7 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
         }
     }
 
-    //EGM commands
-
+    //EGM commands---------------------------------------------------------------------------------
     //Create a UDP EGM socket and ask the robot to connect
     fn connect_EGM_pose(&mut self, local : bool) -> Result<EgmServer, anyhow::Error>{
 
@@ -1591,6 +1584,54 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
         self.socket.req("EGSP:0")?;
 
         Ok(())
+    }
+
+
+    //an egm baseline test where the robot is moved around - basically a play
+    fn egm_test(&mut self){
+
+        //Connect to the server
+        let egm_serv = self.connect_EGM_pose(true).unwrap();
+
+        //Start the stream
+        self.start_egm_stream();
+
+        //Get first info
+        let mut rob_dat = egm_serv.recv_and_connect().unwrap();
+
+        let mut seqno = rob_dat.get_sqno().unwrap() + 1;
+        let time = rob_dat.feed_back.as_ref().unwrap().time.unwrap().as_tuple();
+
+        let target_pos = [220.0, 1800.0, 955.0];
+        let curr_ori = rob_dat.feed_back.unwrap().cartesian.unwrap().orient.unwrap().get_quart();
+        //Desired linear speed
+        let desired_speed = [0.0, 1.0, 0.0];
+
+
+
+        //Constantly read the position
+        loop{
+            rob_dat = egm_serv.recv_egm().unwrap();
+
+            let time = rob_dat.feed_back.as_ref().unwrap().time.unwrap().as_tuple();
+
+            let curr_pos = rob_dat.get_pos_xyz().unwrap();
+            let target_pos = [curr_pos[0], curr_pos[1] + 1.0, curr_pos[2]];
+            let curr_ori = rob_dat.feed_back.as_ref().unwrap().cartesian.unwrap().orient.unwrap().get_quart();
+
+            println!("{:?}:{:?}", rob_dat.get_sqno(), rob_dat.get_pos_xyz());
+
+            //determine robot move to a position
+            let sensor : EgmSensor = EgmSensor::set_pose(seqno, time, target_pos ,curr_ori);
+
+            //Send command
+            egm_serv.send_egm(sensor);
+
+            seqno = seqno + 1;
+
+        }
+
+
     }
 
 
