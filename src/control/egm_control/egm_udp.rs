@@ -75,7 +75,12 @@ impl EgmServer {
         let (bytes_recieved, addr) = self.socket.recv_from(&mut buffer)?;
 
         //Attempt to connect to the socket address
-        self.socket.connect(addr)?;
+        if self.socket.connect(addr).is_ok(){
+            println!("Bound to {:?}", addr);
+        }else{
+            bail!("Failed to connect to EGM client");
+        }
+
 
         //Decode the bytes
         Ok(EgmRobot::decode(&buffer[..bytes_recieved])?)

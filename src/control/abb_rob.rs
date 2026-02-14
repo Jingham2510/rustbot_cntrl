@@ -1616,16 +1616,18 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
             let time = rob_dat.feed_back.as_ref().unwrap().time.unwrap().as_tuple();
 
             let curr_pos = rob_dat.get_pos_xyz().unwrap();
-            let target_pos = [curr_pos[0], curr_pos[1] + 1.0, curr_pos[2]];
+            //let target_pos = [curr_pos[0], curr_pos[1] + 1.0, curr_pos[2]];
             let curr_ori = rob_dat.feed_back.as_ref().unwrap().cartesian.unwrap().orient.unwrap().get_quart();
 
-            println!("{:?}:{:?}", rob_dat.get_sqno(), rob_dat.get_pos_xyz());
+            println!("{:?}:{:?}", rob_dat.get_sqno(), curr_pos);
 
             //determine robot move to a position
-            let sensor : EgmSensor = EgmSensor::set_pose(seqno, time, target_pos ,curr_ori);
-
+            let sensor: EgmSensor = EgmSensor::set_pose(seqno, time, target_pos, curr_ori);
             //Send command
             egm_serv.send_egm(sensor);
+
+
+
 
             seqno = seqno + 1;
 
