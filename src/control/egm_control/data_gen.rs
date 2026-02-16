@@ -235,6 +235,11 @@ impl EgmRobot{
         Some([xyz.x, xyz.y, xyz.z])
     }
 
+    pub fn get_quart_ori(&self) -> Option<[f64;4]>{
+        let wxyz = &self.feed_back.as_ref()?.cartesian?.orient?;
+        Some([wxyz.u0, wxyz.u1, wxyz.u2, wxyz.u3])
+    }
+
     pub fn get_time(&self) -> Option<(u64, u64)>{
         let time = &self.feed_back.as_ref()?.time?;
 

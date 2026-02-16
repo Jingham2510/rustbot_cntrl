@@ -1,6 +1,6 @@
 //Generates trajectories for tests
 
-use std::f32::consts::PI;
+use std::f64::consts::PI;
 use std::fs::File;
 use std::io::{stdin, BufRead};
 use std::{fs, io};
@@ -9,13 +9,13 @@ use anyhow::bail;
 const IMPL_TRAJS: [&str; 4] = ["line", "circle", "slidedown", "custom"];
 
 //120
-const DEFAULT_Z: f32 = 161.0;
+const DEFAULT_Z: f64 = 161.0;
 
 
 //Selects a trajectory bsaed on string input from user
-pub fn traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Error> {
+pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
     //Define the trajcetory - it will be of unknown size so have to store on the heap
-    let mut trajectory: Vec<(f32, f32, f32)> = Vec::new();
+    let mut trajectory: Vec<(f64, f64, f64)> = Vec::new();
 
     match traj.to_lowercase().as_str() {
         //Line trajectory
@@ -43,13 +43,13 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Error> {
 
             let num_of_points = 1000;
 
-            let dist_per_pnt = (end_y - start_y)/ num_of_points as f32;
+            let dist_per_pnt = (end_y - start_y)/ num_of_points as f64;
 
             trajectory = vec![start_pos];
 
             //Add all the middle points
             for i in 1..num_of_points {
-                trajectory.push((line_x, start_y + (i as f32 * dist_per_pnt), DEFAULT_Z));
+                trajectory.push((line_x, start_y + (i as f64 * dist_per_pnt), DEFAULT_Z));
             }
 
 
@@ -69,8 +69,8 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Error> {
             //Create the circle trajectory
             for i in 1..(360 * loops) {
                 trajectory.push((
-                    centre.0 + ((i as f32 * (PI / 180.0)).sin() * radius),
-                    centre.1 + ((i as f32 * (PI / 180.0)).cos() * radius),
+                    centre.0 + ((i as f64 * (PI / 180.0)).sin() * radius),
+                    centre.1 + ((i as f64 * (PI / 180.0)).cos() * radius),
                     centre.2,
                 ));
             }
@@ -93,7 +93,7 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Error> {
         //Small vibrational movements
         "wiggle" =>{
 
-            const WIGGLE_MOVE :f32 = 0.25;
+            const WIGGLE_MOVE :f64 = 0.25;
 
             let start_x = 200.0;
             let start_y = 2160.0;
@@ -168,7 +168,7 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Error> {
 }
 
 //Reads a custom trajectory and returns it
-fn cust_traj_handler() -> Option<Vec<(f32, f32, f32)>> {
+fn cust_traj_handler() -> Option<Vec<(f64, f64, f64)>> {
     //Stored within the local directory for the project! (updated manually with custom trajectories)
     const CUST_TRAJ_LOC: &str = "./cust_trajs/";
 
@@ -209,7 +209,7 @@ fn cust_traj_handler() -> Option<Vec<(f32, f32, f32)>> {
     //Attempt to match to a trajectory in the directory
     if let Ok(file) = File::open(format!("{}{}.traj", CUST_TRAJ_LOC, user_inp.trim())) {
         //Create an empty vector
-        let mut traj: Vec<(f32, f32, f32)> = vec![];
+        let mut traj: Vec<(f64, f64, f64)> = vec![];
 
         //Extract the line containing the trajectory info
         let mut traj_str = String::new();
@@ -235,7 +235,7 @@ fn cust_traj_handler() -> Option<Vec<(f32, f32, f32)>> {
                 let coord_split: Vec<_> = coord.split(" ").collect();
 
                 //Place in a tuple and add to the trajectory
-                let default_height: f32 = 125.0;
+                let default_height: f64 = 125.0;
                 traj.push((
                     coord_split[0].parse().unwrap(),
                     coord_split[1].parse().unwrap(),
@@ -253,12 +253,12 @@ fn cust_traj_handler() -> Option<Vec<(f32, f32, f32)>> {
 
 
 //Calculates the relative distance between points of a desired trajectory
-pub fn relative_traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Error>{
+pub fn relative_traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error>{
 
     //Check that the trajectory is valid
     if let Ok(desired_traj) = traj_gen(traj){
         //The first value in the vector is the start position
-        let mut rel_traj: Vec<(f32, f32, f32)> = vec![desired_traj[0]];
+        let mut rel_traj: Vec<(f64, f64, f64)> = vec![desired_traj[0]];
 
         //Calculate the relative difference between each point
         for i in 1..desired_traj.len(){
@@ -274,5 +274,54 @@ pub fn relative_traj_gen(traj: &str) -> Result<Vec<(f32, f32, f32)>, anyhow::Err
         bail!("Invalid trajectory")
     }
 
-
 }
+
+
+//Calculates the required xy speeds to achieve a desired trajectory
+//Return format (time of speed (s), (X speed (mm/s), Y speed (mm/s))
+pub fn calc_xy_timing(mut traj: Vec<(f64, f64, f64)>, des_lat_speed : f64 ) -> Vec<(f64, (f64, f64))> {
+    let mut timing_instructions: Vec<(f64, (f64, f64))> = vec!();
+
+    let mut last_pnt = traj[0];
+
+    //Iterate through the trajectory of the robot
+    for (i, pnt) in traj.iter_mut().enumerate() {
+        //Skip the first point
+        if i == 0 {
+            continue
+        }
+
+        let xy_distances: (f64, f64) = ((pnt.0 - last_pnt.0) as f64, (pnt.1 - last_pnt.1) as f64);
+
+        //Calculate distance between points
+        let lat_distance = (xy_distances.0.powi(2) + xy_distances.1.powi(2)).sqrt();
+
+        let req_x_speed;
+        let req_y_speed;
+
+        //If either X or Y are not changing
+        if xy_distances.0 == 0.0 {
+            req_x_speed = 0.0;
+            req_y_speed = des_lat_speed
+        } else if xy_distances.1 == 0.0 {
+            req_x_speed = des_lat_speed;
+            req_y_speed = 0.0;
+        } else {
+            //Determine the end-eff speed as a combination of XY based on the XY ratio of the distance
+            let xy_ratio = xy_distances.0 / xy_distances.1;
+
+            req_y_speed = (des_lat_speed.powi(2) / (xy_ratio.powi(2) + 1.0)).sqrt();
+            req_x_speed = xy_ratio * req_y_speed;
+        }
+
+
+        //Create the timing instruction
+        timing_instructions.push((lat_distance / des_lat_speed, (req_x_speed, req_y_speed)));
+
+        last_pnt = *pnt;
+    }
+
+
+    timing_instructions
+}
+

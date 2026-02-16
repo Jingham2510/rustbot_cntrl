@@ -16,8 +16,11 @@ use std::sync::mpsc::Receiver;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 use std::{fs, thread};
+use crate::control::trajectory_planner::calc_xy_timing;
+
 pub struct AbbRob<'a> {
     socket: tcp_sock::TcpSock,
+    local : bool,
     pos: (f32, f32, f32),
     ori: (f32, f32, f32),
     jnt_angles: (f32, f32, f32, f32, f32, f32),
@@ -35,7 +38,7 @@ pub struct AbbRob<'a> {
 
 //Stores all the relevant test data for when a test starts
 struct TestData{
-    traj :Vec<(f32, f32, f32)>,
+    traj :Vec<(f64, f64, f64)>,
     test_name : String,
     filepath : String,
     data_filename: String,
@@ -70,7 +73,7 @@ impl TestData{
 
     }
 
-    fn pick_trajectory(forcemode : bool) -> Result<Vec<(f32, f32, f32)>, anyhow::Error> {
+    fn pick_trajectory(forcemode : bool) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
         let mut traj;
         //Loop until command given
         loop {
@@ -133,7 +136,7 @@ impl TestData{
         //If the trajectory is a relative one
         if forcemode{
 
-            let mut point : (f32, f32, f32) = (0.0, 0.0, 0.0);
+            let mut point : (f64, f64, f64) = (0.0, 0.0, 0.0);
 
             for (i, pnt) in self.traj.iter_mut().enumerate() {
                 if i == 0{
@@ -179,6 +182,14 @@ const TRANSFORM_TO_WORK_SPACE : bool = false;
 
 impl AbbRob<'_> {
     pub fn create_rob(ip: String, port: u32, config : &'_ mut Config) -> Result<AbbRob<'_>, anyhow::Error> {
+
+        let mut local = false;
+
+        if ip == "127.0.0.1"{
+            local = true;
+        }
+
+
         //Create the robots socket
         let mut rob_sock = tcp_sock::create_sock(ip, port);
         //Attempt to connect to the robot
@@ -188,6 +199,7 @@ impl AbbRob<'_> {
         } else {
             let new_rob = AbbRob {
                 socket: rob_sock,
+                local,
                 pos: (f32::NAN, f32::NAN, f32::NAN),
                 ori: (f32::NAN, f32::NAN, f32::NAN),
                 jnt_angles: (f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN),
@@ -343,7 +355,7 @@ impl AbbRob<'_> {
 
     fn go_home_pos(&mut self) {
         //Define the home point
-        const HOME_POS : (f32, f32, f32) = (220.0, 1355.0, 955.0);
+        const HOME_POS : (f64, f64, f64) = (220.0, 1355.0, 955.0);
 
         //Define the home orientation
         const HOME_ORI : angle_tools::Quartenion = angle_tools::Quartenion {
@@ -407,7 +419,7 @@ impl AbbRob<'_> {
     //Set the TCP point within the global coordinate system
     //xyz - desired position in cartesian coordinates
     //block - indicates whether the move should block other transmission
-    fn set_pos(&mut self, xyz: (f32, f32, f32)) {
+    fn set_pos(&mut self, xyz: (f64, f64, f64)) {
 
             if let Ok(_resp) = self
                 .socket
@@ -421,7 +433,7 @@ impl AbbRob<'_> {
     }
 
     //Add a translational movement to the robot movement queue
-    fn traj_queue_add_trans(&mut self, xyz: (f32, f32, f32)) {
+    fn traj_queue_add_trans(&mut self, xyz: (f64, f64, f64)) {
         if let Ok(_resp) = self
             .socket
             .req(&format!("TQAD:[{},{},{}]", xyz.0, xyz.1, xyz.2))
@@ -542,7 +554,7 @@ impl AbbRob<'_> {
     /*
     Adds a relative move to the RAPID relative move queue (for force control)
      */
-    fn rel_mv_queue_add(&mut self, rel_xyz : (f32, f32, f32)) -> Result<(), anyhow::Error>{
+    fn rel_mv_queue_add(&mut self, rel_xyz : (f64, f64, f64)) -> Result<(), anyhow::Error>{
 
         //Format the string request
         let rel_mv_str = format!("RLAD:[{},{},{}]", rel_xyz.0, -rel_xyz.1, rel_xyz.2);
@@ -956,7 +968,6 @@ impl AbbRob<'_> {
         return;
     }
 
-
     //A test regime for whether we can control the end effector linear speeds without EGM
     fn end_eff_speed_set_test(&mut self){
         //Set up the test data
@@ -1029,6 +1040,7 @@ impl AbbRob<'_> {
         self.go_home_pos();
 
     }
+
 
 
 
@@ -1571,9 +1583,9 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
     }
 
     //Request the robot to start the EGM stream
-    fn start_egm_stream(&mut self) -> Result<(), anyhow::Error>{
+    fn start_egm_stream_speed(&mut self) -> Result<(), anyhow::Error>{
 
-        self.socket.req("EGST:0")?;
+        self.socket.req("EGSS:0")?;
 
         Ok(())
     }
@@ -1594,7 +1606,7 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
         let egm_serv = self.connect_EGM_pose(true).unwrap();
 
         //Start the stream
-        self.start_egm_stream();
+        self.start_egm_stream_speed();
 
         //Get first info
         let mut rob_dat = egm_serv.recv_and_connect().unwrap();
@@ -1603,10 +1615,11 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
         let time = rob_dat.feed_back.as_ref().unwrap().time.unwrap().as_tuple();
 
         let target_pos = [220.0, 1800.0, 955.0];
+        //let target_pos = [0.0, 0.0, 0.0];
+
         let curr_ori = rob_dat.feed_back.unwrap().cartesian.unwrap().orient.unwrap().get_quart();
         //Desired linear speed
-        let desired_speed = [0.0, 1.0, 0.0];
-
+        let mut desired_speed = [0.0, 0.1, 0.1];
 
 
         //Constantly read the position
@@ -1621,17 +1634,92 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
 
             println!("{:?}:{:?}", rob_dat.get_sqno(), curr_pos);
 
+
             //determine robot move to a position
-            let sensor: EgmSensor = EgmSensor::set_pose(seqno, time, target_pos, curr_ori);
+            let sensor: EgmSensor = EgmSensor::set_pose_set_speed(seqno, time, target_pos, curr_ori, desired_speed);
+
+
             //Send command
             egm_serv.send_egm(sensor);
-
-
 
 
             seqno = seqno + 1;
 
         }
+
+
+    }
+
+
+    //Runs a desired trajectory by giving the ABB EGM controller a set of desired speeds
+    fn egm_speed_trajectory(&mut self){
+
+        //Set up the test data
+        //Creates the test data and the filepaths
+        let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
+        //Store the desired trajectory
+        test_data.store_desired_trajectory(self.force_mode_flag);
+
+        //Log the config
+        self.log_config(&test_data.config_filename);
+
+        //Confirm the test has started
+        self.write_marker(&test_data.data_filename, "Test started");
+
+        //Go to the start position
+        self.set_pos(test_data.traj[0]);
+
+        let desired_lat_speed = 10.0;
+
+        //Calculate the list of desired speeds
+        let mut speed_instructions = calc_xy_timing(test_data.traj, desired_lat_speed);
+
+        let mut seqno = 0;
+
+
+
+        //Start the EGM process
+        let egm_client = self.connect_EGM_pose(self.local).expect("Failed to connect EGM stream");
+        self.start_egm_stream_speed();
+
+        //go through every speed instruction
+        for instruction in speed_instructions.iter_mut(){
+
+
+            //Get the time limit
+            let time_lim = Duration::from_secs_f64(instruction.0);
+
+            //Start the timer
+            let start_time = SystemTime::now();
+
+            //While the timer is running
+            while start_time.elapsed().unwrap() < time_lim {
+
+                //Get the egm message
+                let msg = egm_client.recv_egm().expect("Failed to get egm message");
+
+                let time = msg.get_time().expect("Failed to get egm time");
+                let curr_pos = msg.get_pos_xyz().expect("Failed to get egm pos");
+                let curr_ori = msg.get_quart_ori().expect("Failed to get egm ori");
+
+                //Log the robot information gathered by the EGM using
+
+                //Send the speed instruction to the robot via EGM
+                let desired_speed = [instruction.1.0, instruction.1.1, 0.0];
+
+                let sensor: EgmSensor = EgmSensor::set_pose_set_speed(seqno, time, curr_pos, curr_ori, desired_speed);
+                egm_client.send_egm(sensor).expect("Failed to send sensor info");
+                seqno = seqno + 1;
+
+
+
+            }
+        }
+
+        //Once done disconnect the EGM stream?
+
+        //Move the robot to the home position
+
 
 
     }

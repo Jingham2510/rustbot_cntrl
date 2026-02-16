@@ -13,13 +13,13 @@ pub struct ExpModel<T>{
     //The robot model
     rob_model : T,
     //Robot trajectory defined as xyz coordinates in reference to the robot base frame
-    trajectory : Vec<(f32, f32, f32)>,
-    des_lat_speed : f32
+    trajectory : Vec<(f64, f64, f64)>,
+    des_lat_speed : f64
 }
 
 impl ExpModel<IRB6400Model> {
 
-    pub fn create_exp_model(trajectory: Vec<(f32, f32, f32)>, des_lat_speed : f32) -> Result<ExpModel<IRB6400Model>, anyhow::Error>{
+    pub fn create_exp_model(trajectory: Vec<(f64, f64, f64)>, des_lat_speed : f64) -> Result<ExpModel<IRB6400Model>, anyhow::Error>{
 
         //Verify that the trajectory is not empty
         if trajectory.len() < 2{
@@ -40,7 +40,7 @@ impl ExpModel<IRB6400Model> {
     }
 
     //Updates the desired lateral speed of the end-effector - mm/s
-    pub fn update_des_lat_speed(&mut self, new_lat : f32) -> Result<(), anyhow::Error>{
+    pub fn update_des_lat_speed(&mut self, new_lat : f64) -> Result<(), anyhow::Error>{
         if new_lat <= 0.0{
             bail!("Invalid lateral speed!")
         }
@@ -54,9 +54,9 @@ impl ExpModel<IRB6400Model> {
 
     //Calculates the required xy speeds to achieve a desired trajectory
     //Return format (time of speed (s), (X speed (mm/s), Y speed (mm/s))
-    pub fn calc_xy_timing(&mut self) -> Vec<(f32, (f32, f32))>{
+    pub fn calc_xy_timing(&mut self) -> Vec<(f64, (f64, f64))>{
 
-        let mut timing_instructions: Vec<(f32, (f32, f32))> = vec!();
+        let mut timing_instructions: Vec<(f64, (f64, f64))> = vec!();
 
 
         let mut last_pnt = self.trajectory[0];
@@ -68,7 +68,7 @@ impl ExpModel<IRB6400Model> {
                  continue
              }
 
-             let xy_distances : (f32, f32)= (pnt.0 - last_pnt.0, pnt.1 - last_pnt.1);
+             let xy_distances : (f64, f64)= (pnt.0 - last_pnt.0, pnt.1 - last_pnt.1);
 
              //Calculate distance between points
              let lat_distance = (xy_distances.0.powi(2) + xy_distances.1.powi(2)).sqrt();
@@ -137,7 +137,7 @@ impl ExpModel<IRB6400Model> {
 
 
             //Get current time limit
-            let time_lim = Duration::from_secs_f32(curr_instruction.0);
+            let time_lim = Duration::from_secs_f32(curr_instruction.0 as f32);
 
             //Start timer
             let start_time = SystemTime::now();
@@ -163,7 +163,9 @@ impl ExpModel<IRB6400Model> {
                 let des_end_eff_speed = (curr_instruction.1.0,curr_instruction.1.1,desired_z.recv().unwrap());
 
                 //Set the joint speed required to achieve this
-                joint_speed = self.rob_model.get_joint_speed(des_end_eff_speed);
+                todo!("Change types");
+
+                //joint_speed = self.rob_model.get_joint_speed(des_end_eff_speed);
 
                 //println!("{:?}", joint_speed);
 
