@@ -30,7 +30,6 @@ pub struct Analyser {
 impl Analyser {
     //Create a data analyser
     pub fn init(filepath: String, test_name: String) -> Result<Self, anyhow::Error> {
-        let filepath = filepath;
 
         //Check that the test exists
         if !fs::read_dir(&filepath)?
@@ -45,7 +44,7 @@ impl Analyser {
         let mut no_of_pcl = 0;
         for path in fs::read_dir(&test_fp)? {
             if path?.file_name().to_str().unwrap().starts_with("pcl_") {
-                no_of_pcl = no_of_pcl + 1;
+                no_of_pcl += 1;
             }
         }
 
@@ -121,7 +120,7 @@ impl Analyser {
 
     //Displays all of heightmaps associated with a test
     pub fn display_all(&mut self) -> Result<(), anyhow::Error> {
-        let heightmaps: Vec<Heightmap>;
+        let heightmaps;
 
         //Check if the hmaps have been generated
         if self.no_of_pcl > self.get_hmap_cnt()? {
@@ -143,7 +142,7 @@ impl Analyser {
 
     //Calculates the total coverage of a measured area (i.e. how much unknown space there is)
     pub fn calc_coverage(&mut self) -> Result<Vec<f32>, anyhow::Error> {
-        let hmaps: Vec<Heightmap>;
+        let hmaps;
 
         //Check if the hmaps have been generated
         if self.no_of_pcl > self.get_hmap_cnt()? {
@@ -162,7 +161,7 @@ impl Analyser {
             let mut filled_cells = 0;
             for cell in map.get_flattened_cells()? {
                 if !f32::is_nan(cell) {
-                    filled_cells = filled_cells + 1;
+                    filled_cells += 1;
                 }
             }
             coverages.push(filled_cells as f32 / (map.no_of_cells as f32))
@@ -199,7 +198,7 @@ impl Analyser {
 
         for path in fs::read_dir(&self.test_fp)? {
             if path?.file_name().to_str().unwrap().starts_with("hmap_") {
-                hmap_cnt = hmap_cnt + 1;
+                hmap_cnt += 1;
             }
         }
 
@@ -303,10 +302,10 @@ impl Analyser {
         println!("Trajectory bounds - {:?}", traj_bounds);
 
         //Increase the bounds by the iso radius
-        traj_bounds[0] = traj_bounds[0] - iso_x_radius;
-        traj_bounds[1] = traj_bounds[1] + iso_x_radius;
-        traj_bounds[2] = traj_bounds[2] - iso_y_radius;
-        traj_bounds[3] = traj_bounds[3] + iso_y_radius;
+        traj_bounds[0] -= iso_x_radius;
+        traj_bounds[1] += iso_x_radius;
+        traj_bounds[2] -= iso_y_radius;
+        traj_bounds[3] += iso_y_radius;
 
         //No need to transform as data is transformed to correct frame when saved
 
@@ -364,7 +363,7 @@ impl Analyser {
         let traj = self.data_handler.get_traj();
 
         //Transform the trajectory to the heightmap space
-        Ok(trans_to_heightmap(traj, width, height, total_width, total_height, bounds[0], bounds[2], helper_funcs::helper_funcs::MapGenOpt::Mean)?)
+        trans_to_heightmap(traj, width, height, total_width, total_height, bounds[0], bounds[2], helper_funcs::helper_funcs::MapGenOpt::Mean)
     }
 
     //Displays the action map of the test (i.e. graphically encoded trajectory) - height indicate by pixel intensity
@@ -466,7 +465,7 @@ impl Analyser {
 
 
 
-        Ok(trans_to_heightmap(pnts, width, height, total_width, total_height, bounds[0], bounds[2], helper_funcs::helper_funcs::MapGenOpt::Mean)?)
+        trans_to_heightmap(pnts, width, height, total_width, total_height, bounds[0], bounds[2], helper_funcs::helper_funcs::MapGenOpt::Mean)
     }
 
     //Displays the force map of the test (i.e. graphically encoded force experience) - force indicated by pixel colour
@@ -554,7 +553,7 @@ impl Analyser {
                 let hmap_filestring = format!("hmap_{}_{}", self.test_name, path_split.last().unwrap().strip_suffix(".txt").unwrap());
                 
                 let hmap_fp = format!("{}/{}", self.test_fp, hmap_filestring);
-                curr_hmap.save_to_file(&*hmap_fp)?;
+                curr_hmap.save_to_file(&hmap_fp)?;
 
                 cnt += 1;
 

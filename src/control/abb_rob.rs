@@ -16,6 +16,7 @@ use std::sync::mpsc::Receiver;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 use std::{fs, thread};
+use nalgebra::zero;
 use crate::control::trajectory_planner::calc_xy_timing;
 
 pub struct AbbRob<'a> {
@@ -142,9 +143,9 @@ impl TestData{
                 if i == 0{
                     point = *pnt;
                 }else{
-                    point.0 = point.0 + pnt.0;
-                    point.1 = point.1 + pnt.1;
-                    point.2 = point.2 + pnt.2;
+                    point.0 += pnt.0;
+                    point.1 += pnt.1;
+                    point.2 += pnt.2;
                 }
 
                 let line = format!("{:?}", point);
@@ -193,7 +194,7 @@ impl AbbRob<'_> {
         //Create the robots socket
         let mut rob_sock = tcp_sock::create_sock(ip, port);
         //Attempt to connect to the robot
-        if rob_sock.connect() == false {
+        if !rob_sock.connect() {
             //Failed to connect
             bail!("Robot not connected")
         } else {
@@ -317,8 +318,8 @@ impl AbbRob<'_> {
 
                 //Whatever function is being tested at the moment
                 "test" => {
+                    //self.egm_speed_trajectory();
                     self.egm_test();
-
                 }
 
                 "home" => {
@@ -505,11 +506,11 @@ impl AbbRob<'_> {
 
         let fc_cntrl_string = format!("STFM:{}", force_control);
 
-        if let Ok(resp) = self.socket.req(&*fc_cntrl_string) {
+        if let Ok(resp) = self.socket.req(&fc_cntrl_string) {
 
             let expected_resp = format!("FM:{}", force_control);
 
-            if !resp.eq_ignore_ascii_case(&*expected_resp){
+            if !resp.eq_ignore_ascii_case(&expected_resp){
                 bail!("Incorrect response, mode not changed!");
             }else{
                 //Update internal flag
@@ -532,13 +533,13 @@ impl AbbRob<'_> {
         let conf_str = format!("STFC:{}.{}", ax, target);
         
         //Send the request
-        if let Ok(resp) = self.socket.req(&*conf_str){
+        if let Ok(resp) = self.socket.req(&conf_str){
 
             //Check that the robot has responded with the correct values (otherwise bail)
             let expected_resp = format!("FC:{}.{}", ax, target);
 
 
-            if !resp.eq_ignore_ascii_case(&*expected_resp){
+            if !resp.eq_ignore_ascii_case(&expected_resp){
                 bail!("Incorrect config! Force control will be incorrect")
             }else{
                 self.force_axis = ax.to_string();
@@ -560,7 +561,7 @@ impl AbbRob<'_> {
         let rel_mv_str = format!("RLAD:[{},{},{}]", rel_xyz.0, -rel_xyz.1, rel_xyz.2);
 
         //Check that the correct response is sent
-        if let Ok(resp) = self.socket.req(&*rel_mv_str){
+        if let Ok(resp) = self.socket.req(&rel_mv_str){
 
             let expected_resp = "OK";
 
@@ -595,8 +596,8 @@ impl AbbRob<'_> {
         let (tx, rx) = mpsc::channel();
 
         //Clone the cam configs to avoid handing ownership to the thread
-        let rel_pos = self.config.cam_info.rel_pos().clone();
-        let rel_ori = self.config.cam_info.rel_ori().clone();
+        let rel_pos = self.config.cam_info.rel_pos();
+        let rel_ori = self.config.cam_info.rel_ori();
         let scale = self.config.cam_info.x_scale();
 
         //Create the thread that handles the depth camera
@@ -688,7 +689,6 @@ impl AbbRob<'_> {
 
         tx.send(0);
 
-        return;
     }
 
 
@@ -1590,6 +1590,13 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
         Ok(())
     }
 
+    fn start_egm_stream_pose(&mut self) -> Result<(), anyhow::Error>{
+        self.socket.req("EGST:0")?;
+
+        Ok(())
+    }
+
+
     //Request the robot to stop the EGM stream
     fn stop_egm_stream(&mut self) -> Result<(), anyhow::Error>{
 
@@ -1599,14 +1606,14 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
     }
 
 
-    //an egm baseline test where the robot is moved around - basically a play
+    //an egm baseline test where the robot is moved around - basically a play around to try and confirm how it works
     fn egm_test(&mut self){
 
         //Connect to the server
         let egm_serv = self.connect_EGM_pose(true).unwrap();
 
         //Start the stream
-        self.start_egm_stream_speed();
+        self.start_egm_stream_pose();
 
         //Get first info
         let mut rob_dat = egm_serv.recv_and_connect().unwrap();
@@ -1614,13 +1621,14 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
         let mut seqno = rob_dat.get_sqno().unwrap() + 1;
         let time = rob_dat.feed_back.as_ref().unwrap().time.unwrap().as_tuple();
 
-        let target_pos = [220.0, 1800.0, 955.0];
-        //let target_pos = [0.0, 0.0, 0.0];
+        //let target_pos = [220.0, 1800.0, 955.0];
+        let target_pos = [0.0, 0.0, 0.0];
 
-        let curr_ori = rob_dat.feed_back.unwrap().cartesian.unwrap().orient.unwrap().get_quart();
-        //Desired linear speed
-        let mut desired_speed = [0.0, 0.1, 0.1];
 
+        let initial_config = egm_serv.recv_egm().unwrap();
+        let initial_pos = initial_config.get_pos_xyz().unwrap();
+
+        let mut index = 0;
 
         //Constantly read the position
         loop{
@@ -1632,18 +1640,27 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
             //let target_pos = [curr_pos[0], curr_pos[1] + 1.0, curr_pos[2]];
             let curr_ori = rob_dat.feed_back.as_ref().unwrap().cartesian.unwrap().orient.unwrap().get_quart();
 
-            println!("{:?}:{:?}", rob_dat.get_sqno(), curr_pos);
+            let dist_travelled = [curr_pos[0] - initial_pos[0], curr_pos[1] - initial_pos[1], curr_pos[2] - initial_pos[2]];
 
+
+            println!("EGM PLANNED: {:?}", rob_dat.planned.unwrap().cartesian);
+
+            println!("Distance travelled:{:?}", dist_travelled);
+            let vec_dist = (dist_travelled[0].powi(2) + dist_travelled[1].powi(2) + dist_travelled[2].powi(2)).sqrt();
+            println!("Vector distance:{}", vec_dist);
 
             //determine robot move to a position
-            let sensor: EgmSensor = EgmSensor::set_pose_set_speed(seqno, time, target_pos, curr_ori, desired_speed);
 
+            let sensor: EgmSensor = EgmSensor::set_pose(seqno, time, target_pos, curr_ori);
 
             //Send command
             egm_serv.send_egm(sensor);
 
 
+
+
             seqno = seqno + 1;
+            index = index + 1;
 
         }
 
@@ -1674,6 +1691,8 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
         //Calculate the list of desired speeds
         let mut speed_instructions = calc_xy_timing(test_data.traj, desired_lat_speed);
 
+        println!("{:?}", speed_instructions);
+
         let mut seqno = 0;
 
 
@@ -1681,6 +1700,7 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
         //Start the EGM process
         let egm_client = self.connect_EGM_pose(self.local).expect("Failed to connect EGM stream");
         self.start_egm_stream_speed();
+        egm_client.recv_and_connect();
 
         //go through every speed instruction
         for instruction in speed_instructions.iter_mut(){
@@ -1692,38 +1712,99 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
             //Start the timer
             let start_time = SystemTime::now();
 
+            //Send the speed instruction to the robot via EGM
+            let desired_speed = [instruction.1.0, instruction.1.1, 0.0];
+
+            let mut prev_x_pos = 0.0;
+            let mut prev_y_pos = 0.0;
+            let mut prev_time = 0;
+
             //While the timer is running
             while start_time.elapsed().unwrap() < time_lim {
+
 
                 //Get the egm message
                 let msg = egm_client.recv_egm().expect("Failed to get egm message");
 
+
+
                 let time = msg.get_time().expect("Failed to get egm time");
                 let curr_pos = msg.get_pos_xyz().expect("Failed to get egm pos");
                 let curr_ori = msg.get_quart_ori().expect("Failed to get egm ori");
+                let force = msg.get_measured_force().expect("Failed to get egm force");
 
                 //Log the robot information gathered by the EGM using
+                self.egm_log_data(seqno, &test_data.data_filename, curr_pos, curr_ori, force);
 
-                //Send the speed instruction to the robot via EGM
-                let desired_speed = [instruction.1.0, instruction.1.1, 0.0];
+                println!("desired - x:{}, y:{}", desired_speed[0], desired_speed[1]);
+                println!("x speed - {}, y speed - {}", (curr_pos[0] - prev_x_pos)/((msg.feed_back.as_ref().unwrap().time.unwrap().as_timestamp_ms() - prev_time) / 1000) as f64, (curr_pos[1] - prev_y_pos)/((msg.feed_back.as_ref().unwrap().time.unwrap().as_timestamp_ms() - prev_time) / 1000) as f64);
 
-                let sensor: EgmSensor = EgmSensor::set_pose_set_speed(seqno, time, curr_pos, curr_ori, desired_speed);
+                prev_x_pos = curr_pos[0];
+                prev_y_pos = curr_pos[1];
+                prev_time = msg.feed_back.as_ref().unwrap().time.unwrap().as_timestamp_ms();
+
+                let sensor: EgmSensor = EgmSensor::set_pose_set_speed(seqno, time, [0.0, 0.0, 0.0], curr_ori, desired_speed);
                 egm_client.send_egm(sensor).expect("Failed to send sensor info");
                 seqno = seqno + 1;
-
-
 
             }
         }
 
-        //Once done disconnect the EGM stream?
+        //Once done disconnect the EGM stream
+        drop(egm_client);
+
+        self.write_marker(&test_data.data_filename, "Test complete");
 
         //Move the robot to the home position
-
-
+        self.go_home_pos();
 
     }
 
+    fn egm_log_data(&mut self, i : u32, filename : &str, curr_pos : [f64;3], curr_ori : [f64;4], curr_force : [f64;6]){
+
+        //Open the file (or create if it doesn't exist)
+        let mut file = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(filename.trim())
+            .unwrap();
+
+        let line : String;
+
+        //See whether to transofmr the data by the
+
+        //Format the line to write
+        line = format!(
+            "{},{:?},[{},{},{}],[{},{},{},{}],[{},{},{},{},{},{}],{}",
+            i,
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_secs_f64(),
+            //Make sure that you don't print a lack of information in the data
+            curr_pos[0],
+            curr_pos[1],
+            curr_pos[2],
+            curr_ori[0],
+            curr_ori[1],
+            curr_ori[2],
+            curr_ori[3],
+            curr_force[0],
+            curr_force[1],
+            curr_force[2],
+            curr_force[3],
+            curr_force[4],
+            curr_force[5],
+            self.force_err
+        );
+
+
+        //Write to the file - indicating if writing failed (but don't worry about it!)
+        if let Err(e) = writeln!(file, "{}", line) {
+            eprint!("Couldn't write to file: {}", e);
+        }
+    }
 
 
 }
+

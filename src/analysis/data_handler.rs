@@ -40,15 +40,15 @@ impl DataHandler {
             //BIT HACKY! -------------- reconstruct the strings based on the splits just to dissaemble again
             let mut str_to_parse = format!("{},{},{}", line_split[2], line_split[3], line_split[4]);
 
-            trajectory.push(str_to_traj_ori(&*str_to_parse)?);
+            trajectory.push(str_to_traj_ori(&str_to_parse)?);
 
             str_to_parse = format!("{},{},{}", line_split[5], line_split[6], line_split[7]);
 
-            ori.push(str_to_traj_ori(&*str_to_parse)?);
+            ori.push(str_to_traj_ori(&str_to_parse)?);
 
             str_to_parse = format!("{},{},{},{},{},{}", line_split[8], line_split[9], line_split[10], line_split[11], line_split[12], line_split[13]);
 
-            forces.push(str_to_force(&*str_to_parse)?);
+            forces.push(str_to_force(&str_to_parse)?);
 
         }
 
@@ -143,7 +143,7 @@ fn str_to_traj_ori(x : &str) -> Result<[f32;3], anyhow::Error>{
     //Extract the individual numbers from the pos string and feed them into a pos array
     for token in x_strip.split(",") {
         curr_vec[cnt] = token.parse()?;
-        cnt = cnt + 1;
+        cnt += 1;
     }
 
     //Check to make sure that the values have been filled
@@ -167,7 +167,7 @@ fn str_to_force(x : &str) -> Result<[f32;6], anyhow::Error>{
     //Extract the individual numbers from the pos string and feed them into a pos array
     for token in x_strip.split(",") {
         curr_vec[cnt] = token.parse()?;
-        cnt = cnt + 1;
+        cnt += 1;
     }
 
     //Check to make sure that the values have been filled

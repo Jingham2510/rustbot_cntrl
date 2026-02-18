@@ -291,7 +291,7 @@ pub fn calc_xy_timing(mut traj: Vec<(f64, f64, f64)>, des_lat_speed : f64 ) -> V
             continue
         }
 
-        let xy_distances: (f64, f64) = ((pnt.0 - last_pnt.0) as f64, (pnt.1 - last_pnt.1) as f64);
+        let xy_distances: (f64, f64) = ((pnt.0 - last_pnt.0), (pnt.1 - last_pnt.1));
 
         //Calculate distance between points
         let lat_distance = (xy_distances.0.powi(2) + xy_distances.1.powi(2)).sqrt();
