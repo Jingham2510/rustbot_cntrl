@@ -826,7 +826,7 @@ impl AbbRob<'_> {
         //Check the force error
         self.calc_force_err();
         self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
-        cnt = cnt+1;
+        cnt += 1;
 
         //Set the speed of the robot
         self.set_speed(5.0);
@@ -845,7 +845,7 @@ impl AbbRob<'_> {
             //Store the state of the robot
             self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
 
-            cnt = cnt+1;
+            cnt += 1;
 
             //Calc the force error and add to rolling average list
             if force_errs.len() < FORCE_ERR_ROLL_AVG {
@@ -866,7 +866,7 @@ impl AbbRob<'_> {
                 //Check that the rolling average is within 10% (globally correct)
                 for (i, force) in force_errs.iter().enumerate(){
 
-                    force_sum = force_sum + force;
+                    force_sum += force;
 
                     //Check that the actual previous values are within 30% (locally correct)
                     //Higher threshold to account for noise
@@ -889,7 +889,7 @@ impl AbbRob<'_> {
                         //update the robot info
                         self.update_rob_info();
                         self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
-                        cnt = cnt+1;
+                        cnt += 1;
                     }else{
                         println!("GLOBAL AVG INCORRECT: {force_avg}")
                     }
@@ -926,7 +926,7 @@ impl AbbRob<'_> {
 
             //Trigger at the start - or at a specified interval
             if cnt % DEPTH_FREQ == 0 || cnt == 0 {
-                if let Ok(_) = tx.send(1) {
+                if tx.send(1).is_ok() {
                     //Do nothing here - normal operation
                 } else {
                     println!("Warning - Cam thread dead!");
@@ -940,7 +940,7 @@ impl AbbRob<'_> {
 
 
             //Increase the count
-            cnt = cnt + 1;
+            cnt += 1;
 
             if self.disconnected {
                 println!("Warning - disconnected during test");
@@ -1003,7 +1003,7 @@ impl AbbRob<'_> {
         //log the info
         self.update_rob_info();
         self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
-        cnt = cnt + 1;
+        cnt += 1;
 
 
         //Trigger the experiment model to start
@@ -1011,11 +1011,7 @@ impl AbbRob<'_> {
 
         z_pub.send(0.0);
 
-        loop {
-
-            if let Ok(jnt_angles) = jnt_recv.recv(){
-
-
+        while let Ok(jnt_angles) = jnt_recv.recv() {
 
                 //Get the joint angles and send to robot
                 self.set_joints(<(f32, f32, f32, f32, f32, f32)>::from(jnt_angles));
@@ -1028,12 +1024,9 @@ impl AbbRob<'_> {
                 //Send the requested z heigt (0 for this)
                 z_pub.send(-1.0);
 
-                cnt = cnt + 1;
+                cnt += 1;
 
-            }else{
-                break;
             }
-        }
 
         //Go to the home position
         self.go_home_pos();
@@ -1108,27 +1101,25 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
                     let mut curr_hmap = Heightmap::create_from_pcl(curr_pcl, 200, 200);
 
                     //Save the heightmap
-                    let hmap_filepath:String;
-
-                    match opt{
+                   let hmap_filepath:String = match opt{
                         1 => {
-                            hmap_filepath = format!("{filepath}/hmap_{test_name}_{cnt}")
+                            format!("{filepath}/hmap_{test_name}_{cnt}")
                         }
                         2=> {
-                            hmap_filepath = format!("{filepath}/hmap_{test_name}_START")
+                            format!("{filepath}/hmap_{test_name}_START")
                         }
                         3=> {
-                            hmap_filepath = format!("{filepath}/hmap_{test_name}_END")
+                           format!("{filepath}/hmap_{test_name}_END")
                         }
 
                         //If invalid number just take a count
                         _ =>{
-                            hmap_filepath = format!("{filepath}/hmap_{test_name}_{cnt}")
+                            format!("{filepath}/hmap_{test_name}_{cnt}")
                         }
-                    }
+                    };
 
                     println!("{hmap_filepath}");
-                    curr_hmap.save_to_file(&*hmap_filepath).unwrap()
+                    curr_hmap.save_to_file(&hmap_filepath).unwrap()
                 }
 
                 if opt == 1{
