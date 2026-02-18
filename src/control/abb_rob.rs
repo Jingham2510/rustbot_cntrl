@@ -605,12 +605,13 @@ impl AbbRob<'_> {
 
         sleep(Duration::from_secs(2));
 
-        if let Ok(_) = tx.send(4) {}
+        if tx.send(4).is_ok() {}
+
         //Move to the home position - blocker
         self.go_home_pos();
 
         //Trigger before the test begins
-        if let Ok(_) = tx.send(2) {}
+        if tx.send(2).is_ok() {}
 
         let start_pos = (test_data.traj[0].0, test_data.traj[0].1, test_data.traj[0].2);
 
@@ -655,7 +656,7 @@ impl AbbRob<'_> {
 
             //Trigger at the start - or at a specified interval
             if cnt % DEPTH_FREQ == 0 || cnt == 0 {
-                if let Ok(_) = tx.send(1) {
+                if tx.send(1).is_ok() {
                     //Do nothing here - normal operation
                 } else {
                     println!("Warning - Cam thread dead!");
@@ -670,12 +671,11 @@ impl AbbRob<'_> {
                 self.force_compensate_move(controller.calc_op(self.force_err).unwrap()).expect("FORCE NOT COMPENSATED FOR");
             }
             //Increase the count
-            cnt = cnt + 1;
+            cnt += 1;
 
             if self.disconnected {
                 println!("Warning - disconnected during test");
                 tx.send(0);
-                return;
             }
         }
 
@@ -710,8 +710,8 @@ impl AbbRob<'_> {
         let (tx, rx) = mpsc::channel();
 
         //Clone the cam configs to avoid handing ownership to the thread
-        let rel_pos = self.config.cam_info.rel_pos().clone();
-        let rel_ori = self.config.cam_info.rel_ori().clone();
+        let rel_pos = self.config.cam_info.rel_pos();
+        let rel_ori = self.config.cam_info.rel_ori();
         let scale = self.config.cam_info.x_scale();
 
 
@@ -727,16 +727,16 @@ impl AbbRob<'_> {
         self.log_config(&test_data.config_filename);
 
         //Create the thread that handles the depth camera
-        thread::spawn(move || Self::depth_sensing(rx, test_data.filepath.clone(), &*test_data.test_name.clone(), true, rel_pos, rel_ori, scale));
+        thread::spawn(move || Self::depth_sensing(rx, test_data.filepath.clone(), &test_data.test_name.clone(), true, rel_pos, rel_ori, scale));
 
         sleep(Duration::from_secs(2));
 
-        if let Ok(_) = tx.send(4) {}
+        if tx.send(4).is_ok() {}
         //Move to the home position - blocker
         self.go_home_pos();
 
         //Trigger before the test begins
-        if let Ok(_) = tx.send(2) {}
+        if tx.send(2).is_ok() {}
 
         let start_pos = (test_data.traj[0].0, test_data.traj[0].1, test_data.traj[0].2);
         println!("START POSIITON: {}", test_data.traj[0].2);
@@ -779,7 +779,7 @@ impl AbbRob<'_> {
             self.calc_force_err();
             //report to data log
             self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
-            cnt = cnt + 1;
+            cnt += 1;
         }
 
         //Take snapshot
@@ -790,7 +790,7 @@ impl AbbRob<'_> {
         self.calc_force_err();
         //report to data log
         self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
-        cnt = cnt + 1;
+        cnt += 1;
 
         println!("GEOTECH- Phase 1 Complete!");
         self.write_marker(&test_data.data_filename, "PHASE 1 END");
@@ -965,7 +965,6 @@ impl AbbRob<'_> {
 
         self.write_marker(&test_data.data_filename, "TEST END");
 
-        return;
     }
 
     //A test regime for whether we can control the end effector linear speeds without EGM
