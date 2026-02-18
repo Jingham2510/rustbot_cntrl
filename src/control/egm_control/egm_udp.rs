@@ -10,7 +10,7 @@ use std::net::UdpSocket;
 
 //The UDP socket that sends/recieves egm protobuffer
 pub struct EgmServer {
-    socket : UdpSocket
+    socket: UdpSocket,
 }
 
 //The default EgmServer is a local connection for robotstudio
@@ -23,25 +23,21 @@ impl Default for EgmServer {
 impl EgmServer {
     //Creates the EGM udp socket (a close is not required as it will be dropped when it stops being used)
     pub fn create_egm_socket(socket: UdpSocket) -> Self {
-
         println!("UDP socket bound to: {:?}", socket.local_addr());
 
-        EgmServer {
-            socket
-        }
+        EgmServer { socket }
     }
 
-    pub fn local() -> Self{
+    pub fn local() -> Self {
         Self::create_egm_socket(UdpSocket::bind("127.0.0.1:6510").unwrap())
     }
 
-    pub fn remote() -> Self{
+    pub fn remote() -> Self {
         Self::create_egm_socket(UdpSocket::bind("192.168.10.20:6510").unwrap())
     }
 
     //TODO: send & recv to a bound connection
     pub fn send_egm(&self, msg: EgmSensor) -> Result<(), anyhow::Error> {
-
         //Encode the message into a btye vector
         let encoded_msg = msg.encode_to_vec();
 
@@ -55,8 +51,7 @@ impl EgmServer {
         Ok(())
     }
 
-    pub fn recv_egm(&self) -> Result<EgmRobot, anyhow::Error>{
-
+    pub fn recv_egm(&self) -> Result<EgmRobot, anyhow::Error> {
         //Allocate a MB for recieving the data
         let mut buffer = vec![0u8; 1024];
         //Recieve the data
@@ -65,25 +60,21 @@ impl EgmServer {
         Ok(EgmRobot::decode(&buffer[..bytes_recieved])?)
     }
 
-
     //Recieves a message from any UDP and then attempts to connect to it for sending messages
-    pub fn recv_and_connect(&self) -> Result<EgmRobot, anyhow::Error>{
-
+    pub fn recv_and_connect(&self) -> Result<EgmRobot, anyhow::Error> {
         //Allocate a MB for recieving the data
         let mut buffer = vec![0u8; 1024];
         //Recieve the data
         let (bytes_recieved, addr) = self.socket.recv_from(&mut buffer)?;
 
         //Attempt to connect to the socket address
-        if self.socket.connect(addr).is_ok(){
+        if self.socket.connect(addr).is_ok() {
             println!("Bound to {:?}", addr);
-        }else{
+        } else {
             bail!("Failed to connect to EGM client");
         }
 
-
         //Decode the bytes
         Ok(EgmRobot::decode(&buffer[..bytes_recieved])?)
-
     }
 }

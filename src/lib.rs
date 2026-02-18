@@ -1,8 +1,8 @@
 mod analysis;
-mod control;
-mod mapping;
 mod config;
+mod control;
 mod helper_funcs;
+mod mapping;
 
 mod modelling;
 

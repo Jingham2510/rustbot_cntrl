@@ -70,8 +70,7 @@ impl TcpSock {
 
         //Attempt to read from the TCP stream until the '!' character is reached
         if let Ok(_size) = reader.read_until(b'!', &mut recv) {
-
-            let recv_str = String::from_utf8(Vec::from(recv))?;
+            let recv_str = String::from_utf8(recv)?;
 
             //println!("{:?}", recv_str);
 
@@ -84,7 +83,7 @@ impl TcpSock {
         }
     }
 
-    //Public interface for sending a request to the robot 
+    //Public interface for sending a request to the robot
     pub fn req(&mut self, msg: &str) -> Result<String, anyhow::Error> {
         self.write(msg);
 
@@ -103,10 +102,6 @@ impl TcpSock {
 
     //Close the stream by shutting it down
     pub fn disconnect(&mut self) {
-
-
-
-
         self.stream
             .as_ref()
             .unwrap()
@@ -120,13 +115,11 @@ impl TcpSock {
 //Create a new socket and attempt to connect to it
 pub fn create_sock(ip: String, port: u32) -> TcpSock {
     //Create a socket
-    let new_sock = TcpSock {
+    TcpSock {
         ip,
         port,
         stream: None,
         last_error: Option::from(String::new()),
         connected: false,
-    };
-
-    new_sock
+    }
 }

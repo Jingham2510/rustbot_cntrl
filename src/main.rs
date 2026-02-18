@@ -5,49 +5,44 @@
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
-use std::io::{stdin, Write};
+use std::io::{Write, stdin};
 use std::thread::sleep;
 use std::time::Duration;
 
 mod analysis;
+mod config;
 mod control;
 mod mapping;
-mod config;
 mod networking;
 
 mod helper_funcs;
 mod modelling;
 
-
-
 use crate::analysis::analyser::{Analyser, ForceSel};
-use control::abb_rob;
-use crate::mapping::terr_map_sense::RealsenseCam;
-use crate::mapping::terr_map_tools::Heightmap;
 use crate::config::Config;
 use crate::control::trajectory_planner::traj_gen;
+use crate::mapping::terr_map_sense::RealsenseCam;
+use crate::mapping::terr_map_tools::Heightmap;
 use crate::modelling::experiment_model::ExpModel;
 use crate::modelling::irb6400_model::IRB6400Model;
+use control::abb_rob;
 
 const VER_NUM: &str = "V0.5";
 //Program title
 const TITLE: &str = "Rustbot Control";
 
-
-fn main() -> Result<(), anyhow::Error>{
+fn main() -> Result<(), anyhow::Error> {
     println!("RUSTBOT_CNTRL STARTUP....");
 
     //Load the program config
-    let mut config : Config;
-    if let Ok(conf) = Config::setup_config(){
+    let mut config: Config;
+    if let Ok(conf) = Config::setup_config() {
         config = conf;
         println!("Set config loaded");
-    }else{
+    } else {
         println!("Error loading config - Loading default!");
         config = Config::default();
     }
-
-
 
     //Run the command handler
     core_cmd_handler(&mut config);
@@ -67,7 +62,7 @@ fn core_cmd_handler(config: &mut Config) {
         "ping - TEST - connect to and ping the robot studio",
         "connect - connect to a robot on a given ip and port (if successful unlocks robot specific commands",
         "analyse - analyse a previous tests data",
-        "snsdpth - Take N heightmap measurements"
+        "snsdpth - Take N heightmap measurements",
     ];
 
     println!("{TITLE} - {VER_NUM}");
@@ -110,23 +105,19 @@ fn core_cmd_handler(config: &mut Config) {
                 }
             }
 
-            "takepcl" =>{
-                if let Err(e) = take_pointcloud(&config){
+            "takepcl" => {
+                if let Err(e) = take_pointcloud(&config) {
                     println!("PCL ERROR - {e}");
                 }
             }
 
-            "test" =>{
-
+            "test" => {
                 let model = IRB6400Model::create_model();
 
                 println!("{}", model.get_transform());
 
                 println!("{}", model.calc_simple_jacobian());
-
             }
-
-
 
             //Catch all else
             _ => println!("Unknown command - see CMDs for list of commands"),
@@ -135,7 +126,7 @@ fn core_cmd_handler(config: &mut Config) {
 }
 
 //Command line for logging into and controlling a robot
-fn rob_connect(config : &mut Config) {
+fn rob_connect(config: &mut Config) {
     //Not const because you cant make constant hashmaps
 
     let profiles = HashMap::from([
@@ -176,9 +167,11 @@ fn rob_connect(config : &mut Config) {
     println!("Logging into robot on : {}:{}", profile[0], profile[1]);
 
     //If connected - create the robot and keep it in scope to keep the connection open
-    if let Ok(mut curr_rob) =
-        abb_rob::AbbRob::create_rob(profile[0].parse().unwrap(), profile[1].parse().unwrap(), config)
-    {
+    if let Ok(mut curr_rob) = abb_rob::AbbRob::create_rob(
+        profile[0].parse().unwrap(),
+        profile[1].parse().unwrap(),
+        config,
+    ) {
         println!("Connected!");
 
         //Open the robot command handler - must be defined for robot!
@@ -191,7 +184,7 @@ fn rob_connect(config : &mut Config) {
 }
 
 //Iterates through a tests generated heightmaps and displays them one by one
-fn analyse(config : &Config) -> Result<(), anyhow::Error> {
+fn analyse(config: &Config) -> Result<(), anyhow::Error> {
     //Print and number the list of tests in the DEPTH_TESTS folder (ignoring _archive)
     let depth_test_fp: String = config.test_fp();
 
@@ -245,7 +238,6 @@ fn analyse(config : &Config) -> Result<(), anyhow::Error> {
         }
     }
 
-
     //Create analysis tool from chosen test
     let mut analyser = Analyser::init(depth_test_fp, test_enum[user_sel].1.clone())?;
 
@@ -255,28 +247,19 @@ fn analyse(config : &Config) -> Result<(), anyhow::Error> {
 
     //analyser.disp_action_map(200, 200)?;
 
-
     //analyser.disp_force_map(200, 200, ForceSel::ForceAvg)?;
-
 
     analyser.rotate_and_regen(0.0, 0.2618, 0.0, 200, 200)?;
 
     analyser.disp_overall_change()?;
 
-
-
-
-
     //analyser.disp_iso_traj_path(50.0, 50.0);
-
 
     Ok(())
 }
 
-
 //For testing coverage and variance of a realsense depth cam
-fn save_n_heightmaps(config : &Config) -> Result<(), anyhow::Error>{
-
+fn save_n_heightmaps(config: &Config) -> Result<(), anyhow::Error> {
     //Create the filename
     println!("How many snapshots?");
 
@@ -319,8 +302,16 @@ fn save_n_heightmaps(config : &Config) -> Result<(), anyhow::Error>{
 
             //Rotate the PCL to orient it correctly
             curr_pcl.scale_even(config.cam_info.x_scale());
-            curr_pcl.rotate(config.cam_info.rel_ori()[0], config.cam_info.rel_ori()[1], config.cam_info.rel_ori()[2]);
-            curr_pcl.translate(config.cam_info.rel_pos()[0], config.cam_info.rel_pos()[1], config.cam_info.rel_pos()[2]);
+            curr_pcl.rotate(
+                config.cam_info.rel_ori()[0],
+                config.cam_info.rel_ori()[1],
+                config.cam_info.rel_ori()[2],
+            );
+            curr_pcl.translate(
+                config.cam_info.rel_pos()[0],
+                config.cam_info.rel_pos()[1],
+                config.cam_info.rel_pos()[2],
+            );
             //Empirically calculated passband to isolate terrain bed
             curr_pcl.passband_filter(-10.0, 2000.0, -10.0, 2000.0, -150.0, 200.0);
 
@@ -331,18 +322,15 @@ fn save_n_heightmaps(config : &Config) -> Result<(), anyhow::Error>{
             curr_heightmap.save_to_file(&*hmap_fp)?;
         }
 
-
         //Create an empty data file so that the folder can be used with the analyser
         let data_fp = format!("{}/data_{}.txt", new_fp, user_inp.trim());
         let mut dat_file = File::create(data_fp)?;
         dat_file.write("NODATA - PURE DEPTH TEST".as_bytes())?;
 
-
         println!("Heightmaps generated");
 
-
         Ok(())
-    }else{
+    } else {
         //bail!("Invalid value for number of measurements!")
 
         println!("Invalid number - Try again");
@@ -354,9 +342,7 @@ fn save_n_heightmaps(config : &Config) -> Result<(), anyhow::Error>{
 }
 
 //Take a pointcloud - mainly for testing so doesn't save config
-fn take_pointcloud(config : &Config) -> Result<(), anyhow::Error>{
-
-
+fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
     let depth_test_fp: String = config.test_fp();
 
     //Ask the user for a dataset name
@@ -383,12 +369,18 @@ fn take_pointcloud(config : &Config) -> Result<(), anyhow::Error>{
 
     let mut curr_pcl = cam.get_depth_pnts()?;
 
-
-
     //Rotate the PCL to orient it correctly
     curr_pcl.scale_even(config.cam_info.x_scale());
-    curr_pcl.rotate(config.cam_info.rel_ori()[0], config.cam_info.rel_ori()[1], config.cam_info.rel_ori()[2]);
-    curr_pcl.translate(config.cam_info.rel_pos()[0], config.cam_info.rel_pos()[1], config.cam_info.rel_pos()[2]);
+    curr_pcl.rotate(
+        config.cam_info.rel_ori()[0],
+        config.cam_info.rel_ori()[1],
+        config.cam_info.rel_ori()[2],
+    );
+    curr_pcl.translate(
+        config.cam_info.rel_pos()[0],
+        config.cam_info.rel_pos()[1],
+        config.cam_info.rel_pos()[2],
+    );
     //Empirically calculated passband to isolate terrain bed
     curr_pcl.passband_filter(-10.0, 2000.0, -10.0, 2000.0, -150.0, 200.0);
 
@@ -399,12 +391,7 @@ fn take_pointcloud(config : &Config) -> Result<(), anyhow::Error>{
     let mut dat_file = File::create(data_fp)?;
     dat_file.write("NODATA - PURE PCL TEST".as_bytes())?;
 
-
     println!("PCL generated");
 
-
     Ok(())
-
-
 }
-

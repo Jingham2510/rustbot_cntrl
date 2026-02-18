@@ -1,14 +1,14 @@
 use crate::analysis::data_handler::DataHandler;
 use crate::config::{CamInfo, RobInfo};
+use crate::helper_funcs;
+use crate::helper_funcs::helper_funcs::ColOpt;
+use crate::helper_funcs::helper_funcs::{display_magnitude_map, trans_to_heightmap};
 use crate::mapping::terr_map_tools;
 use crate::mapping::terr_map_tools::{Heightmap, PointCloud};
 use anyhow::bail;
 use std::fs;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
-use crate::helper_funcs;
-use crate::helper_funcs::helper_funcs::ColOpt;
-use crate::helper_funcs::helper_funcs::{trans_to_heightmap, display_magnitude_map};
 
 pub struct Analyser {
     //Filepath location of the test data
@@ -24,13 +24,12 @@ pub struct Analyser {
     //The camera information for the given test
     cam_info: CamInfo,
     //The robot information for the given test
-    rob_info: RobInfo
+    rob_info: RobInfo,
 }
 
 impl Analyser {
     //Create a data analyser
     pub fn init(filepath: String, test_name: String) -> Result<Self, anyhow::Error> {
-
         //Check that the test exists
         if !fs::read_dir(&filepath)?
             .any(|e| e.unwrap().file_name().into_string().unwrap() == test_name)
@@ -59,16 +58,14 @@ impl Analyser {
 
         println!("{:?}", config_info.0);
 
-
-
         Ok(Self {
             filepath,
             test_name: test_name.to_string(),
             test_fp,
             data_handler,
             no_of_pcl,
-            cam_info : config_info.1,
-            rob_info : config_info.0
+            cam_info: config_info.1,
+            rob_info: config_info.0,
         })
     }
 
@@ -79,7 +76,6 @@ impl Analyser {
 
     //Display the height change from the first to the last heightmap
     pub fn disp_overall_change(&mut self) -> Result<(), anyhow::Error> {
-
         let hmap_cnt = self.get_hmap_cnt()?;
 
         let first_hmap: Heightmap;
@@ -91,17 +87,12 @@ impl Analyser {
 
             first_hmap = Heightmap::create_from_pcl_file(first_fp, 250, 250)?;
 
-            let last_fp = format!(
-                "{}/pcl_{}_END.txt",
-                self.test_fp,
-                self.test_name
-            );
+            let last_fp = format!("{}/pcl_{}_END.txt", self.test_fp, self.test_name);
 
             last_hmap = Heightmap::create_from_pcl_file(last_fp, 250, 250)?;
         }
         //If the hmaps already exist, just load them
         else {
-
             let first_fp = format!("{}/hmap_{}_START.txt", self.test_fp, self.test_name);
             first_hmap = Heightmap::create_from_file(first_fp)?;
 
@@ -120,21 +111,18 @@ impl Analyser {
 
     //Displays all of heightmaps associated with a test
     pub fn display_all(&mut self) -> Result<(), anyhow::Error> {
-        let heightmaps;
-
         //Check if the hmaps have been generated
-        if self.no_of_pcl > self.get_hmap_cnt()? {
+        let heightmaps = if self.no_of_pcl > self.get_hmap_cnt()? {
             //If not generate them
-            heightmaps = self.gen_all_hmaps(250, 250)?;
+            self.gen_all_hmaps(250, 250)?
         } else {
-            heightmaps = self.load_all_genned_hmaps()?
-        }
+            self.load_all_genned_hmaps()?
+        };
 
         //Go through every heightmap and display it
         for mut hmap in heightmaps {
             println!("{}", hmap.filename);
             hmap.disp_map()?;
-
         }
 
         Ok(())
@@ -142,15 +130,13 @@ impl Analyser {
 
     //Calculates the total coverage of a measured area (i.e. how much unknown space there is)
     pub fn calc_coverage(&mut self) -> Result<Vec<f32>, anyhow::Error> {
-        let hmaps;
-
         //Check if the hmaps have been generated
-        if self.no_of_pcl > self.get_hmap_cnt()? {
+        let hmaps = if self.no_of_pcl > self.get_hmap_cnt()? {
             //If not generate them
-            hmaps = self.gen_all_hmaps(250, 250)?;
+            self.gen_all_hmaps(250, 250)?
         } else {
-            hmaps = self.load_all_genned_hmaps()?
-        }
+            self.load_all_genned_hmaps()?
+        };
 
         let mut coverages: Vec<f32> = vec![];
 
@@ -221,31 +207,31 @@ impl Analyser {
                 let fp = format!("{}/{}", self.test_fp, path_str);
 
                 //Create the heightmaps from the pcl
-                heightmaps.push(Heightmap::create_from_pcl_file(fp, width, height, )?)
+                heightmaps.push(Heightmap::create_from_pcl_file(fp, width, height)?)
             }
         }
         Ok(heightmaps)
     }
 
-    fn gen_hmap_n(&mut self, width : u32, height : u32, n : i32) -> Result<Heightmap, anyhow::Error> {
+    fn gen_hmap_n(&mut self, width: u32, height: u32, n: i32) -> Result<Heightmap, anyhow::Error> {
         println!("GENERATING HEIGHTMAP {n} ---------");
 
         //Check that the n number is valid
-        if n >= self.no_of_pcl{
+        if n >= self.no_of_pcl {
             bail!("Invalid hmap number")
         }
 
         //Create the filepath
-        let fp : String;
-        if n == -1{
+        let fp: String;
+        if n == -1 {
             fp = format!("{}/pcl_{}_START.txt", self.test_fp, self.test_name);
-        }else if n == -2{
+        } else if n == -2 {
             fp = format!("{}/pcl_{}_END.txt", self.test_fp, self.test_name);
-        }else {
+        } else {
             fp = format!("{}/pcl_{}_{}.txt", self.test_fp, self.test_name, n);
         }
         //Generate the heightmap from the pcl file
-        let hmap = Heightmap::create_from_pcl_file(fp, width,height)?;
+        let hmap = Heightmap::create_from_pcl_file(fp, width, height)?;
 
         Ok(hmap)
     }
@@ -294,8 +280,11 @@ impl Analyser {
     }
 
     //Generates the isolation rectangle to surround the trajectory
-    fn gen_iso_rect(&mut self, iso_x_radius : f32, iso_y_radius : f32) -> Result<[f32; 4], anyhow::Error>{
-
+    fn gen_iso_rect(
+        &mut self,
+        iso_x_radius: f32,
+        iso_y_radius: f32,
+    ) -> Result<[f32; 4], anyhow::Error> {
         //Get the bounds of the trajectory
         let mut traj_bounds = self.get_traj_bounds()?;
 
@@ -309,15 +298,17 @@ impl Analyser {
 
         //No need to transform as data is transformed to correct frame when saved
 
-
         //Return the new trajectory bounds
         Ok(traj_bounds)
     }
 
-
     //Isolates the region in each pointcloud that is potenitally affected by the trajectory
     //Turns it into a heightmap and displays it
-    pub fn disp_iso_traj_path(&mut self, iso_x_radius: f32, iso_y_radius: f32) -> Result<(), anyhow::Error> {
+    pub fn disp_iso_traj_path(
+        &mut self,
+        iso_x_radius: f32,
+        iso_y_radius: f32,
+    ) -> Result<(), anyhow::Error> {
         //Load every pointcloud taken during the test
         let pcls = self.load_all_pcl()?;
 
@@ -344,11 +335,12 @@ impl Analyser {
         Ok(())
     }
 
-
-
     //Calculates the action map matrix based on the trajectory of the test being analysed
-    fn calc_action_map(&mut self, width :usize, height :usize) -> Result<Vec<Vec<f32>>, anyhow::Error>{
-
+    fn calc_action_map(
+        &mut self,
+        width: usize,
+        height: usize,
+    ) -> Result<Vec<Vec<f32>>, anyhow::Error> {
         //Get the base pointcloud - calculate the bounds
         let fp = format!("{}/pcl_{}_START.txt", self.test_fp, self.test_name);
 
@@ -363,17 +355,24 @@ impl Analyser {
         let traj = self.data_handler.get_traj();
 
         //Transform the trajectory to the heightmap space
-        trans_to_heightmap(traj, width, height, total_width, total_height, bounds[0], bounds[2], helper_funcs::helper_funcs::MapGenOpt::Mean)
+        trans_to_heightmap(
+            traj,
+            width,
+            height,
+            total_width,
+            total_height,
+            bounds[0],
+            bounds[2],
+            helper_funcs::helper_funcs::MapGenOpt::Mean,
+        )
     }
 
     //Displays the action map of the test (i.e. graphically encoded trajectory) - height indicate by pixel intensity
-    pub fn disp_action_map(&mut self, width :usize, height :usize) -> Result<(), anyhow::Error>{
-
-            //Calculate the action map matrix
-        if let Ok( ac_mat) = self.calc_action_map(width, height) {
-
-            display_magnitude_map("Action map",ac_mat, width, height, ColOpt::Median)?;
-        }else{
+    pub fn disp_action_map(&mut self, width: usize, height: usize) -> Result<(), anyhow::Error> {
+        //Calculate the action map matrix
+        if let Ok(ac_mat) = self.calc_action_map(width, height) {
+            display_magnitude_map("Action map", ac_mat, width, height, ColOpt::Median)?;
+        } else {
             bail!("Error when displaying action map");
         }
 
@@ -382,8 +381,12 @@ impl Analyser {
 
     //Calculate the force map (force data transformed to the heightmap space)
     //Force calculation is based on average xyz force experienced
-    fn calc_force_map(&mut self, width: usize, height: usize, option : ForceSel) -> Result<Vec<Vec<f32>>, anyhow::Error> {
-
+    fn calc_force_map(
+        &mut self,
+        width: usize,
+        height: usize,
+        option: ForceSel,
+    ) -> Result<Vec<Vec<f32>>, anyhow::Error> {
         //Get the base pointcloud - calculate the bounds
         let fp = format!("{}/pcl_{}_START.txt", self.test_fp, self.test_name);
 
@@ -397,98 +400,112 @@ impl Analyser {
 
         let traj_force_dat = self.data_handler.get_traj_force_pairs();
 
-
-        let mut pnts : Vec<[f32;3]> = vec![];
+        let mut pnts: Vec<[f32; 3]> = vec![];
 
         //Calculate the map with different intensity values based on
-        match option{
-
-            ForceSel::ForceAvg =>{
+        match option {
+            ForceSel::ForceAvg => {
                 //Couple the average force with xy positions
-                for data_pnt in traj_force_dat{
-                    pnts.push([data_pnt.0[0], data_pnt.0[1], ((data_pnt.1[0] + data_pnt.1[1] + data_pnt.1[2])/3.0).abs()]);
+                for data_pnt in traj_force_dat {
+                    pnts.push([
+                        data_pnt.0[0],
+                        data_pnt.0[1],
+                        ((data_pnt.1[0] + data_pnt.1[1] + data_pnt.1[2]) / 3.0).abs(),
+                    ]);
                 }
             }
 
-            ForceSel::MomAvg =>{
+            ForceSel::MomAvg => {
                 //Couple the average force with xy positions
-                for data_pnt in traj_force_dat{
-                    pnts.push([data_pnt.0[0], data_pnt.0[1], ((data_pnt.1[3] + data_pnt.1[4] + data_pnt.1[5])/3.0).abs()]);
+                for data_pnt in traj_force_dat {
+                    pnts.push([
+                        data_pnt.0[0],
+                        data_pnt.0[1],
+                        ((data_pnt.1[3] + data_pnt.1[4] + data_pnt.1[5]) / 3.0).abs(),
+                    ]);
                 }
             }
 
-            ForceSel::X =>{
+            ForceSel::X => {
                 //Couple the average force with xy positions
-                for data_pnt in traj_force_dat{
+                for data_pnt in traj_force_dat {
                     pnts.push([data_pnt.0[0], data_pnt.0[1], data_pnt.1[0].abs()]);
                 }
             }
 
-            ForceSel::Y =>{
+            ForceSel::Y => {
                 //Couple the average force with xy positions
-                for data_pnt in traj_force_dat{
+                for data_pnt in traj_force_dat {
                     pnts.push([data_pnt.0[0], data_pnt.0[1], data_pnt.1[1].abs()]);
                 }
             }
 
-            ForceSel::Z =>{
+            ForceSel::Z => {
                 //Couple the average force with xy positions
-                for data_pnt in traj_force_dat{
+                for data_pnt in traj_force_dat {
                     pnts.push([data_pnt.0[0], data_pnt.0[1], data_pnt.1[2].abs()]);
                 }
             }
 
-            ForceSel::Xmom =>{
+            ForceSel::Xmom => {
                 //Couple the average force with xy positions
-                for data_pnt in traj_force_dat{
+                for data_pnt in traj_force_dat {
                     pnts.push([data_pnt.0[0], data_pnt.0[1], data_pnt.1[3].abs()]);
                 }
             }
 
-            ForceSel::Ymom =>{
+            ForceSel::Ymom => {
                 //Couple the average force with xy positions
-                for data_pnt in traj_force_dat{
+                for data_pnt in traj_force_dat {
                     pnts.push([data_pnt.0[0], data_pnt.0[1], data_pnt.1[4].abs()]);
                 }
             }
 
-            ForceSel::Zmom =>{
+            ForceSel::Zmom => {
                 //Couple the average force with xy positions
-                for data_pnt in traj_force_dat{
+                for data_pnt in traj_force_dat {
                     pnts.push([data_pnt.0[0], data_pnt.0[1], data_pnt.1[5].abs()]);
                 }
             }
-
-
-
         }
 
-
-
-        trans_to_heightmap(pnts, width, height, total_width, total_height, bounds[0], bounds[2], helper_funcs::helper_funcs::MapGenOpt::Mean)
+        trans_to_heightmap(
+            pnts,
+            width,
+            height,
+            total_width,
+            total_height,
+            bounds[0],
+            bounds[2],
+            helper_funcs::helper_funcs::MapGenOpt::Mean,
+        )
     }
 
     //Displays the force map of the test (i.e. graphically encoded force experience) - force indicated by pixel colour
-    pub fn disp_force_map(&mut self, width :usize, height :usize, option : ForceSel) -> Result<(), anyhow::Error>{
-
+    pub fn disp_force_map(
+        &mut self,
+        width: usize,
+        height: usize,
+        option: ForceSel,
+    ) -> Result<(), anyhow::Error> {
         //Calculate the force map matrix
         if let Ok(fc_mat) = self.calc_force_map(width, height, option) {
-
-            display_magnitude_map("Force map",fc_mat, width, height, ColOpt::Intensity)?;
-
-        }else{
+            display_magnitude_map("Force map", fc_mat, width, height, ColOpt::Intensity)?;
+        } else {
             bail!("Error when displaying action map");
         }
         Ok(())
-
     }
 
-
     //Rotate all PCLs associated with the test, and regenerate the heightmaps
-    pub fn rotate_and_regen(&mut self, yaw : f32, pitch : f32, roll:f32, width:u32, height:u32) -> Result<(), anyhow::Error>{
-
-
-
+    pub fn rotate_and_regen(
+        &mut self,
+        yaw: f32,
+        pitch: f32,
+        roll: f32,
+        width: u32,
+        height: u32,
+    ) -> Result<(), anyhow::Error> {
         let mut cnt = 0;
 
         //Iterate through every pcl file in the test
@@ -499,7 +516,6 @@ impl Analyser {
 
             //Identify the pcl files
             if path_str.starts_with("pcl_") {
-
                 println!("Rotating PCL: {}", cnt);
 
                 let pcl_fp = format!("{}/{}", self.test_fp, path_str);
@@ -512,9 +528,7 @@ impl Analyser {
                 //Resave the PCL
                 curr_pcl.save_to_file(pcl_fp.strip_suffix(".txt").unwrap())?;
 
-
                 cnt += 1;
-
             }
         }
 
@@ -522,14 +536,10 @@ impl Analyser {
         self.regen_hmaps(width, height)?;
 
         Ok(())
-
     }
 
-
     //Regenerate the heightmaps associated with a test
-    pub fn regen_hmaps(&mut self, width :u32, height: u32) -> Result<(), anyhow::Error>{
-
-
+    pub fn regen_hmaps(&mut self, width: u32, height: u32) -> Result<(), anyhow::Error> {
         let mut cnt = 0;
 
         //Iterate through each file
@@ -539,7 +549,6 @@ impl Analyser {
 
             //Identify the pcl files
             if path_str.starts_with("pcl_") {
-
                 println!("Generating HMAP: {}", cnt);
 
                 let pcl_fp = format!("{}/{}", self.test_fp, path_str);
@@ -548,25 +557,23 @@ impl Analyser {
                 let mut curr_hmap = Heightmap::create_from_pcl_file(pcl_fp, width, height)?;
 
                 //Get the suffix associated with the current pcl
-                let path_split : Vec<&str> = path_str.split("_").collect::<Vec<&str>>();
+                let path_split: Vec<&str> = path_str.split("_").collect::<Vec<&str>>();
 
-                let hmap_filestring = format!("hmap_{}_{}", self.test_name, path_split.last().unwrap().strip_suffix(".txt").unwrap());
-                
+                let hmap_filestring = format!(
+                    "hmap_{}_{}",
+                    self.test_name,
+                    path_split.last().unwrap().strip_suffix(".txt").unwrap()
+                );
+
                 let hmap_fp = format!("{}/{}", self.test_fp, hmap_filestring);
                 curr_hmap.save_to_file(&hmap_fp)?;
 
                 cnt += 1;
-
             }
-
         }
 
         Ok(())
     }
-
-
-
-
 }
 
 //Enumerator to determine
@@ -578,13 +585,10 @@ pub enum ForceSel {
     Z,
     Xmom,
     Ymom,
-    Zmom
+    Zmom,
 }
 
-
-
-fn get_config(filepath:  &String, test_name: &String) -> Result<(RobInfo, CamInfo), anyhow::Error>{
-
+fn get_config(filepath: &String, test_name: &String) -> Result<(RobInfo, CamInfo), anyhow::Error> {
     //Get the first line of the cam config file
     let config_fp = format!("{}/conf_{}.txt", filepath, test_name);
 
@@ -595,15 +599,13 @@ fn get_config(filepath:  &String, test_name: &String) -> Result<(RobInfo, CamInf
     let mut cam_info_line = String::new();
     line_reader.read_line(&mut cam_info_line)?;
 
-    
-
     //Read the second line to get the robot info
     let mut rob_info_line = String::new();
     line_reader.read_line(&mut rob_info_line)?;
 
     //Attempt to create both the configs inplace
-    Ok((RobInfo::create_rob_info_from_line(rob_info_line)?, CamInfo::create_cam_info_from_line(cam_info_line)?))
-
-
+    Ok((
+        RobInfo::create_rob_info_from_line(rob_info_line)?,
+        CamInfo::create_cam_info_from_line(cam_info_line)?,
+    ))
 }
-

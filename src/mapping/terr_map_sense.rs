@@ -5,7 +5,7 @@
 //! speed, RealSense will return with an error. However, that error is non-descript and will
 //! not help identify the underlying problem, i.e. the bandwidth of the connection.
 
-use anyhow::{bail, ensure, Result};
+use anyhow::{Result, bail, ensure};
 use realsense_rust;
 use realsense_rust::frame::{FrameEx, PointsFrame};
 use realsense_rust::pipeline::ActivePipeline;

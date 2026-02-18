@@ -4,6 +4,7 @@ use crate::control::egm_control::egm_udp::EgmServer;
 use crate::control::force_control::force_control::{PHPIDController, PIDController};
 use crate::control::misc_tools::{angle_tools, string_tools};
 use crate::control::trajectory_planner;
+use crate::control::trajectory_planner::calc_xy_timing;
 use crate::mapping::terr_map_sense;
 use crate::mapping::terr_map_tools::Heightmap;
 use crate::modelling::experiment_model::ExpModel;
@@ -16,12 +17,10 @@ use std::sync::mpsc::Receiver;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 use std::{fs, thread};
-use nalgebra::zero;
-use crate::control::trajectory_planner::calc_xy_timing;
 
 pub struct AbbRob<'a> {
     socket: tcp_sock::TcpSock,
-    local : bool,
+    local: bool,
     pos: (f32, f32, f32),
     ori: (f32, f32, f32),
     jnt_angles: (f32, f32, f32, f32, f32, f32),
@@ -29,52 +28,48 @@ pub struct AbbRob<'a> {
     move_flag: bool,
     traj_done_flag: bool,
     disconnected: bool,
-    force_mode_flag : bool,
-    force_axis : String,
-    force_target : f32,
+    force_mode_flag: bool,
+    force_axis: String,
+    force_target: f32,
     //Programme setup config
-    config : &'a mut Config,
-    force_err: f32
+    config: &'a mut Config,
+    force_err: f32,
 }
 
 //Stores all the relevant test data for when a test starts
-struct TestData{
-    traj :Vec<(f64, f64, f64)>,
-    test_name : String,
-    filepath : String,
+struct TestData {
+    traj: Vec<(f64, f64, f64)>,
+    test_name: String,
+    filepath: String,
     data_filename: String,
-    config_filename : String
+    config_filename: String,
 }
-impl TestData{
-
-    fn create_test_data(config_fp : String, forcemode : bool) -> TestData{
-
+impl TestData {
+    fn create_test_data(config_fp: String, forcemode: bool) -> TestData {
         let traj = Self::pick_trajectory(forcemode).unwrap();
 
         let test_name = Self::get_test_name();
 
-        let filepath =  format!("{}/{}", config_fp, test_name.clone());
+        let filepath = format!("{}/{}", config_fp, test_name.clone());
         let data_filename = format!("{}/data_{}.txt", filepath, test_name.clone());
         let config_filename = format!("{}/conf_{}.txt", filepath, test_name.clone());
 
         //Create the test data structure
-        let t_data = TestData{
+        let t_data = TestData {
             traj,
-            test_name : test_name.clone(),
+            test_name: test_name.clone(),
             filepath,
             data_filename,
-            config_filename
+            config_filename,
         };
 
         //Create all the directories that the test needs
         fs::create_dir(t_data.filepath.clone()).expect("FAILED TO CREATE NEW DIRECTORY");
 
-
         t_data
-
     }
 
-    fn pick_trajectory(forcemode : bool) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
+    fn pick_trajectory(forcemode: bool) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
         let mut traj;
         //Loop until command given
         loop {
@@ -90,24 +85,22 @@ impl TestData{
             let user_inp = user_inp.to_lowercase();
             let user_inp = user_inp.trim();
 
-
             if forcemode {
                 traj = trajectory_planner::relative_traj_gen(user_inp);
             } else {
                 traj = trajectory_planner::traj_gen(user_inp);
             }
 
-
             if traj.is_ok() {
-                return traj
-            }else{
+                return traj;
+            } else {
                 println!("Invalid trajectory!");
-                continue
+                continue;
             }
         }
     }
 
-    fn get_test_name() -> String{
+    fn get_test_name() -> String {
         //Create the filename
         println!("Please provide a test name");
 
@@ -122,8 +115,7 @@ impl TestData{
         user_inp.trim().to_string()
     }
 
-    fn store_desired_trajectory(&mut self, forcemode : bool){
-
+    fn store_desired_trajectory(&mut self, forcemode: bool) {
         //Store the desired trajectory in the filepath
         let traj_fp = format!("{}/des_traj_{}.txt", self.filepath, self.test_name);
         //Store a copy of the desired trajectory
@@ -135,14 +127,13 @@ impl TestData{
             .unwrap();
 
         //If the trajectory is a relative one
-        if forcemode{
-
-            let mut point : (f64, f64, f64) = (0.0, 0.0, 0.0);
+        if forcemode {
+            let mut point: (f64, f64, f64) = (0.0, 0.0, 0.0);
 
             for (i, pnt) in self.traj.iter_mut().enumerate() {
-                if i == 0{
+                if i == 0 {
                     point = *pnt;
-                }else{
+                } else {
                     point.0 += pnt.0;
                     point.1 += pnt.1;
                     point.2 += pnt.2;
@@ -151,19 +142,13 @@ impl TestData{
                 let line = format!("{:?}", point);
                 writeln!(file, "{}", line).expect("FAILED TO WRITE TRAJ - CLOSING");
             }
-
-
-        }else{
+        } else {
             for pnt in self.traj.iter() {
                 let line = format!("{:?}", pnt);
                 writeln!(file, "{}", line).expect("FAILED TO WRITE TRAJ - CLOSING");
             }
-
         }
-
-
     }
-
 }
 
 pub const IMPL_COMMDS: [&str; 10] = [
@@ -179,17 +164,19 @@ pub const IMPL_COMMDS: [&str; 10] = [
     "req ori",
 ];
 
-const TRANSFORM_TO_WORK_SPACE : bool = false;
+const TRANSFORM_TO_WORK_SPACE: bool = false;
 
 impl AbbRob<'_> {
-    pub fn create_rob(ip: String, port: u32, config : &'_ mut Config) -> Result<AbbRob<'_>, anyhow::Error> {
-
+    pub fn create_rob(
+        ip: String,
+        port: u32,
+        config: &'_ mut Config,
+    ) -> Result<AbbRob<'_>, anyhow::Error> {
         let mut local = false;
 
-        if ip == "127.0.0.1"{
+        if ip == "127.0.0.1" {
             local = true;
         }
-
 
         //Create the robots socket
         let mut rob_sock = tcp_sock::create_sock(ip, port);
@@ -209,10 +196,10 @@ impl AbbRob<'_> {
                 traj_done_flag: false,
                 disconnected: false,
                 force_mode_flag: false,
-                force_axis : "Z".to_string(),
-                force_target : 0.0,
-                force_err : 0.0,
-                config
+                force_axis: "Z".to_string(),
+                force_target: 0.0,
+                force_err: 0.0,
+                config,
             };
 
             Ok(new_rob)
@@ -238,7 +225,10 @@ impl AbbRob<'_> {
             //Check user inout
             match user_inp.to_lowercase().trim() {
                 "info" => {
-                    println!("Robot controller connected to - {}", self.req_model().unwrap());
+                    println!(
+                        "Robot controller connected to - {}",
+                        self.req_model().unwrap()
+                    );
                 }
                 //Print out the commands in the valid commands list
                 "cmds" => {
@@ -263,13 +253,14 @@ impl AbbRob<'_> {
                 }
 
                 "trajectory" => {
-                    self.set_force_control_mode(false).expect("FAILED TO SET FORCE MODE");
+                    self.set_force_control_mode(false)
+                        .expect("FAILED TO SET FORCE MODE");
                     self.run_test();
                 }
 
-                "force traj" =>{
-                    self.set_force_control_mode(true).expect("FAILED TO SET FORCE MODE");
-
+                "force traj" => {
+                    self.set_force_control_mode(true)
+                        .expect("FAILED TO SET FORCE MODE");
 
                     println!("Please type the target force");
 
@@ -277,41 +268,39 @@ impl AbbRob<'_> {
                     stdin()
                         .read_line(&mut user_inp)
                         .expect("Failed to read line");
-                    
-                    if let  Ok(targ) = user_inp.trim().parse::<f32>(){
 
-                        self.set_force_config("Z", targ).expect("FAILED TO SET FORCE CONFIG");
+                    if let Ok(targ) = user_inp.trim().parse::<f32>() {
+                        self.set_force_config("Z", targ)
+                            .expect("FAILED TO SET FORCE CONFIG");
                         self.run_test();
-
-                    }else{
-                        println!("Invalid target.... returning");
-                        }
-
-                }
-
-                "geo test" =>{
-                    self.set_force_control_mode(true).expect("FAILED TO SET FORCE MODE");
-
-
-                    println!("Please type the target force");
-
-                    let mut user_inp = String::new();
-                    stdin()
-                        .read_line(&mut user_inp)
-                        .expect("Failed to read line");
-
-                    if let  Ok(targ) = user_inp.trim().parse::<f32>(){
-
-                        self.set_force_config("Z", targ).expect("FAILED TO SET FORCE CONFIG");
-                        self.geo_test_regime();
-
-                    }else{
+                    } else {
                         println!("Invalid target.... returning");
                     }
                 }
 
-                "eff speed" =>{
-                    self.set_force_control_mode(false).expect("FAIELD TO SET FORCE MODE");
+                "geo test" => {
+                    self.set_force_control_mode(true)
+                        .expect("FAILED TO SET FORCE MODE");
+
+                    println!("Please type the target force");
+
+                    let mut user_inp = String::new();
+                    stdin()
+                        .read_line(&mut user_inp)
+                        .expect("Failed to read line");
+
+                    if let Ok(targ) = user_inp.trim().parse::<f32>() {
+                        self.set_force_config("Z", targ)
+                            .expect("FAILED TO SET FORCE CONFIG");
+                        self.geo_test_regime();
+                    } else {
+                        println!("Invalid target.... returning");
+                    }
+                }
+
+                "eff speed" => {
+                    self.set_force_control_mode(false)
+                        .expect("FAIELD TO SET FORCE MODE");
 
                     self.end_eff_speed_set_test();
                 }
@@ -344,8 +333,7 @@ impl AbbRob<'_> {
         if let Ok(_resp) = self.socket.req(&format!(
             "STJT:[{},{},{},{},{},{}]",
             angs.0, angs.1, angs.2, angs.3, angs.4, angs.5
-        ))
-        {
+        )) {
             //Update the robot info
             //self.update_rob_info();
         } else {
@@ -356,10 +344,10 @@ impl AbbRob<'_> {
 
     fn go_home_pos(&mut self) {
         //Define the home point
-        const HOME_POS : (f64, f64, f64) = (220.0, 1355.0, 955.0);
+        const HOME_POS: (f64, f64, f64) = (220.0, 1355.0, 955.0);
 
         //Define the home orientation
-        const HOME_ORI : angle_tools::Quartenion = angle_tools::Quartenion {
+        const HOME_ORI: angle_tools::Quartenion = angle_tools::Quartenion {
             w: 0.00203,
             x: -0.98623,
             y: -0.16536,
@@ -421,16 +409,15 @@ impl AbbRob<'_> {
     //xyz - desired position in cartesian coordinates
     //block - indicates whether the move should block other transmission
     fn set_pos(&mut self, xyz: (f64, f64, f64)) {
-
-            if let Ok(_resp) = self
-                .socket
-                .req(&format!("MVTO:[{},{},{}]", xyz.0, xyz.1, xyz.2))
-            {
-                println!("Response!");
-                self.update_rob_info();
-            } else {
-                println!("Warning - no response - robot may not move");
-            }
+        if let Ok(_resp) = self
+            .socket
+            .req(&format!("MVTO:[{},{},{}]", xyz.0, xyz.1, xyz.2))
+        {
+            println!("Response!");
+            self.update_rob_info();
+        } else {
+            println!("Warning - no response - robot may not move");
+        }
     }
 
     //Add a translational movement to the robot movement queue
@@ -501,18 +488,15 @@ impl AbbRob<'_> {
     }
 
     //Set the robot force mode
-    fn set_force_control_mode(&mut self, force_control : bool) -> Result<(), anyhow::Error>{
-
-
+    fn set_force_control_mode(&mut self, force_control: bool) -> Result<(), anyhow::Error> {
         let fc_cntrl_string = format!("STFM:{}", force_control);
 
         if let Ok(resp) = self.socket.req(&fc_cntrl_string) {
-
             let expected_resp = format!("FM:{}", force_control);
 
-            if !resp.eq_ignore_ascii_case(&expected_resp){
+            if !resp.eq_ignore_ascii_case(&expected_resp) {
                 bail!("Incorrect response, mode not changed!");
-            }else{
+            } else {
                 //Update internal flag
                 self.force_mode_flag = force_control;
                 Ok(())
@@ -520,77 +504,63 @@ impl AbbRob<'_> {
         } else {
             //This is a bail because it is safety critical that the mode is known
             bail!("Error - no response robot control mode may be incorrect!");
-
         }
     }
 
     //Set the force requirements for force control
     //Safety critical - always bail if state is possibly unknown!
-    fn set_force_config(&mut self, ax : &str, target : f32) -> Result<(), anyhow::Error>{
-
-
+    fn set_force_config(&mut self, ax: &str, target: f32) -> Result<(), anyhow::Error> {
         //Format the string request (SeT ForceConfig)
         let conf_str = format!("STFC:{}.{}", ax, target);
-        
-        //Send the request
-        if let Ok(resp) = self.socket.req(&conf_str){
 
+        //Send the request
+        if let Ok(resp) = self.socket.req(&conf_str) {
             //Check that the robot has responded with the correct values (otherwise bail)
             let expected_resp = format!("FC:{}.{}", ax, target);
 
-
-            if !resp.eq_ignore_ascii_case(&expected_resp){
+            if !resp.eq_ignore_ascii_case(&expected_resp) {
                 bail!("Incorrect config! Force control will be incorrect")
-            }else{
+            } else {
                 self.force_axis = ax.to_string();
                 self.force_target = target;
                 Ok(())
             }
-        }else{
+        } else {
             bail!("Error - no repsonse, cannot verify force config set!")
         }
     }
 
-
     /*
     Adds a relative move to the RAPID relative move queue (for force control)
      */
-    fn rel_mv_queue_add(&mut self, rel_xyz : (f64, f64, f64)) -> Result<(), anyhow::Error>{
-
+    fn rel_mv_queue_add(&mut self, rel_xyz: (f64, f64, f64)) -> Result<(), anyhow::Error> {
         //Format the string request
         let rel_mv_str = format!("RLAD:[{},{},{}]", rel_xyz.0, -rel_xyz.1, rel_xyz.2);
 
         //Check that the correct response is sent
-        if let Ok(resp) = self.socket.req(&rel_mv_str){
-
+        if let Ok(resp) = self.socket.req(&rel_mv_str) {
             let expected_resp = "OK";
 
             //println!("RECIEVED: {}", resp);
             //println!("EXPECTED: {}", expected_resp);
 
-            if !resp.eq(expected_resp){
+            if !resp.eq(expected_resp) {
                 bail!("Incorrect response - Relative movement will be incorrect")
-            }else{
+            } else {
                 Ok(())
             }
-
-        }else{
+        } else {
             bail!("Error - no repsonse, cannot verify relative move added!")
         }
-
     }
 
     //Essentially another command line handler - just for running specific tests
     fn run_test(&mut self) {
-
-
-
         //Creates the test data and the filepaths
         let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
 
         //Log the camera config
         self.log_config(&test_data.config_filename);
-
 
         //Create a threading channel to trigger the camera
         let (tx, rx) = mpsc::channel();
@@ -601,19 +571,37 @@ impl AbbRob<'_> {
         let scale = self.config.cam_info.x_scale();
 
         //Create the thread that handles the depth camera
-        thread::spawn(move || Self::depth_sensing(rx, test_data.filepath.clone(), &*test_data.test_name.clone(), true, rel_pos, rel_ori, scale));
+        thread::spawn(move || {
+            Self::depth_sensing(
+                rx,
+                test_data.filepath.clone(),
+                &test_data.test_name.clone(),
+                true,
+                rel_pos,
+                rel_ori,
+                scale,
+            )
+        });
 
         sleep(Duration::from_secs(2));
 
-        if tx.send(4).is_ok() {}
+        if tx.send(4).is_err() {
+            println!("Failed dummy cam trigger");
+        }
 
         //Move to the home position - blocker
         self.go_home_pos();
 
         //Trigger before the test begins
-        if tx.send(2).is_ok() {}
+        if tx.send(2).is_err() {
+            println!("Failed dummy cam trigger")
+        }
 
-        let start_pos = (test_data.traj[0].0, test_data.traj[0].1, test_data.traj[0].2);
+        let start_pos = (
+            test_data.traj[0].0,
+            test_data.traj[0].1,
+            test_data.traj[0].2,
+        );
 
         self.write_marker(&test_data.data_filename, "TEST STARTED");
 
@@ -624,10 +612,11 @@ impl AbbRob<'_> {
 
         if self.force_mode_flag {
             for (i, pnt) in test_data.traj.iter_mut().enumerate() {
-                if i == 0{
+                if i == 0 {
                     continue;
                 }
-                self.rel_mv_queue_add(*pnt).expect("Failed to add relative move - BAILING");
+                self.rel_mv_queue_add(*pnt)
+                    .expect("Failed to add relative move - BAILING");
             }
         } else {
             //Place all the trajectories in the queue
@@ -647,12 +636,17 @@ impl AbbRob<'_> {
         const CNTRL_FREQ: i32 = 1;
 
         //Create a controller
-        let mut controller = PHPIDController::create_PHPID(0.015, 0.0002, 0.0005, 0.0, 0.0001, 0.0, 0.00001);
+        let mut controller =
+            PHPIDController::create_PHPID(0.015, 0.0002, 0.0005, 0.0, 0.0001, 0.0, 0.00001);
 
         //Read the values until the trajectory is reported as done
         while !self.traj_done_flag {
             self.update_rob_info();
-            self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+            self.store_state(
+                &test_data.data_filename.clone(),
+                cnt,
+                TRANSFORM_TO_WORK_SPACE,
+            );
 
             //Trigger at the start - or at a specified interval
             if cnt % DEPTH_FREQ == 0 || cnt == 0 {
@@ -668,35 +662,33 @@ impl AbbRob<'_> {
                 self.calc_force_err().unwrap();
 
                 //Calculate how much to move the end-effector by
-                self.force_compensate_move(controller.calc_op(self.force_err).unwrap()).expect("FORCE NOT COMPENSATED FOR");
+                self.force_compensate_move(controller.calc_op(self.force_err).unwrap())
+                    .expect("FORCE NOT COMPENSATED FOR");
             }
             //Increase the count
             cnt += 1;
 
             if self.disconnected {
                 println!("Warning - disconnected during test");
-                tx.send(0);
+                let _ = tx.send(0);
             }
         }
 
         //Go back to home pos
         self.go_home_pos();
         //No point error handling - if this fails the test is done anyway
-        tx.send(3);
+        let _ = tx.send(3);
 
         println!("Trajectory done!");
         self.write_marker(&test_data.data_filename, "TEST END");
 
-        tx.send(0);
-
+        let _ = tx.send(0);
     }
 
-
     fn geo_test_regime(&mut self) {
-
-        if !self.force_mode_flag{
+        if !self.force_mode_flag {
             println!("Force mode not set! Returning!");
-            return
+            return;
         }
 
         //Set up the test data
@@ -704,7 +696,6 @@ impl AbbRob<'_> {
         let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
         //Store the desired trajectory
         test_data.store_desired_trajectory(self.force_mode_flag);
-
 
         //Create a threading channel to trigger the camera
         let (tx, rx) = mpsc::channel();
@@ -714,9 +705,9 @@ impl AbbRob<'_> {
         let rel_ori = self.config.cam_info.rel_ori();
         let scale = self.config.cam_info.x_scale();
 
-
         //Setup the seperate PID controllers
-        let mut phase2_cntrl = PHPIDController::create_PHPID(0.001, 0.000, 0.00002, 0.0, 0.001, 0.0001, 0.00001);
+        let mut phase2_cntrl =
+            PHPIDController::create_PHPID(0.001, 0.000, 0.00002, 0.0, 0.001, 0.0001, 0.00001);
         let mut phase3_cntrl = PIDController::create_PID(0.00005, 0.000005, 0.000);
 
         //Setup the config information
@@ -727,18 +718,36 @@ impl AbbRob<'_> {
         self.log_config(&test_data.config_filename);
 
         //Create the thread that handles the depth camera
-        thread::spawn(move || Self::depth_sensing(rx, test_data.filepath.clone(), &test_data.test_name.clone(), true, rel_pos, rel_ori, scale));
+        thread::spawn(move || {
+            Self::depth_sensing(
+                rx,
+                test_data.filepath.clone(),
+                &test_data.test_name.clone(),
+                true,
+                rel_pos,
+                rel_ori,
+                scale,
+            )
+        });
 
         sleep(Duration::from_secs(2));
 
-        if tx.send(4).is_ok() {}
+        if tx.send(4).is_err() {
+            println!("Failed dummy cam trigger");
+        }
         //Move to the home position - blocker
         self.go_home_pos();
 
         //Trigger before the test begins
-        if tx.send(2).is_ok() {}
+        if tx.send(2).is_err() {
+            println!("Failed dummy cam trigger");
+        }
 
-        let start_pos = (test_data.traj[0].0, test_data.traj[0].1, test_data.traj[0].2);
+        let start_pos = (
+            test_data.traj[0].0,
+            test_data.traj[0].1,
+            test_data.traj[0].2,
+        );
         println!("START POSIITON: {}", test_data.traj[0].2);
 
         self.write_marker(&test_data.data_filename, "TEST STARTED");
@@ -751,17 +760,17 @@ impl AbbRob<'_> {
         //Send the trajectory
         for (i, pnt) in test_data.traj.iter_mut().enumerate() {
             //Ignore the first point
-            if i == 0{
+            if i == 0 {
                 continue;
             }
-            self.rel_mv_queue_add(*pnt).expect("Failed to add relative move - BAILING");
+            self.rel_mv_queue_add(*pnt)
+                .expect("Failed to add relative move - BAILING");
         }
 
         //Read the values once
         self.update_rob_info();
 
         let mut cnt = 0;
-
 
         //SETUP COMPLETE-----------------------
         //Phase 1 - position control until target force reached
@@ -776,81 +785,91 @@ impl AbbRob<'_> {
             //Update robot info
             self.update_rob_info();
             //Update force error
-            self.calc_force_err();
+            let _ = self.calc_force_err();
             //report to data log
-            self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+            self.store_state(
+                &test_data.data_filename.clone(),
+                cnt,
+                TRANSFORM_TO_WORK_SPACE,
+            );
             cnt += 1;
         }
 
         //Take snapshot
-        tx.send(1);
+        let _ = tx.send(1);
         //Update robot info
         self.update_rob_info();
         //Update force error
-        self.calc_force_err();
+        let _ = self.calc_force_err();
         //report to data log
-        self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+        self.store_state(
+            &test_data.data_filename.clone(),
+            cnt,
+            TRANSFORM_TO_WORK_SPACE,
+        );
         cnt += 1;
 
         println!("GEOTECH- Phase 1 Complete!");
         self.write_marker(&test_data.data_filename, "PHASE 1 END");
 
-        
         //Phase 2 - force control until target force is stabilised (PID 1)
         let mut force_stable = false;
-        let mut force_errs:Vec<f32> = vec![];
+        let mut force_errs: Vec<f32> = vec![];
         //Minimum of 500 measurements taken - just to prove its stable
-        const FORCE_ERR_ROLL_AVG : usize = 300;
-        let force_avg_threshold: f32 = match self.force_target{
-
+        const FORCE_ERR_ROLL_AVG: usize = 300;
+        let force_avg_threshold: f32 = match self.force_target {
             -5.0 => 0.45,
             -10.0 => 0.30,
             -25.0 => 0.20,
-            _ => 0.10
+            _ => 0.10,
         };
 
         //Actual values have to be within 30% of the desired force
-        const FORCE_THRESH_CNT : usize = 100;
+        const FORCE_THRESH_CNT: usize = 100;
         //The force threshold is based on the inverse of the magnitude
-        let force_threshold: f32 = match self.force_target{
-
+        let force_threshold: f32 = match self.force_target {
             -5.0 => 1.0,
             -10.0 => 0.6,
             -25.0 => 0.5,
             -50.0 => 0.25,
-            _ => 0.10
+            _ => 0.10,
         };
 
         //update the robot info
         self.update_rob_info();
         //Check the force error
-        self.calc_force_err();
-        self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+        let _ = self.calc_force_err();
+        self.store_state(
+            &test_data.data_filename.clone(),
+            cnt,
+            TRANSFORM_TO_WORK_SPACE,
+        );
         cnt += 1;
 
         //Set the speed of the robot
         self.set_speed(5.0);
 
-
         self.write_marker(&test_data.data_filename, "PHASE 2 STARTED");
-        while !force_stable{
-
+        while !force_stable {
             //Use the error to calculate the amount to move & request the robot do the move to compensate for error
             self.move_tool((0.0, 0.0, phase2_cntrl.calc_op(self.force_err).unwrap()));
 
-
             //Update the robot info
             self.update_rob_info();
-            self.calc_force_err();
+            let _ = self.calc_force_err();
             //Store the state of the robot
-            self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+            self.store_state(
+                &test_data.data_filename.clone(),
+                cnt,
+                TRANSFORM_TO_WORK_SPACE,
+            );
 
             cnt += 1;
 
             //Calc the force error and add to rolling average list
             if force_errs.len() < FORCE_ERR_ROLL_AVG {
                 force_errs.push(self.force_err);
-            }else{
+            } else {
                 force_errs.remove(0);
                 force_errs.push(self.force_err);
             }
@@ -858,20 +877,18 @@ impl AbbRob<'_> {
             //Check if the rolling average is within an acceptable range
             //Check if every value in the rolling queue is within the required threshold
             if force_errs.len() == FORCE_ERR_ROLL_AVG {
-
                 let mut force_sum = 0.0;
-                let force_avg : f32;
+                let force_avg: f32;
 
                 let mut all_within = true;
                 //Check that the rolling average is within 10% (globally correct)
-                for (i, force) in force_errs.iter().enumerate(){
-
+                for (i, force) in force_errs.iter().enumerate() {
                     force_sum += force;
 
                     //Check that the actual previous values are within 30% (locally correct)
                     //Higher threshold to account for noise
-                    if i >= FORCE_THRESH_CNT{
-                        let curr_val = force/self.force_target;
+                    if i >= FORCE_THRESH_CNT {
+                        let curr_val = force / self.force_target;
                         if curr_val.abs() > force_threshold {
                             println!("Failed at: {curr_val}");
                             all_within = false;
@@ -880,33 +897,32 @@ impl AbbRob<'_> {
                     }
                 }
 
-                if all_within{
+                if all_within {
                     //Check that the global average is okay
-                    force_avg = force_sum/FORCE_ERR_ROLL_AVG as f32;
-                    if (force_avg/self.force_target).abs() < force_avg_threshold {
+                    force_avg = force_sum / FORCE_ERR_ROLL_AVG as f32;
+                    if (force_avg / self.force_target).abs() < force_avg_threshold {
                         //Count the force as stable
                         force_stable = true;
                         //update the robot info
                         self.update_rob_info();
-                        self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+                        self.store_state(
+                            &test_data.data_filename.clone(),
+                            cnt,
+                            TRANSFORM_TO_WORK_SPACE,
+                        );
                         cnt += 1;
-                    }else{
+                    } else {
                         println!("GLOBAL AVG INCORRECT: {force_avg}")
                     }
                 }
-
-
             }
         }
 
         println!("GEOTECH - PHASE 2 COMPLETE!");
         self.write_marker(&test_data.data_filename, "PHASE 2 ENDED");
 
-
-
-
         //Take snapshot
-        tx.send(1);
+        let _ = tx.send(1);
         //Phase 3 - Complete trajectory whilst (PID)
 
         //Set the speed of the robot
@@ -920,9 +936,12 @@ impl AbbRob<'_> {
         //Read the values until the trajectory is reported as done
         while !self.traj_done_flag {
             self.update_rob_info();
-            self.calc_force_err();
-            self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
-
+            let _ = self.calc_force_err();
+            self.store_state(
+                &test_data.data_filename.clone(),
+                cnt,
+                TRANSFORM_TO_WORK_SPACE,
+            );
 
             //Trigger at the start - or at a specified interval
             if cnt % DEPTH_FREQ == 0 || cnt == 0 {
@@ -933,42 +952,36 @@ impl AbbRob<'_> {
                 }
             }
 
-
             //Calculate how much to move the end-effector by
-            self.force_compensate_zspeed(phase3_cntrl.calc_op(self.force_err).unwrap()).expect("FORCE NOT COMPENSATED FOR");
-
-
+            self.force_compensate_zspeed(phase3_cntrl.calc_op(self.force_err).unwrap())
+                .expect("FORCE NOT COMPENSATED FOR");
 
             //Increase the count
             cnt += 1;
 
             if self.disconnected {
                 println!("Warning - disconnected during test");
-                tx.send(0);
+                let _ = tx.send(0);
                 return;
             }
         }
 
-
         self.write_marker(&test_data.data_filename, "PHASE 3 ENDED");
-
-
 
         //Go back to home pos
         self.go_home_pos();
         //No point error handling - if this fails the test is done anyway
-        tx.send(3);
+        let _ = tx.send(3);
 
         println!("Trajectory done!");
 
-        tx.send(0);
+        let _ = tx.send(0);
 
         self.write_marker(&test_data.data_filename, "TEST END");
-
     }
 
     //A test regime for whether we can control the end effector linear speeds without EGM
-    fn end_eff_speed_set_test(&mut self){
+    fn end_eff_speed_set_test(&mut self) {
         //Set up the test data
         //Creates the test data and the filepaths
         let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
@@ -978,68 +991,73 @@ impl AbbRob<'_> {
         //Log the config
         self.log_config(&test_data.config_filename);
 
-
         //Go to the start position
         self.set_pos(test_data.traj[0]);
 
         //Create the experiment model
         let mut exp_model = ExpModel::create_exp_model(test_data.traj, 1.0).unwrap();
 
-        let (trig_tx, trig_rx) : (mpsc::Sender<bool>, Receiver<bool>) = mpsc::channel();
-        let (jnt_send, jnt_recv) : (mpsc::Sender<[f32;6]>, Receiver<[f32;6]>) = mpsc::channel();
-        let (z_pub, z_recv) : (mpsc::Sender<f32>, Receiver<f32>) = mpsc::channel();
-
-
+        let (trig_tx, trig_rx): (mpsc::Sender<bool>, Receiver<bool>) = mpsc::channel();
+        let (jnt_send, jnt_recv): (mpsc::Sender<[f32; 6]>, Receiver<[f32; 6]>) = mpsc::channel();
+        let (z_pub, z_recv): (mpsc::Sender<f32>, Receiver<f32>) = mpsc::channel();
 
         //Setup the experiment model test
         self.req_jnt_angs();
 
         let curr_jnt = self.jnt_angles;
 
-        thread::spawn(move || exp_model.run_model_traj(<[f32; 6]>::from(curr_jnt), trig_rx, jnt_send, z_recv));
+        thread::spawn(move || {
+            exp_model.run_model_traj(<[f32; 6]>::from(curr_jnt), trig_rx, jnt_send, z_recv)
+        });
 
         let mut cnt = 0;
 
         //log the info
         self.update_rob_info();
-        self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
+        self.store_state(
+            &test_data.data_filename.clone(),
+            cnt,
+            TRANSFORM_TO_WORK_SPACE,
+        );
         cnt += 1;
-
 
         //Trigger the experiment model to start
         trig_tx.send(true).unwrap();
 
-        z_pub.send(0.0);
+        let _ = z_pub.send(0.0);
 
         while let Ok(jnt_angles) = jnt_recv.recv() {
+            //Get the joint angles and send to robot
+            self.set_joints(<(f32, f32, f32, f32, f32, f32)>::from(jnt_angles));
 
-                //Get the joint angles and send to robot
-                self.set_joints(<(f32, f32, f32, f32, f32, f32)>::from(jnt_angles));
+            //Get all info from robot
+            self.update_rob_info();
+            self.store_state(
+                &test_data.data_filename.clone(),
+                cnt,
+                TRANSFORM_TO_WORK_SPACE,
+            );
 
+            //Send the requested z heigt (0 for this)
+            let _ = z_pub.send(-1.0);
 
-                //Get all info from robot
-                self.update_rob_info();
-                self.store_state(&test_data.data_filename.clone(), cnt, TRANSFORM_TO_WORK_SPACE);
-
-                //Send the requested z heigt (0 for this)
-                z_pub.send(-1.0);
-
-                cnt += 1;
-
-            }
+            cnt += 1;
+        }
 
         //Go to the home position
         self.go_home_pos();
-
     }
 
-
-
-
-
-
-//Function which repeatedly takes depth measurements on trigger from another thread
-fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: bool, rel_pos : [f32;3], rel_ori : [f32;3], scale : f32) {
+    //Function which repeatedly takes depth measurements on trigger from another thread
+    fn depth_sensing(
+        rx: Receiver<u32>,
+        filepath: String,
+        test_name: &str,
+        hmap: bool,
+        rel_pos: [f32; 3],
+        rel_ori: [f32; 3],
+        scale: f32,
+    ) {
         //Create a camera
         let mut cam = terr_map_sense::RealsenseCam::initialise().expect("Failed to create camera");
 
@@ -1047,7 +1065,6 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
 
         //Loop forever - will be killed once the test ends automatically
         loop {
-
             let opt = rx.recv().expect("recieve thread error");
 
             //Block until the trigger is recieved
@@ -1059,61 +1076,51 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
 
                 //filter the data - save raw (transformed to robot frame)
                 curr_pcl.scale_even(scale);
-                curr_pcl.rotate( rel_ori[0], rel_ori[1], rel_ori[2]);
+                curr_pcl.rotate(rel_ori[0], rel_ori[1], rel_ori[2]);
                 curr_pcl.translate(rel_pos[0], rel_pos[1], rel_pos[2]);
 
                 curr_pcl.passband_filter(-10.0, 2000.0, -10.0, 2000.0, -150.0, 200.0);
 
                 //Save the pointcloud
-                let pcl_filepath : String;
+                let pcl_filepath: String;
 
-                match opt{
-                    1 => {
-                        pcl_filepath = format!("{filepath}/pcl_{test_name}_{cnt}")
-                    }
-                    2=> {
-                        pcl_filepath = format!("{filepath}/pcl_{test_name}_START")
-                    }
-                    3=> {
-                        pcl_filepath = format!("{filepath}/pcl_{test_name}_END")
-                    }
+                match opt {
+                    1 => pcl_filepath = format!("{filepath}/pcl_{test_name}_{cnt}"),
+                    2 => pcl_filepath = format!("{filepath}/pcl_{test_name}_START"),
+                    3 => pcl_filepath = format!("{filepath}/pcl_{test_name}_END"),
 
                     //Sacrificial scan (i.e. to get a crappy one out the way
-                    4 =>{
+                    4 => {
                         println!("THROWAWAY SCAN");
                         //Sleep to try let the cam warm
                         sleep(Duration::from_secs(2));
-                        continue
-
+                        continue;
                     }
 
                     //If invalid number just take a count
-                    _ =>{
-                        pcl_filepath = format!("{filepath}/pcl_{test_name}_{cnt}")
-                    }
+                    _ => pcl_filepath = format!("{filepath}/pcl_{test_name}_{cnt}"),
                 }
-                
 
-                curr_pcl.save_to_file(&*pcl_filepath).unwrap();
+                curr_pcl.save_to_file(&pcl_filepath).unwrap();
 
                 if hmap {
                     //Create a heightmap from the pointcloud
                     let mut curr_hmap = Heightmap::create_from_pcl(curr_pcl, 200, 200);
 
                     //Save the heightmap
-                   let hmap_filepath:String = match opt{
+                    let hmap_filepath: String = match opt {
                         1 => {
                             format!("{filepath}/hmap_{test_name}_{cnt}")
                         }
-                        2=> {
+                        2 => {
                             format!("{filepath}/hmap_{test_name}_START")
                         }
-                        3=> {
-                           format!("{filepath}/hmap_{test_name}_END")
+                        3 => {
+                            format!("{filepath}/hmap_{test_name}_END")
                         }
 
                         //If invalid number just take a count
-                        _ =>{
+                        _ => {
                             format!("{filepath}/hmap_{test_name}_{cnt}")
                         }
                     };
@@ -1122,11 +1129,10 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
                     curr_hmap.save_to_file(&hmap_filepath).unwrap()
                 }
 
-                if opt == 1{
+                if opt == 1 {
                     //Increase the loop count
-                    cnt = cnt + 1;
+                    cnt += 1;
                 }
-
             } else {
                 println!("Closing cam thread");
                 return;
@@ -1138,18 +1144,15 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
     fn req_xyz(&mut self) {
         //Request the info
         if let Ok(recv) = self.socket.req("GTPS:0") {
-
             //Format the string
-            let recv = string_tools::rem_first_and_last(&*recv);
+            let recv = string_tools::rem_first_and_last(&recv);
             let xyz_vec = string_tools::str_to_vector(recv);
 
             //Check that the vector is the right length
             if xyz_vec.len() != 3 {
                 println!("XYZ pos read error!");
                 self.pos = (f32::NAN, f32::NAN, f32::NAN);
-                return;
             } else {
-
                 //Store the pos in the robot info
                 self.pos = (xyz_vec[0], xyz_vec[1], xyz_vec[2]);
 
@@ -1159,7 +1162,6 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
             //If the socket request returns nothing
             println!("WARNING ROBOT DISCONNECTED");
             self.disconnected = true;
-            return;
         }
     }
 
@@ -1167,17 +1169,14 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
     fn req_ori(&mut self) {
         //Request the info
         if let Ok(recv) = self.socket.req("GTOR:0") {
-
-
             //Format the string
-            let recv = string_tools::rem_first_and_last(&*recv);
+            let recv = string_tools::rem_first_and_last(&recv);
             let ori_vec = string_tools::str_to_vector(recv);
 
             //Check that the vector is the right length
             if ori_vec.len() != 3 {
                 println!("ORI pos read error!");
                 self.ori = (f32::NAN, f32::NAN, f32::NAN);
-                return;
             } else {
                 //Store the pos in the robot info
                 self.ori = (ori_vec[0], ori_vec[1], ori_vec[2]);
@@ -1186,7 +1185,6 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
             //If the socket request returns nothing
             println!("WARNING ROBOT DISCONNECTED");
             self.disconnected = true;
-            return;
         }
     }
 
@@ -1195,7 +1193,7 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
         //Request the info
         if let Ok(recv) = self.socket.req("GTJA:0") {
             //Format the string
-            let recv = string_tools::rem_first_and_last(&*recv);
+            let recv = string_tools::rem_first_and_last(&recv);
             let jtang_vec = string_tools::str_to_vector(recv);
 
             //Check that the vector is the right length
@@ -1203,7 +1201,6 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
                 println!("joint angle read error!");
                 println!("Expected: 6. Actual: {}", jtang_vec.len());
                 self.jnt_angles = (f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN);
-                return;
             } else {
                 //Store the pos in the robot info
                 self.jnt_angles = (
@@ -1219,7 +1216,6 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
             //If the socket request returns nothing
             println!("WARNING ROBOT DISCONNECTED");
             self.disconnected = true;
-            return;
         }
     }
 
@@ -1228,7 +1224,7 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
         //Request the info
         if let Ok(recv) = self.socket.req("GTFC:0") {
             //Format the string
-            let recv = string_tools::rem_first_and_last(&*recv);
+            let recv = string_tools::rem_first_and_last(&recv);
             let fc_vec = string_tools::str_to_vector(recv);
 
             //Check that the vector is the right length
@@ -1236,7 +1232,6 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
                 println!("joint angle read error!");
                 println!("Expected: 6. Actual: {}", fc_vec.len());
                 self.force = (f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN);
-                return;
             } else {
                 //Store the pos in the robot info
                 self.force = (
@@ -1247,7 +1242,6 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
             //If the socket request returns nothing
             println!("WARNING ROBOT DISCONNECTED");
             self.disconnected = true;
-            return;
         }
     }
 
@@ -1274,7 +1268,7 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
     }
 
     //Requests the model name of the robot
-    fn req_model(&mut self) -> Result<String,anyhow::Error> {
+    fn req_model(&mut self) -> Result<String, anyhow::Error> {
         //Request the model name
         if let Ok(model) = self.socket.req("RMDL:0") {
             Ok(model)
@@ -1286,8 +1280,6 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
     //Helper function that requests all the update information from the robot
     //Returns early from the function if the robot has disconnected
     fn update_rob_info(&mut self) {
-
-
         self.req_xyz();
         if self.disconnected {
             return;
@@ -1308,11 +1300,11 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
             return;
         }
 
-        self.get_traj_done_flag();
+        let _ = self.get_traj_done_flag();
     }
 
     //Appends relevant test information to the provided filename
-    fn store_state(&mut self, filename: &String, i: i32, transform_to_work_space : bool) {
+    fn store_state(&mut self, filename: &str, i: i32, transform_to_work_space: bool) {
         //Open the file (or create if it doesn't exist)
         let mut file = OpenOptions::new()
             .append(true)
@@ -1320,12 +1312,10 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
             .open(filename.trim())
             .unwrap();
 
-        let line : String;
-
         //See whether to transofmr the data by the
-        if !transform_to_work_space {
+        let line: String = if !transform_to_work_space {
             //Format the line to write
-            line = format!(
+            format!(
                 "{},{:?},[{},{},{}],[{},{},{}],[{},{},{},{},{},{}],{}",
                 i,
                 SystemTime::now()
@@ -1346,9 +1336,9 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
                 self.force.4,
                 self.force.5,
                 self.force_err
-            );
-        }else{
-            line = format!(
+            )
+        } else {
+            format!(
                 "{},{:?},[{},{},{}],[{},{},{}],[{},{},{},{},{},{}],{}",
                 i,
                 SystemTime::now()
@@ -1369,9 +1359,8 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
                 self.force.4,
                 self.force.5,
                 self.force_err
-            );
-
-        }
+            )
+        };
 
         //Write to the file - indicating if writing failed (but don't worry about it!)
         if let Err(e) = writeln!(file, "{}", line) {
@@ -1380,7 +1369,7 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
     }
 
     //Write a marker to the given file with a timestamp (used for marking certain milestones in tests)
-    fn write_marker(&mut self, filename: &String, comment : &str){
+    fn write_marker(&mut self, filename: &str, comment: &str) {
         //Open the file (or create if it doesn't exist)
         let mut file = OpenOptions::new()
             .append(true)
@@ -1388,9 +1377,7 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
             .open(filename.trim())
             .unwrap();
 
-        let line : String;
-
-        line = format!(
+        let line = format!(
             "!{:?}: {}",
             SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
@@ -1403,11 +1390,9 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
         if let Err(e) = writeln!(file, "{}", line) {
             eprint!("Couldn't write to file: {}", e);
         }
-
     }
 
-    fn log_config(&mut self, filepath: &String){
-
+    fn log_config(&mut self, filepath: &str) {
         //println!("{filepath}");
 
         //Create the config file and save the config info
@@ -1418,135 +1403,128 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
             .unwrap();
 
         //Save the cam info
-        let line = format!("CAM: POS:[{},{},{}] ORI:[{},{},{}] X_SC:[{}] Y_SC:[{}]",
-                           self.config.cam_info.rel_pos()[0],
-                           self.config.cam_info.rel_pos()[1],
-                           self.config.cam_info.rel_pos()[2],
-                           self.config.cam_info.rel_ori()[0],
-                           self.config.cam_info.rel_ori()[1],
-                           self.config.cam_info.rel_ori()[2],
-                           self.config.cam_info.x_scale(),
-                           self.config.cam_info.y_scale()
-
+        let line = format!(
+            "CAM: POS:[{},{},{}] ORI:[{},{},{}] X_SC:[{}] Y_SC:[{}]",
+            self.config.cam_info.rel_pos()[0],
+            self.config.cam_info.rel_pos()[1],
+            self.config.cam_info.rel_pos()[2],
+            self.config.cam_info.rel_ori()[0],
+            self.config.cam_info.rel_ori()[1],
+            self.config.cam_info.rel_ori()[2],
+            self.config.cam_info.x_scale(),
+            self.config.cam_info.y_scale()
         );
 
         writeln!(file, "{}", line).expect("FAILED TO WRITE CAM TO CONFIG - CLOSING");
 
         //Save another line with the robot pos/ori config data
-        let line = format!("ROB: NAME: \"{}\" POS:[{},{},{}] ORI:[{},{},{}][ EMB:[{}]",
-                           self.config.rob_info.rob_name(),
-                           self.config.rob_info.pos_to_zero()[0],
-                           self.config.rob_info.pos_to_zero()[1],
-                           self.config.rob_info.pos_to_zero()[2],
-                           self.config.rob_info.ori_to_zero()[0],
-                           self.config.rob_info.ori_to_zero()[1],
-                           self.config.rob_info.ori_to_zero()[2],
-                           self.config.rob_info.min_embed_height()
+        let line = format!(
+            "ROB: NAME: \"{}\" POS:[{},{},{}] ORI:[{},{},{}][ EMB:[{}]",
+            self.config.rob_info.rob_name(),
+            self.config.rob_info.pos_to_zero()[0],
+            self.config.rob_info.pos_to_zero()[1],
+            self.config.rob_info.pos_to_zero()[2],
+            self.config.rob_info.ori_to_zero()[0],
+            self.config.rob_info.ori_to_zero()[1],
+            self.config.rob_info.ori_to_zero()[2],
+            self.config.rob_info.min_embed_height()
         );
 
         writeln!(file, "{}", line).expect("FAILED TO WRITE ROB TO CONFIG - CLOSING");
-
 
         //Save a line indicating if the data is pre-transformed
         let line = format!("COORDS PRE-TRANSFORMED?:{}", TRANSFORM_TO_WORK_SPACE);
 
         writeln!(file, "{}", line).expect("FAILED TO WRITE TRANSFORM FLAG TO CONFIG - CLOSING");
 
-        let line = format!("FC_MODE:{} FC_AXIS:{}, FC_TARGET:{}", self.force_mode_flag, self.force_axis, self.force_target);
+        let line = format!(
+            "FC_MODE:{} FC_AXIS:{}, FC_TARGET:{}",
+            self.force_mode_flag, self.force_axis, self.force_target
+        );
         writeln!(file, "{}", line).expect("FAILED TO WRITE FORCE CONTROL CONFIG - CLOSING");
 
         //If the force mode is high - store the controller configs
-        if self.force_mode_flag{
+        if self.force_mode_flag {
             let line = format!("PHASE2 CONTROLLER: {}", self.config.phase2_cntrl_settings);
-            writeln!(file, "{}", line).expect("FAILED TO WRITE PHASE 2 CONTROLLER CONFIG - CLOSING");
+            writeln!(file, "{}", line)
+                .expect("FAILED TO WRITE PHASE 2 CONTROLLER CONFIG - CLOSING");
 
             let line = format!("PHASE3 CONTROLLER: {}", self.config.phase3_cntrl_settings);
-            writeln!(file, "{}", line).expect("FAILED TO WRITE PHASE 3 CONTROLLER CONFIG - CLOSING");
-
+            writeln!(file, "{}", line)
+                .expect("FAILED TO WRITE PHASE 3 CONTROLLER CONFIG - CLOSING");
         }
     }
 
-
-
     //Calculate the error between the
-    fn calc_force_err(&mut self) -> Result<f32, anyhow::Error>{
-
+    fn calc_force_err(&mut self) -> Result<f32, anyhow::Error> {
         //Check that force mode is enabled (otherwise there's no point in calcing the error
-        if self.force_mode_flag{
-            let force_val : f32;
+        if self.force_mode_flag {
+            let force_val: f32;
             //Extract the correct axis information
-            match self.force_axis.as_str(){
-
+            match self.force_axis.as_str() {
                 //Cover both case values
-                 "Z" | "z" =>{
-                     force_val = self.force.2;
+                "Z" | "z" => {
+                    force_val = self.force.2;
                 }
-                _ => {bail!("Not implemented for axis {} yet", self.force_axis)}
+                _ => {
+                    bail!("Not implemented for axis {} yet", self.force_axis)
+                }
             }
             //Return the error (not absed because we want to know if we are over or under)
 
             self.force_err = force_val - self.force_target;
 
             Ok(self.force_err)
-        }else{
+        } else {
             bail!("Not in force mode! Force error meaningless");
         }
     }
 
-
     //Requests the robot modifies its trajectory to achieve the target force
     //callback function allows for a range of control functions to be tested/used
     //To be used if the PID output is a distance to move
-    fn force_compensate_move(&mut self, move_by : f32) -> Result<(), anyhow::Error>{
-
-
+    fn force_compensate_move(&mut self, move_by: f32) -> Result<(), anyhow::Error> {
         let cmd_string = format!("FCCM:{}", move_by);
 
-
         //Send the compensation command to the robot
-        if self.socket.req(&*cmd_string)?.eq("OK"){
+        if self.socket.req(&cmd_string)?.eq("OK") {
             Ok(())
-        }else{
+        } else {
             bail!("Failed to set compensation movement");
         }
     }
 
     //Gives the robot a desired z-speed which it then uses to calculate the target height that will achieve that
-    fn force_compensate_zspeed(&mut self, desired_z_speed : f32) -> Result<(), anyhow::Error>{
-
+    fn force_compensate_zspeed(&mut self, desired_z_speed: f32) -> Result<(), anyhow::Error> {
         let cmd_string = format!("FCCS:{}", desired_z_speed);
 
         //Send the compensation command to the robot
-        if self.socket.req(&*cmd_string)?.eq("OK"){
+        if self.socket.req(&cmd_string)?.eq("OK") {
             Ok(())
-        }else{
+        } else {
             bail!("Failed to set desired z speed");
         }
     }
 
     //Request the robot find the vertical force taret
-    fn req_find_vert_force(&mut self){
-
-        if self.socket.req("RQVF:0").is_ok(){
-            return
-        }else{
+    fn req_find_vert_force(&mut self) {
+        if self.socket.req("RQVF:0").is_err() {
             panic!("Failed to ask the robot to find the vertical force spot!")
         }
     }
 
-    fn get_vert_force_found_flag(&mut self) -> Result<bool, anyhow::Error>{
-
+    fn get_vert_force_found_flag(&mut self) -> Result<bool, anyhow::Error> {
         //Check to see if the vertical force found flag has been set
         match self.socket.req("GTVF:?") {
             Ok(recv) => {
                 if recv == "TRUE" {
                     self.traj_done_flag = true;
                     Ok(true)
-                }else{
+                } else {
                     Ok(false)
                 }
             }
-            Err(_recv)=>{
+            Err(_recv) => {
                 println!("WARNING - INVALID RESP TO VERT FORCE FLAG CHECK");
                 bail!("INVALID RESP TO VERT FORCE FLAG CHECK")
             }
@@ -1555,55 +1533,49 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
 
     //EGM commands---------------------------------------------------------------------------------
     //Create a UDP EGM socket and ask the robot to connect
-    fn connect_EGM_pose(&mut self, local : bool) -> Result<EgmServer, anyhow::Error>{
-
-        let serv;
-
-        if local{
-            serv = EgmServer::local()
-        }else{
-            serv = EgmServer::remote()
-        }
+    fn connect_EGM_pose(&mut self, local: bool) -> Result<EgmServer, anyhow::Error> {
+        let serv = if local {
+            EgmServer::local()
+        } else {
+            EgmServer::remote()
+        };
 
         //Request the robot connect to the UDP socket
         self.socket.req("EGPS:0")?;
 
         Ok(serv)
-
     }
 
     //Request the robot to start the EGM stream
-    fn start_egm_stream_speed(&mut self) -> Result<(), anyhow::Error>{
-
+    fn start_egm_stream_speed(&mut self) -> Result<(), anyhow::Error> {
         self.socket.req("EGSS:0")?;
 
         Ok(())
     }
 
-    fn start_egm_stream_pose(&mut self) -> Result<(), anyhow::Error>{
+    fn start_egm_stream_pose(&mut self) -> Result<(), anyhow::Error> {
         self.socket.req("EGST:0")?;
 
         Ok(())
     }
 
-
     //Request the robot to stop the EGM stream
-    fn stop_egm_stream(&mut self) -> Result<(), anyhow::Error>{
-
+    fn stop_egm_stream(&mut self) -> Result<(), anyhow::Error> {
         self.socket.req("EGSP:0")?;
 
         Ok(())
     }
 
-
     //an egm baseline test where the robot is moved around - basically a play around to try and confirm how it works
-    fn egm_test(&mut self){
-
+    fn egm_test(&mut self) {
         //Connect to the server
         let egm_serv = self.connect_EGM_pose(true).unwrap();
 
         //Start the stream
-        self.start_egm_stream_pose();
+        if self.start_egm_stream_pose().is_err() {
+            println!("Failed to start EGM.... cancelling");
+            return;
+        };
 
         //Get first info
         let mut rob_dat = egm_serv.recv_and_connect().unwrap();
@@ -1614,29 +1586,41 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
         //let target_pos = [220.0, 1800.0, 955.0];
         let target_pos = [0.0, 0.0, 0.0];
 
-
         let initial_config = egm_serv.recv_egm().unwrap();
         let initial_pos = initial_config.get_pos_xyz().unwrap();
 
         let mut index = 0;
 
         //Constantly read the position
-        loop{
+        loop {
             rob_dat = egm_serv.recv_egm().unwrap();
 
             let time = rob_dat.feed_back.as_ref().unwrap().time.unwrap().as_tuple();
 
             let curr_pos = rob_dat.get_pos_xyz().unwrap();
             //let target_pos = [curr_pos[0], curr_pos[1] + 1.0, curr_pos[2]];
-            let curr_ori = rob_dat.feed_back.as_ref().unwrap().cartesian.unwrap().orient.unwrap().get_quart();
+            let curr_ori = rob_dat
+                .feed_back
+                .as_ref()
+                .unwrap()
+                .cartesian
+                .unwrap()
+                .orient
+                .unwrap()
+                .get_quart();
 
-            let dist_travelled = [curr_pos[0] - initial_pos[0], curr_pos[1] - initial_pos[1], curr_pos[2] - initial_pos[2]];
-
+            let dist_travelled = [
+                curr_pos[0] - initial_pos[0],
+                curr_pos[1] - initial_pos[1],
+                curr_pos[2] - initial_pos[2],
+            ];
 
             println!("EGM PLANNED: {:?}", rob_dat.planned.unwrap().cartesian);
 
             println!("Distance travelled:{:?}", dist_travelled);
-            let vec_dist = (dist_travelled[0].powi(2) + dist_travelled[1].powi(2) + dist_travelled[2].powi(2)).sqrt();
+            let vec_dist =
+                (dist_travelled[0].powi(2) + dist_travelled[1].powi(2) + dist_travelled[2].powi(2))
+                    .sqrt();
             println!("Vector distance:{}", vec_dist);
 
             //determine robot move to a position
@@ -1644,23 +1628,15 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
             let sensor: EgmSensor = EgmSensor::set_pose(seqno, time, target_pos, curr_ori);
 
             //Send command
-            egm_serv.send_egm(sensor);
+            let _ = egm_serv.send_egm(sensor);
 
-
-
-
-            seqno = seqno + 1;
-            index = index + 1;
-
+            seqno += 1;
+            index += 1;
         }
-
-
     }
 
-
     //Runs a desired trajectory by giving the ABB EGM controller a set of desired speeds
-    fn egm_speed_trajectory(&mut self){
-
+    fn egm_speed_trajectory(&mut self) {
         //Set up the test data
         //Creates the test data and the filepaths
         let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
@@ -1685,17 +1661,18 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
 
         let mut seqno = 0;
 
-
-
         //Start the EGM process
-        let egm_client = self.connect_EGM_pose(self.local).expect("Failed to connect EGM stream");
-        self.start_egm_stream_speed();
-        egm_client.recv_and_connect();
+        let egm_client = self
+            .connect_EGM_pose(self.local)
+            .expect("Failed to connect EGM stream");
+        if self.start_egm_stream_speed().is_err() {
+            println!("Failed to start EGM stream..... cancelling");
+            return;
+        };
+        let _ = egm_client.recv_and_connect();
 
         //go through every speed instruction
-        for instruction in speed_instructions.iter_mut(){
-
-
+        for instruction in speed_instructions.iter_mut() {
             //Get the time limit
             let time_lim = Duration::from_secs_f64(instruction.0);
 
@@ -1711,12 +1688,8 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
 
             //While the timer is running
             while start_time.elapsed().unwrap() < time_lim {
-
-
                 //Get the egm message
                 let msg = egm_client.recv_egm().expect("Failed to get egm message");
-
-
 
                 let time = msg.get_time().expect("Failed to get egm time");
                 let curr_pos = msg.get_pos_xyz().expect("Failed to get egm pos");
@@ -1727,16 +1700,51 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
                 self.egm_log_data(seqno, &test_data.data_filename, curr_pos, curr_ori, force);
 
                 println!("desired - x:{}, y:{}", desired_speed[0], desired_speed[1]);
-                println!("x speed - {}, y speed - {}", (curr_pos[0] - prev_x_pos)/((msg.feed_back.as_ref().unwrap().time.unwrap().as_timestamp_ms() - prev_time) / 1000) as f64, (curr_pos[1] - prev_y_pos)/((msg.feed_back.as_ref().unwrap().time.unwrap().as_timestamp_ms() - prev_time) / 1000) as f64);
+                println!(
+                    "x speed - {}, y speed - {}",
+                    (curr_pos[0] - prev_x_pos)
+                        / ((msg
+                            .feed_back
+                            .as_ref()
+                            .unwrap()
+                            .time
+                            .unwrap()
+                            .as_timestamp_ms()
+                            - prev_time)
+                            / 1000) as f64,
+                    (curr_pos[1] - prev_y_pos)
+                        / ((msg
+                            .feed_back
+                            .as_ref()
+                            .unwrap()
+                            .time
+                            .unwrap()
+                            .as_timestamp_ms()
+                            - prev_time)
+                            / 1000) as f64
+                );
 
                 prev_x_pos = curr_pos[0];
                 prev_y_pos = curr_pos[1];
-                prev_time = msg.feed_back.as_ref().unwrap().time.unwrap().as_timestamp_ms();
+                prev_time = msg
+                    .feed_back
+                    .as_ref()
+                    .unwrap()
+                    .time
+                    .unwrap()
+                    .as_timestamp_ms();
 
-                let sensor: EgmSensor = EgmSensor::set_pose_set_speed(seqno, time, [0.0, 0.0, 0.0], curr_ori, desired_speed);
-                egm_client.send_egm(sensor).expect("Failed to send sensor info");
-                seqno = seqno + 1;
-
+                let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
+                    seqno,
+                    time,
+                    [0.0, 0.0, 0.0],
+                    curr_ori,
+                    desired_speed,
+                );
+                egm_client
+                    .send_egm(sensor)
+                    .expect("Failed to send sensor info");
+                seqno += 1;
             }
         }
 
@@ -1747,11 +1755,16 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
 
         //Move the robot to the home position
         self.go_home_pos();
-
     }
 
-    fn egm_log_data(&mut self, i : u32, filename : &str, curr_pos : [f64;3], curr_ori : [f64;4], curr_force : [f64;6]){
-
+    fn egm_log_data(
+        &mut self,
+        i: u32,
+        filename: &str,
+        curr_pos: [f64; 3],
+        curr_ori: [f64; 4],
+        curr_force: [f64; 6],
+    ) {
         //Open the file (or create if it doesn't exist)
         let mut file = OpenOptions::new()
             .append(true)
@@ -1759,12 +1772,10 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
             .open(filename.trim())
             .unwrap();
 
-        let line : String;
-
-        //See whether to transofmr the data by the
+        //See whether to transformthe data by the
 
         //Format the line to write
-        line = format!(
+        let line = format!(
             "{},{:?},[{},{},{}],[{},{},{},{}],[{},{},{},{},{},{}],{}",
             i,
             SystemTime::now()
@@ -1788,13 +1799,9 @@ fn depth_sensing(rx: Receiver < u32 >, filepath: String, test_name: &str, hmap: 
             self.force_err
         );
 
-
         //Write to the file - indicating if writing failed (but don't worry about it!)
         if let Err(e) = writeln!(file, "{}", line) {
             eprint!("Couldn't write to file: {}", e);
         }
     }
-
-
 }
-

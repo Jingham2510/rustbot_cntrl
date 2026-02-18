@@ -48,7 +48,7 @@ impl PointCloud {
             }
 
             points.push(pnt);
-            no_of_points = no_of_points + 1;
+            no_of_points += 1;
         }
 
         Self {
@@ -62,7 +62,7 @@ impl PointCloud {
     //Load a pointcloud file and create
     pub fn create_from_file(filepath: String) -> Result<Self, anyhow::Error> {
         //Create the filepath
-        let filepath = format!("{}", filepath.to_string());
+        let filepath = filepath.to_string();
 
         //Open the file and create a buffer to read the lines
         let file = File::open(filepath)?;
@@ -82,13 +82,9 @@ impl PointCloud {
             //Create empty point
             let mut pnt: [f32; 3] = [f32::NAN, f32::NAN, f32::NAN];
 
-            let mut cnt = 0;
-
             //Delimit the line based on commas
-            for token in line?.split(",") {
+            for (cnt, token) in line?.split(",").enumerate() {
                 pnt[cnt] = token.parse()?;
-
-                cnt = cnt + 1;
             }
 
             points.push(pnt);
@@ -189,25 +185,22 @@ impl PointCloud {
         //Iterate through every point
         for pnt in self.points.iter_mut() {
             //Transform the points using addition
-            pnt[0] = pnt[0] + x;
-            pnt[1] = pnt[1] + y;
-            pnt[2] = pnt[2] + z;
+            pnt[0] += x;
+            pnt[1] += y;
+            pnt[2] += z;
         }
     }
 
     //Scale every point by the same value
-    pub fn scale_even(&mut self, scale_val : f32){
-
+    pub fn scale_even(&mut self, scale_val: f32) {
         //Iterate through every point
         for pnt in self.points.iter_mut() {
             //Transform the points using addition
-            pnt[0] = pnt[0] * scale_val;
-            pnt[1] = pnt[1] * scale_val;
-            pnt[2] = pnt[2] * scale_val;
+            pnt[0] *= scale_val;
+            pnt[1] *= scale_val;
+            pnt[2] *= scale_val;
         }
-        
     }
-
 
     //Filter a pointcloud by specifying the bounds (bounds inclusive of points on the bound)
     pub fn passband_filter(
@@ -295,14 +288,12 @@ pub struct Heightmap {
     cells: Vec<Vec<f32>>,
 
     //The pointcloud bounds it was constructed from (used to position the heightmap in the real world)
-    lower_coord_bounds: [f32;2],
-    upper_coord_bounds: [f32;2],
-
+    lower_coord_bounds: [f32; 2],
+    upper_coord_bounds: [f32; 2],
 
     //Store the filepath for usage in analysis
-    pub filename : String
+    pub filename: String,
 }
-
 
 impl Default for Heightmap {
     //Default heightmap is a blank 250x250
@@ -321,7 +312,6 @@ impl Heightmap {
             square_check = true;
         }
 
-
         let filename = "No filepath".to_string();
 
         //Generate an empty cell bed of height*width size
@@ -337,9 +327,9 @@ impl Heightmap {
             max_updated: false,
             min_pos: (0, 0),
             max_pos: (0, 0),
-            lower_coord_bounds : [0.0,0.0],
-            upper_coord_bounds : [0.0,0.0],
-            filename
+            lower_coord_bounds: [0.0, 0.0],
+            upper_coord_bounds: [0.0, 0.0],
+            filename,
         }
     }
 
@@ -352,35 +342,39 @@ impl Heightmap {
         let total_width = bounds[1] - bounds[0];
         let total_height = bounds[3] - bounds[2];
 
-        let cells = helper_funcs::helper_funcs::trans_to_heightmap(pcl.points, width as usize, height as usize, total_width, total_height, bounds[0], bounds[2], helper_funcs::helper_funcs::MapGenOpt::Mean).expect("Failed to convert PCL to heightmap");
+        let cells = helper_funcs::helper_funcs::trans_to_heightmap(
+            pcl.points,
+            width as usize,
+            height as usize,
+            total_width,
+            total_height,
+            bounds[0],
+            bounds[2],
+            helper_funcs::helper_funcs::MapGenOpt::Mean,
+        )
+        .expect("Failed to convert PCL to heightmap");
 
-        let square;
         //check if the heightmap is square
-        if height == width {
-            square = true;
-        } else {
-            square = false;
-        }
+        let square = height == width;
 
         //create the filename from the relative timestamp
         let filename = format!("created from pcl- {}", pcl.rel_timestamp);
 
         Self {
-                height,
-                width,
-                square,
-                no_of_cells: height * width,
-                min: 999.0,
-                max: -999.0,
-                min_updated: false,
-                max_updated: false,
-                min_pos: (0, 0),
-                max_pos: (0, 0),
-                cells,
-                lower_coord_bounds : [bounds[0], bounds[2]],
-                upper_coord_bounds : [bounds[1], bounds[3]],
-                filename
-
+            height,
+            width,
+            square,
+            no_of_cells: height * width,
+            min: 999.0,
+            max: -999.0,
+            min_updated: false,
+            max_updated: false,
+            min_pos: (0, 0),
+            max_pos: (0, 0),
+            cells,
+            lower_coord_bounds: [bounds[0], bounds[2]],
+            upper_coord_bounds: [bounds[1], bounds[3]],
+            filename,
         }
     }
 
@@ -398,12 +392,11 @@ impl Heightmap {
 
         let bounds = Self::extract_bounds(first_line);
 
-        let mut bounds_res : [f32;4] = [f32::NAN, f32::NAN, f32::NAN, f32::NAN];
+        let mut bounds_res: [f32; 4] = [f32::NAN, f32::NAN, f32::NAN, f32::NAN];
 
-        if bounds.is_ok(){
+        if bounds.is_ok() {
             bounds_res = bounds?
         }
-
 
         let mut height = 0;
         let mut width = 0;
@@ -419,7 +412,7 @@ impl Heightmap {
             //Split via comma then iterate
             for token in line?.split(",") {
                 if !width_set {
-                    width = width + 1;
+                    width += 1;
                 }
 
                 //Check the slot isn't empty
@@ -434,7 +427,7 @@ impl Heightmap {
 
             //Store the row
             cells.push(row);
-            height = height + 1;
+            height += 1;
         }
 
         //Check to see if the grid is square
@@ -455,9 +448,9 @@ impl Heightmap {
             min_pos: (0, 0),
             max_pos: (0, 0),
             cells,
-            lower_coord_bounds : [bounds_res[0], bounds_res[2]],
-            upper_coord_bounds : [bounds_res[1], bounds_res[3]],
-            filename : filepath
+            lower_coord_bounds: [bounds_res[0], bounds_res[2]],
+            upper_coord_bounds: [bounds_res[1], bounds_res[3]],
+            filename: filepath,
         })
     }
 
@@ -479,7 +472,7 @@ impl Heightmap {
             for cell in row {
                 print!("{} ", cell);
             }
-            print!("\n");
+            println!();
         }
     }
 
@@ -506,16 +499,14 @@ impl Heightmap {
             self.get_max();
         } else if (x, y) == self.min_pos {
             self.get_min();
+        } else if new_height > self.max {
+            self.max = new_height;
+            self.max_pos = (x, y);
+        } else if new_height < self.min {
+            self.min = new_height;
+            self.min_pos = (x, y);
         } else {
-            if new_height > self.max {
-                self.max = new_height;
-                self.max_pos = (x, y);
-            } else if new_height < self.min {
-                self.min = new_height;
-                self.min_pos = (x, y);
-            } else {
-                println!("{0} is not larger than {1}!", new_height, self.max);
-            }
+            println!("{0} is not larger than {1}!", new_height, self.max);
         }
     }
 
@@ -542,8 +533,8 @@ impl Heightmap {
             let mut new_max: f32 = -999.0;
 
             //Check every value to see if its the largest
-            for (_x, row) in self.cells.iter_mut().enumerate() {
-                for (_y, col) in row.iter_mut().enumerate() {
+            for row in self.cells.iter_mut() {
+                for col in row.iter_mut() {
                     if col > &mut new_max {
                         new_max = *col;
                     }
@@ -564,8 +555,8 @@ impl Heightmap {
             let mut new_min: f32 = 999.0;
 
             //Check every value to see if its the smallest
-            for (_x, row) in self.cells.iter_mut().enumerate() {
-                for (_y, col) in row.iter_mut().enumerate() {
+            for row in self.cells.iter_mut() {
+                for col in row.iter_mut() {
                     if col < &mut new_min {
                         new_min = *col;
                     }
@@ -597,8 +588,8 @@ impl Heightmap {
     //Generates a random pattern - for testing purposes
     pub fn gen_random_pattern(&mut self) {
         //Go through every cell and give it a random value
-        for (_x, row) in self.cells.iter_mut().enumerate() {
-            for (_y, col) in row.iter_mut().enumerate() {
+        for row in self.cells.iter_mut() {
+            for col in row.iter_mut() {
                 *col = rand::rng().random_range(0..100) as f32;
             }
         }
@@ -608,13 +599,17 @@ impl Heightmap {
     }
 
     //Display the map as a grid - colouring in cells based on the distance from the median
-    pub fn disp_map(&mut self) -> Result<(), anyhow::Error>{
-       //Display the heightmap
-        helper_funcs::helper_funcs::display_magnitude_map("Heightmap",self.cells.clone(), self.width as usize, self.height as usize, ColOpt::Median)?;
+    pub fn disp_map(&mut self) -> Result<(), anyhow::Error> {
+        //Display the heightmap
+        helper_funcs::helper_funcs::display_magnitude_map(
+            "Heightmap",
+            self.cells.clone(),
+            self.width as usize,
+            self.height as usize,
+            ColOpt::Median,
+        )?;
         Ok(())
     }
-
-
 
     //Returns the flattened cells (i.e. every single cell)
     pub fn get_flattened_cells(&mut self) -> Result<Vec<f32>, anyhow::Error> {
@@ -635,9 +630,14 @@ impl Heightmap {
         let mut file = File::create(filepath.to_owned() + ".txt")?;
 
         //Format the first line to store the real bounds
-        let first_line = format!("bnds:[{},{}][{},{}]\n", self.lower_coord_bounds[0],self.lower_coord_bounds[1], self.upper_coord_bounds[0],self.upper_coord_bounds[1]);
+        let first_line = format!(
+            "bnds:[{},{}][{},{}]\n",
+            self.lower_coord_bounds[0],
+            self.lower_coord_bounds[1],
+            self.upper_coord_bounds[0],
+            self.upper_coord_bounds[1]
+        );
         file.write_all(first_line.as_bytes())?;
-
 
         //Iterate thorugh each row
         for row in self.cells.iter() {
@@ -646,26 +646,24 @@ impl Heightmap {
                 file.write_all(cell_val.as_bytes())?
             }
 
-            file.write("\n".as_ref())?;
+            file.write_all("\n".as_ref())?;
         }
 
         Ok(())
     }
 
-
     //Width getter
-    pub fn width(& self) -> u32{
+    pub fn width(&self) -> u32 {
         self.width
     }
     //Height getter
-    pub fn height(&self) -> u32{
+    pub fn height(&self) -> u32 {
         self.height
     }
 
     //Extracts the bounds from a string
-    fn extract_bounds(bnd_line : String) -> Result<[f32;4], anyhow::Error> {
-
-        let mut bounds : [f32;4] = [f32::NAN, f32::NAN, f32::NAN, f32::NAN];
+    fn extract_bounds(bnd_line: String) -> Result<[f32; 4], anyhow::Error> {
+        let mut bounds: [f32; 4] = [f32::NAN, f32::NAN, f32::NAN, f32::NAN];
 
         let mut bnd_cnt = 0;
 
@@ -675,61 +673,48 @@ impl Heightmap {
         let mut ignore = true;
 
         //Second and third sections have the data we want
-        for split in bnd_split{
-
+        for split in bnd_split {
             //Ignore the first split
-            if ignore{
+            if ignore {
                 ignore = false;
-                continue
+                continue;
             }
 
             //Tokenize the second and third section (also remove the final parentheses)
             let mut str = split.trim().to_string();
             str.pop();
 
-
-            for token in str.split(","){
-
-
+            for token in str.split(",") {
                 bounds[bnd_cnt] = token.parse()?;
-                bnd_cnt = bnd_cnt + 1;
+                bnd_cnt += 1;
             }
         }
 
         Ok(bounds)
     }
 
-
     //Calculates the middle coordinates of a given cell (based on the upper/lower bounds)
-    pub fn calc_cell_mid_pnt(&self, n : u32, m : u32) -> Result<[f32;2], anyhow::Error>{
-
-
-        if n >= self.width{
+    pub fn calc_cell_mid_pnt(&self, n: u32, m: u32) -> Result<[f32; 2], anyhow::Error> {
+        if n >= self.width {
             bail!("Error - out of width bounds!")
         }
-        if m >= self.height{
+        if m >= self.height {
             bail!("Error - out of height bounds!");
         }
 
+        let mut mid_pnt: [f32; 2] = [f32::NAN, f32::NAN];
 
-        let mut mid_pnt : [f32;2] = [f32::NAN, f32::NAN];
-
-        let cell_width = (self.upper_coord_bounds[0] - self.lower_coord_bounds[0]).abs() / self.width as f32;
-        let cell_height = (self.upper_coord_bounds[1] - self.lower_coord_bounds[1]).abs() / self.width as f32;
+        let cell_width =
+            (self.upper_coord_bounds[0] - self.lower_coord_bounds[0]).abs() / self.width as f32;
+        let cell_height =
+            (self.upper_coord_bounds[1] - self.lower_coord_bounds[1]).abs() / self.width as f32;
 
         //Calc the mid point with the offset
         mid_pnt[0] = (n as f32 * cell_width) + self.lower_coord_bounds[0];
         mid_pnt[1] = (m as f32 * cell_height) + self.lower_coord_bounds[1];
 
-
         Ok(mid_pnt)
-
-
     }
-
-
-
-
 }
 
 //Compares a given map with a desired map and outputs a map of height differences
@@ -738,7 +723,7 @@ pub fn comp_maps(
     desired_map: &Heightmap,
 ) -> Result<Heightmap, anyhow::Error> {
     //Check the maps are the same size - if not exit
-    if curr_map.height != desired_map.height || curr_map.width != curr_map.width {
+    if curr_map.height != desired_map.height || curr_map.width != desired_map.width {
         bail!("Warning - Maps are not the same size - cannot be compared");
     }
 
@@ -768,6 +753,3 @@ pub fn comp_maps(
 
     Ok(diff_map)
 }
-
-
-

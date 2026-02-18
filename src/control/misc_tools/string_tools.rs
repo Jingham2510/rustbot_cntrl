@@ -12,5 +12,5 @@ pub fn str_to_vector(inp: &str) -> Vec<f32> {
     let sep: Vec<_> = inp.split(",").collect();
 
     //Remap all the values to become f32s
-    sep.iter().map(|x| x.parse()).flatten().collect()
+    sep.iter().flat_map(|x| x.parse()).collect()
 }

@@ -7,29 +7,32 @@ use raylib::consts::MouseButton;
 use raylib::drawing::RaylibDraw;
 use raylib::math::{Rectangle, Vector2};
 
-
-
-
-pub enum MapGenOpt{
+pub enum MapGenOpt {
     Mean,
     //Warning! Median will be a slow process - you have to sort the list of points in each section
     Median,
     Min,
-    Max
+    Max,
 }
 
-
 //Transforms 3 point data into a 2.5d heightmap ( where the 3rd data point is the "height"/intensity)
-pub fn trans_to_heightmap(data : Vec<[f32;3]>, width: usize, height : usize, total_width : f32, total_height : f32, min_x_bnd : f32, min_y_bnd : f32, opt : MapGenOpt) -> Result<Vec<Vec<f32>>, anyhow::Error>{
-
-
+pub fn trans_to_heightmap(
+    data: Vec<[f32; 3]>,
+    width: usize,
+    height: usize,
+    total_width: f32,
+    total_height: f32,
+    min_x_bnd: f32,
+    min_y_bnd: f32,
+    opt: MapGenOpt,
+) -> Result<Vec<Vec<f32>>, anyhow::Error> {
     //Create the empty cell matrix
     //NaN spots are areas with 0 action
     let mut cells_pnt_list = vec![vec![vec![]; height]; width];
 
     //Check where the trajectory lies within the cell space - copied from heightmap generation
     //Check each points and direct it to a cell (updating the average height)
-    for pnt in data{
+    for pnt in data {
         let mut n = 0;
         let mut m = 0;
 
@@ -41,7 +44,7 @@ pub fn trans_to_heightmap(data : Vec<[f32;3]>, width: usize, height : usize, tot
             if pnt[0] < ((total_width / width as f32) * n as f32) + min_x_bnd {
                 n_fnd = true;
             } else {
-                n = n + 1;
+                n += 1;
             }
 
             //Check if end pos
@@ -55,7 +58,7 @@ pub fn trans_to_heightmap(data : Vec<[f32;3]>, width: usize, height : usize, tot
             if pnt[1] < ((total_height / height as f32) * m as f32) + min_y_bnd {
                 m_fnd = true;
             } else {
-                m = m + 1;
+                m += 1;
             }
             //Check if end pos
             if m == (height - 1) {
@@ -67,140 +70,125 @@ pub fn trans_to_heightmap(data : Vec<[f32;3]>, width: usize, height : usize, tot
         cells_pnt_list[n][m].push(pnt[2]);
     }
 
-
     //Calculate the height of each cell based on the chosen hmap option
-    let mut cells : Vec<Vec<f32>> = vec![vec![]; width];
+    let mut cells: Vec<Vec<f32>> = vec![vec![]; width];
 
     //Iterate through each point list
-    for (i, pnt_list) in cells_pnt_list.iter_mut().enumerate(){
-
-        for  pnts in pnt_list{
-
+    for (i, pnt_list) in cells_pnt_list.iter_mut().enumerate() {
+        for pnts in pnt_list {
             //If the cell is NAN - keep it as a null cell
-            if pnts.iter().any(|x| x.is_nan()) || pnts.len() == 0{
+            if pnts.iter().any(|x| x.is_nan()) || pnts.is_empty() {
                 cells[i].push(f32::NAN);
-                continue
+                continue;
             }
 
-            let mut pnt_to_add : f32 = 0.0;
-
+            let mut pnt_to_add: f32 = 0.0;
 
             //Determine the value of the cell bsaed on the provided heightmap options
-            match opt{
-
-                MapGenOpt::Mean =>{
-
+            match opt {
+                MapGenOpt::Mean => {
                     let mut cnt = 0;
 
                     //sum all the points in the list
-                    for pnt in pnts{
-                        pnt_to_add = pnt_to_add + *pnt;
-                        cnt = cnt + 1;
+                    for pnt in pnts {
+                        pnt_to_add += *pnt;
+                        cnt += 1;
                     }
 
                     //Divide by the length of the list
-                    pnt_to_add = pnt_to_add/cnt as f32;
-
+                    pnt_to_add /= cnt as f32;
                 }
 
-                MapGenOpt::Median =>{
-
+                MapGenOpt::Median => {
                     //Sort the list - unstable because we dont care about initial order of indices and also its faster
                     pnts.sort_unstable_by(f32::total_cmp);
 
-                    if pnts.len() == 1{
+                    if pnts.len() == 1 {
                         pnt_to_add = pnts[0]
-                    }else {
+                    } else {
                         //check if length is odd/even
-                        let even = {
-                            pnts.len() % 2 == 0
-                        };
+                        let even = { pnts.len() % 2 == 0 };
 
                         //Identify the median value
                         if even {
-                            pnt_to_add = (pnts[(pnts.len() +1)/2] + pnts[(pnts.len() - 1) /2]) / 2.0
+                            pnt_to_add =
+                                (pnts[pnts.len().div_ceil(2)] + pnts[(pnts.len() - 1) / 2]) / 2.0
                         } else {
                             pnt_to_add = pnts[(pnts.len()) / 2]
                         }
                     }
                 }
 
-                MapGenOpt::Max =>{
-
+                MapGenOpt::Max => {
                     //Set the max default
                     pnt_to_add = -9999.0;
                     //Iterate through every point and get the max
-                    for pnt in pnts{
-                        if *pnt > pnt_to_add{
+                    for pnt in pnts {
+                        if *pnt > pnt_to_add {
                             pnt_to_add = *pnt;
                         }
                     }
-
-
                 }
 
-                MapGenOpt::Min =>{
-
+                MapGenOpt::Min => {
                     //Iterate through every point and get the min
                     //Set the min default
                     pnt_to_add = 9999.0;
                     //Iterate through every point and get the max
-                    for pnt in pnts{
-                        if *pnt < pnt_to_add{
+                    for pnt in pnts {
+                        if *pnt < pnt_to_add {
                             pnt_to_add = *pnt;
                         }
                     }
-
-
                 }
 
-
-                _=>{bail!("Invalid map gen option")}
+                _ => {
+                    bail!("Invalid map gen option")
+                }
             }
 
             cells[i].push(pnt_to_add);
         }
-
-
     }
 
     Ok(cells)
-
 }
-
 
 //Returns the median value of a matrix
 //Designed to be used with the 2.5D heightmaps
-pub fn get_min_med_max(data : &Vec<Vec<f32>>) -> (f32, f32, f32){
-
-    let mut max : f32= -9999.0;
-    let mut min : f32= 9999.0;
+pub fn get_min_med_max(data: &Vec<Vec<f32>>) -> (f32, f32, f32) {
+    let mut max: f32 = -9999.0;
+    let mut min: f32 = 9999.0;
 
     //Get the max min values
-    for val in data.iter().flatten(){
-
+    for val in data.iter().flatten() {
         if val > &max {
             max = *val;
-        }else if val < &min {
+        } else if val < &min {
             min = *val;
         }
     }
 
     //Get the mid point between the max/min
-    (min, max - (max-min/2.0).abs(), max)
+    (min, max - (max - min / 2.0).abs(), max)
 }
 
-
-pub enum ColOpt{
+pub enum ColOpt {
     Median,
     Intensity,
     InvIntensity,
-    Uniform
+    Uniform,
 }
 
 //Display a magnitude map (i.e. xy - posiitons, z - magnitude)
 //Options for different colour schemes
-pub fn display_magnitude_map(wind_title : &str, mut data:Vec<Vec<f32>>, width : usize, height : usize, col_opt : ColOpt) -> Result<(), anyhow::Error>{
+pub fn display_magnitude_map(
+    wind_title: &str,
+    mut data: Vec<Vec<f32>>,
+    width: usize,
+    height: usize,
+    col_opt: ColOpt,
+) -> Result<(), anyhow::Error> {
     //Constants to determine generic window size
     const WINDOW_WIDTH: f32 = 1024.0;
     const WINDOW_HEIGHT: f32 = 768.0;
@@ -222,8 +210,8 @@ pub fn display_magnitude_map(wind_title : &str, mut data:Vec<Vec<f32>>, width : 
     let cell_width: f32 =
         (grid_disp_width - ((width as f32 + 2.0) * LINE_THICKNESS)) / (width as f32);
 
-    let cell_height: f32 = (grid_disp_height - ((height as f32 + 2.0) * LINE_THICKNESS))
-        / (height as f32);
+    let cell_height: f32 =
+        (grid_disp_height - ((height as f32 + 2.0) * LINE_THICKNESS)) / (height as f32);
 
     //Get key data points
     let (min, med_val, max) = get_min_med_max(&data);
@@ -260,8 +248,8 @@ pub fn display_magnitude_map(wind_title : &str, mut data:Vec<Vec<f32>>, width : 
 
         //Draw the grid lines
         for i in 1..width {
-            let curr_x = (WINDOW_WIDTH_START + LINE_THICKNESS)
-                + (i as f32 * (cell_width + LINE_THICKNESS));
+            let curr_x =
+                (WINDOW_WIDTH_START + LINE_THICKNESS) + (i as f32 * (cell_width + LINE_THICKNESS));
 
             d.draw_line_ex(
                 Vector2::new(curr_x, WINDOW_HEIGHT_START),
@@ -295,17 +283,16 @@ pub fn display_magnitude_map(wind_title : &str, mut data:Vec<Vec<f32>>, width : 
                 //Calculate the colour
                 let cell_col: Color;
 
-
                 //If the value in the cell is unknown - paint it black
                 //If the value in the cell is unknown - paint it black
                 if val.is_nan() {
                     cell_col = Color::BLACK;
                 } else {
                     match col_opt {
-                        ColOpt::Median => { cell_col = median_cell_col(*val, min, med_val, max) }
-                        ColOpt::Intensity => { cell_col = intensity_cell_col(*val, min, max) }
-                        ColOpt::InvIntensity => { cell_col = inv_intensity_cell_col(*val, min, max) }
-                        ColOpt::Uniform => { cell_col = Color::new(255, 255, 255, 255) }
+                        ColOpt::Median => cell_col = median_cell_col(*val, min, med_val, max),
+                        ColOpt::Intensity => cell_col = intensity_cell_col(*val, min, max),
+                        ColOpt::InvIntensity => cell_col = inv_intensity_cell_col(*val, min, max),
+                        ColOpt::Uniform => cell_col = Color::new(255, 255, 255, 255),
                     }
                 }
 
@@ -321,7 +308,7 @@ pub fn display_magnitude_map(wind_title : &str, mut data:Vec<Vec<f32>>, width : 
                 //Draw the text info
                 let data_str = format!("Height: {}", data_height);
                 d.draw_text(
-                    &*data_str,
+                    &data_str,
                     WINDOW_WIDTH_START as i32,
                     WINDOW_HEIGHT_END as i32 + 25,
                     42,
@@ -344,8 +331,7 @@ pub fn display_magnitude_map(wind_title : &str, mut data:Vec<Vec<f32>>, width : 
             }
 
             //Remove window placement offset, then take the percentage across the screen
-            let perc_x =
-                (m_pos.x - WINDOW_WIDTH_START) / (WINDOW_WIDTH_END - WINDOW_WIDTH_START);
+            let perc_x = (m_pos.x - WINDOW_WIDTH_START) / (WINDOW_WIDTH_END - WINDOW_WIDTH_START);
             let perc_y =
                 (m_pos.y - WINDOW_HEIGHT_START) / (WINDOW_HEIGHT_END - WINDOW_HEIGHT_START);
 
@@ -356,60 +342,44 @@ pub fn display_magnitude_map(wind_title : &str, mut data:Vec<Vec<f32>>, width : 
         }
     }
 
-    
-
-
     Ok(())
 }
 
-
-
 //Calculate the colour gradient based on +/- distance from median
-fn median_cell_col(val : f32, min : f32, med_val : f32, max : f32) -> Color{
-
-    let cell_col : Color;
-
+fn median_cell_col(val: f32, min: f32, med_val: f32, max: f32) -> Color {
     if val <= med_val {
-        cell_col = Color::new(
+        Color::new(
             (255.0 * (1.0 - ((val - min) / (med_val - min)))) as u8,
-            (255.0 * ((val - min) / (med_val- min))) as u8,
+            (255.0 * ((val - min) / (med_val - min))) as u8,
             0,
             255,
-        );
+        )
     } else {
-        cell_col = Color::new(
+        Color::new(
             0,
             (255.0 * (1.0 - ((val - med_val) / (max - med_val)))) as u8,
             (255.0 * ((val - med_val) / (max - med_val))) as u8,
             255,
-        );
+        )
     }
-
-    cell_col
 }
 
 //Calculate the colour as a percentage of the distance from max value
-fn intensity_cell_col(val: f32, min : f32, max : f32) -> Color{
-
+fn intensity_cell_col(val: f32, min: f32, max: f32) -> Color {
     Color::new(
         255.0 as u8,
         255.0 as u8,
         255.0 as u8,
-        (255.0 * (val - min)/(max - min)) as u8
+        (255.0 * (val - min) / (max - min)) as u8,
     )
-
 }
 
 //Calculate the color as a percentage of the distance from the min value
-fn inv_intensity_cell_col(val: f32, min : f32, max : f32) -> Color{
-
+fn inv_intensity_cell_col(val: f32, min: f32, max: f32) -> Color {
     Color::new(
         255.0 as u8,
         255.0 as u8,
         255.0 as u8,
-        (255.0 * (1.0 - (val - min)/(max - min))) as u8
+        (255.0 * (1.0 - (val - min) / (max - min))) as u8,
     )
-
 }
-
-

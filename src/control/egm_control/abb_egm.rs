@@ -18,17 +18,7 @@ pub struct EgmHeader {
 }
 /// Nested message and enum types in `EgmHeader`.
 pub mod egm_header {
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, prost::Enumeration)]
     #[repr(i32)]
     pub enum MessageType {
         MsgtypeUndefined = 0,
@@ -187,17 +177,7 @@ pub struct EgmMotorState {
 }
 /// Nested message and enum types in `EgmMotorState`.
 pub mod egm_motor_state {
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, prost::Enumeration)]
     #[repr(i32)]
     pub enum MotorStateType {
         MotorsUndefined = 0,
@@ -239,17 +219,7 @@ pub struct EgmMciState {
 }
 /// Nested message and enum types in `EgmMCIState`.
 pub mod egm_mci_state {
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, prost::Enumeration)]
     #[repr(i32)]
     pub enum MciStateType {
         MciUndefined = 0,
@@ -294,17 +264,7 @@ pub struct EgmRapidCtrlExecState {
 }
 /// Nested message and enum types in `EgmRapidCtrlExecState`.
 pub mod egm_rapid_ctrl_exec_state {
-    #[derive(
-        Clone,
-        Copy,
-        Debug,
-        PartialEq,
-        Eq,
-        Hash,
-        PartialOrd,
-        Ord,
-        prost::Enumeration
-    )]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, prost::Enumeration)]
     #[repr(i32)]
     pub enum RapidCtrlExecStateType {
         RapidUndefined = 0,
