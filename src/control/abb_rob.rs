@@ -402,28 +402,7 @@ impl AbbRob<'_> {
         }
     }
 
-    //Set the force requirements for force control
-    //Safety critical - always bail if state is possibly unknown!
-    fn set_force_config(&mut self, ax: &str, target: f64) -> Result<(), anyhow::Error> {
-        //Format the string request (SeT ForceConfig)
-        let conf_str = format!("STFC:{}.{}", ax, target);
 
-        //Send the request
-        if let Ok(resp) = self.socket.req(&conf_str) {
-            //Check that the robot has responded with the correct values (otherwise bail)
-            let expected_resp = format!("FC:{}.{}", ax, target);
-
-            if !resp.eq_ignore_ascii_case(&expected_resp) {
-                bail!("Incorrect config! Force control will be incorrect")
-            } else {
-                self.force_axis = ax.to_string();
-                self.force_target = target;
-                Ok(())
-            }
-        } else {
-            bail!("Error - no repsonse, cannot verify force config set!")
-        }
-    }
 
 
 
