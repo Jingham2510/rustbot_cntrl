@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
-use std::io::{Write, stdin};
+use std::io::{stdin, Write};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -18,12 +18,10 @@ mod networking;
 mod helper_funcs;
 mod modelling;
 
-use crate::analysis::analyser::{Analyser, ForceSel};
+use crate::analysis::analyser::Analyser;
 use crate::config::Config;
-use crate::control::trajectory_planner::traj_gen;
 use crate::mapping::terr_map_sense::RealsenseCam;
 use crate::mapping::terr_map_tools::Heightmap;
-use crate::modelling::experiment_model::ExpModel;
 use crate::modelling::irb6400_model::IRB6400Model;
 use control::abb_rob;
 

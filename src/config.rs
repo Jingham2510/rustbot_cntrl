@@ -86,6 +86,8 @@ impl Config {
         //Get the test filepath
         let test_fp = Self::extract_test_fp()?;
 
+
+
         //Get the Caminfo (from the file)
         Ok(Self {
             test_fp,
@@ -223,6 +225,7 @@ impl CamInfo {
             }
         }
 
+
         Ok(Self {
             rel_pos,
             rel_ori,
@@ -269,6 +272,9 @@ impl RobInfo {
 
         //Open the file and iterate line by line
         let rob_config_file = File::open(fp)?;
+
+
+
         for line in BufReader::new(rob_config_file).lines() {
             let curr_line = line?;
 
@@ -281,13 +287,17 @@ impl RobInfo {
                 pos_for_zero = pos_ori_parser(curr_line)?;
             } else if curr_line.starts_with("ORI_TO_ZERO") {
                 ori_for_zero = pos_ori_parser(curr_line)?;
-            } else if curr_line.starts_with("MIN_EMBED") {
-                min_embed_height = curr_line.parse()?;
+            } else if curr_line.starts_with("EMBED_HEIGHT") {
+                let split: Vec<&str> = curr_line.split("\"").collect();
+                min_embed_height = split[1].parse()?;
             } else {
                 //Panic if it encounters a line that it cannot interpret!
                 bail!("Invalid line in robot config!")
             }
         }
+
+        println!("Got rob info");
+
 
         Ok(Self {
             rob_name,

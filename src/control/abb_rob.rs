@@ -1023,7 +1023,6 @@ impl AbbRob<'_> {
 
         }
 
-
         self.write_marker(&test_data.data_filename, "PHASE 3 ENDED");
 
         //Go back to home pos
@@ -1786,8 +1785,6 @@ impl AbbRob<'_> {
             let msg = egm_client.recv_egm().expect("Failed to get egm message");
 
             egm_state = msg.mci_state.unwrap().state;
-
-            println!("EGM State: {}", egm_state);
 
             let time = msg.get_time().expect("Failed to get egm time");
             let curr_pos = msg.get_pos_xyz().expect("Failed to get egm coords");
