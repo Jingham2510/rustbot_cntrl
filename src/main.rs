@@ -25,7 +25,7 @@ use crate::mapping::terr_map_tools::Heightmap;
 use crate::modelling::irb6400_model::IRB6400Model;
 use control::abb_rob;
 
-const VER_NUM: &str = "V0.6";
+const VER_NUM: &str = "V0.7";
 //Program title
 const TITLE: &str = "Rustbot Control";
 

@@ -25,8 +25,6 @@ pub struct AbbRob<'a> {
     ori: (f64, f64, f64),
     jnt_angles: (f64, f64, f64, f64, f64, f64),
     force: (f64, f64, f64, f64, f64, f64),
-    move_flag: bool,
-    traj_done_flag: bool,
     disconnected: bool,
     force_mode_flag: bool,
     force_axis: String,
@@ -192,8 +190,6 @@ impl AbbRob<'_> {
                 ori: (f64::NAN, f64::NAN, f64::NAN),
                 jnt_angles: (f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN),
                 force: (f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN),
-                move_flag: false,
-                traj_done_flag: false,
                 disconnected: false,
                 force_mode_flag: false,
                 force_axis: "Z".to_string(),
@@ -252,31 +248,6 @@ impl AbbRob<'_> {
                     self.req_ori();
                 }
 
-                "trajectory" => {
-                    self.set_force_control_mode(false)
-                        .expect("FAILED TO SET FORCE MODE");
-                    self.run_test();
-                }
-
-                "force traj" => {
-                    self.set_force_control_mode(true)
-                        .expect("FAILED TO SET FORCE MODE");
-
-                    println!("Please type the target force");
-
-                    let mut user_inp = String::new();
-                    stdin()
-                        .read_line(&mut user_inp)
-                        .expect("Failed to read line");
-
-                    if let Ok(targ) = user_inp.trim().parse::<f64>() {
-                        self.set_force_config("Z", targ)
-                            .expect("FAILED TO SET FORCE CONFIG");
-                        self.run_test();
-                    } else {
-                        println!("Invalid target.... returning");
-                    }
-                }
 
                 "geo test" => {
                     self.set_force_control_mode(true)
@@ -298,18 +269,7 @@ impl AbbRob<'_> {
                     }
                 }
 
-                "eff speed" => {
-                    self.set_force_control_mode(false)
-                        .expect("FAIELD TO SET FORCE MODE");
 
-                    self.end_eff_speed_set_test();
-                }
-
-                //Whatever function is being tested at the moment
-                "test" => {
-                    self.egm_speed_trajectory();
-                    //self.egm_test();
-                }
 
                 "home" => {
                     self.go_home_pos();
@@ -420,72 +380,7 @@ impl AbbRob<'_> {
         }
     }
 
-    //Add a translational movement to the robot movement queue
-    fn traj_queue_add_trans(&mut self, xyz: (f64, f64, f64)) {
-        if let Ok(_resp) = self
-            .socket
-            .req(&format!("TQAD:[{},{},{}]", xyz.0, xyz.1, xyz.2))
-        {
-            //println!("trans traj added");
-        } else {
-            println!("Warning - no response - trajectory may differ from expected!");
-        }
-    }
 
-    //Add a rotational movement to the robot movement queue
-    fn traj_queue_add_rot(&mut self, q: angle_tools::Quartenion) {
-        if let Ok(_resp) = self
-            .socket
-            .req(&format!("RQAD:[{}, {}, {}, {}]", q.w, q.x, q.y, q.z))
-        {
-            println!("rot traj added");
-        } else {
-            println!("Warning - no response - trajectory may differ from expected!");
-        }
-    }
-
-    //Set the trajectory queue flag high - telling the robot to begin the trajectory queue
-    fn traj_queue_go(&mut self) {
-        if let Ok(resp) = self.socket.req("TJGO:0") {
-            println!("{resp}");
-        } else {
-            println!("Warning - no response from robot trajectory may not begin!");
-        }
-    }
-
-    //Set the trajectory queue flag low - telling the robot to stop the trajectory queue
-    fn traj_queue_stop(&mut self) {
-        if let Ok(resp) = self.socket.req("TJST:0") {
-            println!("{resp}");
-        } else {
-            println!("Warning - no response from robot trajectory may not stop!");
-        }
-    }
-
-    //Requests robot state of trajectory
-    fn get_traj_done_flag(&mut self) -> Result<bool, anyhow::Error> {
-        //Safe socket read - incase the socket crashes
-        match self.socket.req("TJDN:?") {
-            Ok(recv) => {
-                if recv == "TRUE" {
-                    self.traj_done_flag = true;
-                    Ok(true)
-                } else if recv == "FALSE" {
-                    self.traj_done_flag = false;
-                    Ok(false)
-                } else {
-                    println!("Warning - Trajectory flag error! - Unknown state!");
-                    println!("Got response - `{recv}`");
-                    bail!("Trajectory flag error");
-                }
-            }
-            Err(e) => {
-                println!("WARNING ROBOT DISCONNECTED - {e}");
-                self.disconnected = true;
-                bail!("ROBOT DISCONNECTED");
-            }
-        }
-    }
 
     //Set the robot force mode
     fn set_force_control_mode(&mut self, force_control: bool) -> Result<(), anyhow::Error> {
@@ -530,160 +425,7 @@ impl AbbRob<'_> {
         }
     }
 
-    /*
-    Adds a relative move to the RAPID relative move queue (for force control)
-     */
-    fn rel_mv_queue_add(&mut self, rel_xyz: (f64, f64, f64)) -> Result<(), anyhow::Error> {
-        //Format the string request
-        let rel_mv_str = format!("RLAD:[{},{},{}]", rel_xyz.0, -rel_xyz.1, rel_xyz.2);
 
-        //Check that the correct response is sent
-        if let Ok(resp) = self.socket.req(&rel_mv_str) {
-            let expected_resp = "OK";
-
-            //println!("RECIEVED: {}", resp);
-            //println!("EXPECTED: {}", expected_resp);
-
-            if !resp.eq(expected_resp) {
-                bail!("Incorrect response - Relative movement will be incorrect")
-            } else {
-                Ok(())
-            }
-        } else {
-            bail!("Error - no repsonse, cannot verify relative move added!")
-        }
-    }
-
-    //Essentially another command line handler - just for running specific tests
-    fn run_test(&mut self) {
-        //Creates the test data and the filepaths
-        let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
-
-        //Log the camera config
-        self.log_config(&test_data.config_filename);
-
-        //Create a threading channel to trigger the camera
-        let (tx, rx) = mpsc::channel();
-
-        //Clone the cam configs to avoid handing ownership to the thread
-        let rel_pos = self.config.cam_info.rel_pos();
-        let rel_ori = self.config.cam_info.rel_ori();
-        let scale = self.config.cam_info.x_scale();
-
-        //Create the thread that handles the depth camera
-        thread::spawn(move || {
-            Self::depth_sensing(
-                rx,
-                test_data.filepath.clone(),
-                &test_data.test_name.clone(),
-                true,
-                rel_pos,
-                rel_ori,
-                scale,
-            )
-        });
-
-        sleep(Duration::from_secs(2));
-
-        if tx.send(4).is_err() {
-            println!("Failed dummy cam trigger");
-        }
-
-        //Move to the home position - blocker
-        self.go_home_pos();
-
-        //Trigger before the test begins
-        if tx.send(2).is_err() {
-            println!("Failed dummy cam trigger")
-        }
-
-        let start_pos = (
-            test_data.traj[0].0,
-            test_data.traj[0].1,
-            test_data.traj[0].2,
-        );
-
-        self.write_marker(&test_data.data_filename, "TEST STARTED");
-
-        //Move to a starting point
-        self.set_pos(start_pos);
-
-        self.set_speed(2.0);
-
-        if self.force_mode_flag {
-            for (i, pnt) in test_data.traj.iter_mut().enumerate() {
-                if i == 0 {
-                    continue;
-                }
-                self.rel_mv_queue_add(*pnt)
-                    .expect("Failed to add relative move - BAILING");
-            }
-        } else {
-            //Place all the trajectories in the queue
-            for pnt in test_data.traj {
-                self.traj_queue_add_trans(pnt);
-            }
-        }
-
-        //Start the trajectory
-        self.traj_queue_go();
-
-        //Read the values once
-        self.update_rob_info();
-
-        let mut cnt = 0;
-        const DEPTH_FREQ: i32 = 250;
-        const CNTRL_FREQ: i32 = 1;
-
-        //Create a controller
-        let mut controller =
-            PHPIDController::create_PHPID(0.015, 0.0002, 0.0005, 0.0, 0.0001, 0.0, 0.00001);
-
-        //Read the values until the trajectory is reported as done
-        while !self.traj_done_flag {
-            self.update_rob_info();
-            self.store_state(
-                &test_data.data_filename.clone(),
-                cnt,
-                TRANSFORM_TO_WORK_SPACE,
-            );
-
-            //Trigger at the start - or at a specified interval
-            if cnt % DEPTH_FREQ == 0 || cnt == 0 {
-                if tx.send(1).is_ok() {
-                    //Do nothing here - normal operation
-                } else {
-                    println!("Warning - Cam thread dead!");
-                }
-            }
-
-            //Calculate the force error and correct
-            if self.force_mode_flag & (cnt % CNTRL_FREQ == 0) {
-                self.calc_force_err().unwrap();
-
-                //Calculate how much to move the end-effector by
-                self.force_compensate_move(controller.calc_op(self.force_err).unwrap())
-                    .expect("FORCE NOT COMPENSATED FOR");
-            }
-            //Increase the count
-            cnt += 1;
-
-            if self.disconnected {
-                println!("Warning - disconnected during test");
-                let _ = tx.send(0);
-            }
-        }
-
-        //Go back to home pos
-        self.go_home_pos();
-        //No point error handling - if this fails the test is done anyway
-        let _ = tx.send(3);
-
-        println!("Trajectory done!");
-        self.write_marker(&test_data.data_filename, "TEST END");
-
-        let _ = tx.send(0);
-    }
 
     fn geo_test_regime(&mut self) {
         if !self.force_mode_flag {
@@ -930,7 +672,7 @@ impl AbbRob<'_> {
 
         //Start the trajectory
         self.write_marker(&test_data.data_filename, "PHASE 3 STARTED");
-        self.traj_queue_go();
+
 
         const DEPTH_FREQ: i32 = 250;
 
@@ -1302,27 +1044,7 @@ impl AbbRob<'_> {
         }
     }
 
-    //Requests robot move state information flag
-    fn req_rob_mov_state(&mut self) {
-        //Get the value of the move state flag - 1 indicating not moving
-        if let Ok(truth_val) = self.socket.req("MVST:0") {
-            match truth_val.as_str() {
-                "0" => {
-                    self.move_flag = true;
-                }
-                "1" => self.move_flag = false,
-                _ => {
-                    println!(
-                        "Warning - invalid get move response! - got {}",
-                        truth_val.as_str()
-                    )
-                }
-            }
-        } else {
-            println!("Warning - Robot possibly disconnected!");
-            self.disconnected = true;
-        }
-    }
+
 
     //Requests the model name of the robot
     fn req_model(&mut self) -> Result<String, anyhow::Error> {
@@ -1351,13 +1073,11 @@ impl AbbRob<'_> {
         if self.disconnected {
             return;
         }
-        self.req_rob_mov_state();
 
         if self.disconnected {
             return;
         }
 
-        let _ = self.get_traj_done_flag();
     }
 
     //Appends relevant test information to the provided filename
@@ -1537,31 +1257,8 @@ impl AbbRob<'_> {
         }
     }
 
-    //Requests the robot modifies its trajectory to achieve the target force
-    //callback function allows for a range of control functions to be tested/used
-    //To be used if the PID output is a distance to move
-    fn force_compensate_move(&mut self, move_by: f64) -> Result<(), anyhow::Error> {
-        let cmd_string = format!("FCCM:{}", move_by);
 
-        //Send the compensation command to the robot
-        if self.socket.req(&cmd_string)?.eq("OK") {
-            Ok(())
-        } else {
-            bail!("Failed to set compensation movement");
-        }
-    }
 
-    //Gives the robot a desired z-speed which it then uses to calculate the target height that will achieve that
-    fn force_compensate_zspeed(&mut self, desired_z_speed: f64) -> Result<(), anyhow::Error> {
-        let cmd_string = format!("FCCS:{}", desired_z_speed);
-
-        //Send the compensation command to the robot
-        if self.socket.req(&cmd_string)?.eq("OK") {
-            Ok(())
-        } else {
-            bail!("Failed to set desired z speed");
-        }
-    }
 
     //Request the robot find the vertical force taret
     fn req_find_vert_force(&mut self) {
@@ -1575,7 +1272,6 @@ impl AbbRob<'_> {
         match self.socket.req("GTVF:?") {
             Ok(recv) => {
                 if recv == "TRUE" {
-                    self.traj_done_flag = true;
                     Ok(true)
                 } else {
                     Ok(false)
@@ -1621,191 +1317,6 @@ impl AbbRob<'_> {
         self.socket.req("EGSP:0")?;
 
         Ok(())
-    }
-
-    //an egm baseline test where the robot is moved around - basically a play around to try and confirm how it works
-    fn egm_test(&mut self) {
-        //Connect to the server
-        let egm_serv = self.connect_EGM_pose(true).unwrap();
-
-        //Start the stream
-        if self.start_egm_stream_pose().is_err() {
-            println!("Failed to start EGM.... cancelling");
-            return;
-        };
-
-        //Get first info
-        let mut rob_dat = egm_serv.recv_and_connect().unwrap();
-
-        let mut seqno = rob_dat.get_sqno().unwrap() + 1;
-        let _time = rob_dat.feed_back.as_ref().unwrap().time.unwrap().as_tuple();
-
-        let mut target_pos = [220.0, 1800.0, 955.0];
-        //let mut target_pos = [0.0, 0.0, 0.0];
-
-        let initial_config = egm_serv.recv_egm().unwrap();
-        let initial_pos = initial_config.get_pos_xyz().unwrap();
-
-        let mut index = 0;
-
-        //Constantly read the position
-        loop {
-            rob_dat = egm_serv.recv_egm().unwrap();
-
-            let time = rob_dat.feed_back.as_ref().unwrap().time.unwrap().as_tuple();
-
-            let curr_pos = rob_dat.get_pos_xyz().unwrap();
-            let target_pos = [curr_pos[0], curr_pos[1] + 1.0, curr_pos[2]];
-            let curr_ori = rob_dat
-                .feed_back
-                .as_ref()
-                .unwrap()
-                .cartesian
-                .unwrap()
-                .orient
-                .unwrap()
-                .get_quart();
-
-            let dist_travelled = [
-                curr_pos[0] - initial_pos[0],
-                curr_pos[1] - initial_pos[1],
-                curr_pos[2] - initial_pos[2],
-            ];
-
-            //println!("EGM PLANNED: {:?}", rob_dat.planned.unwrap().cartesian);
-
-            //println!("Distance travelled:{:?}", dist_travelled);
-            let vec_dist =
-                (dist_travelled[0].powi(2) + dist_travelled[1].powi(2) + dist_travelled[2].powi(2))
-                    .sqrt();
-            //println!("Vector distance:{}", vec_dist);
-
-            //determine robot move to a position
-            let sensor_msg: EgmSensor = EgmSensor::set_pose(seqno, time, target_pos, curr_ori);
-
-
-            //Send command
-            let _ = egm_serv.send_egm(sensor_msg);
-
-
-
-            seqno += 1;
-            index += 1;
-        }
-    }
-
-    //Runs a desired trajectory by giving the ABB EGM controller a set of desired speeds
-    fn egm_speed_trajectory(&mut self) {
-        //Set up the test data
-        //Creates the test data and the filepaths
-        let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
-        //Store the desired trajectory
-        test_data.store_desired_trajectory(self.force_mode_flag);
-
-        //Log the config
-        self.log_config(&test_data.config_filename);
-
-        //Confirm the test has started
-        self.write_marker(&test_data.data_filename, "Test started");
-
-        //Go to the start position
-        self.set_pos(test_data.traj[0]);
-
-        let desired_lat_speed = 100.0;
-
-        //Calculate the list of desired speeds
-        let mut speed_instructions = calc_xy_timing(&mut test_data.traj, desired_lat_speed);
-
-
-
-        let mut seqno = 0;
-
-        //Start the EGM process
-        let egm_client = self
-            .connect_EGM_pose(self.local)
-            .expect("Failed to connect EGM stream");
-        if self.start_egm_stream_speed().is_err() {
-            println!("Failed to start EGM stream..... cancelling");
-            return;
-        };
-        let _ = egm_client.recv_and_connect();
-
-        //go through every speed instruction
-        for instruction in speed_instructions.iter_mut() {
-            //Get the time limit
-            let time_lim = Duration::from_secs_f64(instruction.0);
-
-            //Start the timer
-            let start_time = SystemTime::now();
-
-            //Send the speed instruction to the robot via EGM
-            let mut desired_speed = [instruction.1.0, instruction.1.1, 0.0];
-
-            let mut prev_x_pos = 0.0;
-            let mut prev_y_pos = 0.0;
-            let mut prev_time = 0;
-
-            //While the timer is running
-            while start_time.elapsed().unwrap() < time_lim {
-                //Get the egm message
-                let msg = egm_client.recv_egm().expect("Failed to get egm message");
-
-                let time = msg.get_time().expect("Failed to get egm time");
-                let curr_pos = msg.get_pos_xyz().expect("Failed to get egm pos");
-                let curr_ori = msg.get_quart_ori().expect("Failed to get egm ori");
-                let force = msg.get_measured_force().expect("Failed to get egm force");
-
-                //Log the robot information gathered by the EGM using
-                self.egm_log_data(seqno, &test_data.data_filename, curr_pos, curr_ori, force);
-
-
-                desired_speed = [instruction.1.0, instruction.1.1, rand::random_range(-1.0..1.0)];
-
-                let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
-                    seqno,
-                    time,
-                    [0.0, 0.0, 0.0],
-                    curr_ori,
-                    desired_speed,
-                );
-                egm_client
-                    .send_egm(sensor)
-                    .expect("Failed to send sensor info");
-                seqno += 1;
-            }
-        }
-
-        let mut egm_state = 3;
-
-        //Run until the EGM has confirmed stopped
-        while egm_state > 2{
-
-
-            //Get the egm message
-            let msg = egm_client.recv_egm().expect("Failed to get egm message");
-
-            egm_state = msg.mci_state.unwrap().state;
-
-            let time = msg.get_time().expect("Failed to get egm time");
-            let curr_pos = msg.get_pos_xyz().expect("Failed to get egm coords");
-            let curr_ori = msg.get_quart_ori().expect("Failed to get egm ori");
-            let sensor: EgmSensor = EgmSensor::stop_egm_pose(seqno, time, curr_pos, curr_ori);
-            egm_client
-                .send_egm(sensor)
-                .expect("Failed to send sensor info");
-
-            seqno += 1;
-
-        }
-
-
-        //Once done disconnect the EGM stream
-        drop(egm_client);
-
-        self.write_marker(&test_data.data_filename, "Test complete");
-
-        //Move the robot to the home position
-        self.go_home_pos();
     }
 
     fn egm_log_data(
