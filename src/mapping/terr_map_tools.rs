@@ -11,7 +11,7 @@ use std::io::{BufRead, BufReader, Write};
 //Basically a fancy vector wrapper
 pub struct PointCloud {
     //List of the points stored in xyz format
-    points: Vec<[f32; 3]>,
+    points: Vec<[f64; 3]>,
     //The number of points present
     no_of_points: usize,
 
@@ -23,7 +23,7 @@ pub struct PointCloud {
 
 impl PointCloud {
     //Create a pointcloud from a list of points
-    pub fn create_from_list(pnts: Vec<[f32; 3]>, timestamp: f64) -> Self {
+    pub fn create_from_list(pnts: Vec<[f64; 3]>, timestamp: f64) -> Self {
         //Calculate the number of points
         let no_of_points = pnts.len();
 
@@ -36,7 +36,7 @@ impl PointCloud {
     }
 
     pub fn create_from_iter(rs2_vertex: &[rs2_vertex], timestamp: f64) -> Self {
-        let mut points: Vec<[f32; 3]> = vec![];
+        let mut points: Vec<[f64; 3]> = vec![];
         let mut no_of_points = 0;
 
         for vertex in rs2_vertex.iter() {
@@ -47,7 +47,7 @@ impl PointCloud {
                 continue;
             }
 
-            points.push(pnt);
+            points.push([pnt[0] as f64, pnt[1] as f64, pnt[2] as f64]);
             no_of_points += 1;
         }
 
@@ -80,7 +80,7 @@ impl PointCloud {
 
         for line in line_reader.lines() {
             //Create empty point
-            let mut pnt: [f32; 3] = [f32::NAN, f32::NAN, f32::NAN];
+            let mut pnt: [f64; 3] = [f64::NAN, f64::NAN, f64::NAN];
 
             //Delimit the line based on commas
             for (cnt, token) in line?.split(",").enumerate() {
@@ -101,7 +101,7 @@ impl PointCloud {
         })
     }
 
-    pub fn points(&self) -> Vec<[f32; 3]> {
+    pub fn points(&self) -> Vec<[f64; 3]> {
         self.points.clone()
     }
 
@@ -114,12 +114,12 @@ impl PointCloud {
 
     //Calculate the xy bounds of the pointcloud (rectangular)
     //Assumes z is the height
-    pub fn get_bounds(&mut self) -> [f32; 4] {
+    pub fn get_bounds(&mut self) -> [f64; 4] {
         //Predefine the values we are interested in
-        let mut x_min: f32 = 9999.0;
-        let mut y_min: f32 = 9999.0;
-        let mut x_max: f32 = -9999.0;
-        let mut y_max: f32 = -9999.0;
+        let mut x_min: f64 = 9999.0;
+        let mut y_min: f64 = 9999.0;
+        let mut x_max: f64 = -9999.0;
+        let mut y_max: f64 = -9999.0;
 
         //Check each point to if it escapes the set bounds
         //If points are sorted beforehand, no need! but sorting might take a while - and how do you sort?
@@ -148,7 +148,7 @@ impl PointCloud {
     //Yaw - X
     //Pitch - Y
     //Roll - Z
-    pub fn rotate(&mut self, yaw: f32, pitch: f32, roll: f32) {
+    pub fn rotate(&mut self, yaw: f64, pitch: f64, roll: f64) {
         //Create the transform matrix rows
         let x_rot = [
             roll.cos() * pitch.cos(),
@@ -181,7 +181,7 @@ impl PointCloud {
     }
 
     //Translate a pointcloud with xyz coords - inplace
-    pub fn translate(&mut self, x: f32, y: f32, z: f32) {
+    pub fn translate(&mut self, x: f64, y: f64, z: f64) {
         //Iterate through every point
         for pnt in self.points.iter_mut() {
             //Transform the points using addition
@@ -192,7 +192,7 @@ impl PointCloud {
     }
 
     //Scale every point by the same value
-    pub fn scale_even(&mut self, scale_val: f32) {
+    pub fn scale_even(&mut self, scale_val: f64) {
         //Iterate through every point
         for pnt in self.points.iter_mut() {
             //Transform the points using addition
@@ -205,16 +205,16 @@ impl PointCloud {
     //Filter a pointcloud by specifying the bounds (bounds inclusive of points on the bound)
     pub fn passband_filter(
         &mut self,
-        min_x: f32,
-        max_x: f32,
-        min_y: f32,
-        max_y: f32,
-        min_z: f32,
-        max_z: f32,
+        min_x: f64,
+        max_x: f64,
+        min_y: f64,
+        max_y: f64,
+        min_z: f64,
+        max_z: f64,
     ) {
         let pnts = self.points();
 
-        let mut new_pnts: Vec<[f32; 3]> = vec![];
+        let mut new_pnts: Vec<[f64; 3]> = vec![];
 
         for pnt in pnts {
             //Drop all the points that sit outside the bounds
@@ -274,8 +274,8 @@ pub struct Heightmap {
     pub no_of_cells: u32,
 
     //The min and max cell heights
-    min: f32,
-    max: f32,
+    min: f64,
+    max: f64,
     //keeps track of whether the min or max need to be updated again
     min_updated: bool,
     max_updated: bool,
@@ -285,11 +285,11 @@ pub struct Heightmap {
     max_pos: (u32, u32),
 
     //the 2d vector representing the cells
-    cells: Vec<Vec<f32>>,
+    cells: Vec<Vec<f64>>,
 
     //The pointcloud bounds it was constructed from (used to position the heightmap in the real world)
-    lower_coord_bounds: [f32; 2],
-    upper_coord_bounds: [f32; 2],
+    lower_coord_bounds: [f64; 2],
+    upper_coord_bounds: [f64; 2],
 
     //Store the filepath for usage in analysis
     pub filename: String,
@@ -392,7 +392,7 @@ impl Heightmap {
 
         let bounds = Self::extract_bounds(first_line);
 
-        let mut bounds_res: [f32; 4] = [f32::NAN, f32::NAN, f32::NAN, f32::NAN];
+        let mut bounds_res: [f64; 4] = [f64::NAN, f64::NAN, f64::NAN, f64::NAN];
 
         if bounds.is_ok() {
             bounds_res = bounds?
@@ -402,12 +402,12 @@ impl Heightmap {
         let mut width = 0;
         let mut width_set = false;
 
-        let mut cells: Vec<Vec<f32>> = vec![];
+        let mut cells: Vec<Vec<f64>> = vec![];
 
         //Go through each cell and update the
         for line in line_reader.lines() {
             //Create the empty row
-            let mut row: Vec<f32> = vec![];
+            let mut row: Vec<f64> = vec![];
 
             //Split via comma then iterate
             for token in line?.split(",") {
@@ -417,7 +417,7 @@ impl Heightmap {
 
                 //Check the slot isn't empty
                 if !token.is_empty() {
-                    row.push(token.parse::<f32>()?);
+                    row.push(token.parse::<f64>()?);
                 }
             }
 
@@ -477,7 +477,7 @@ impl Heightmap {
     }
 
     //Get the height for a given cell
-    pub fn get_cell_height(&self, x: u32, y: u32) -> Result<f32, anyhow::Error> {
+    pub fn get_cell_height(&self, x: u32, y: u32) -> Result<f64, anyhow::Error> {
         if x > self.width || y > self.height {
             bail!("Warning - attempting to read from cell that doesnt exist!");
         }
@@ -486,7 +486,7 @@ impl Heightmap {
     }
 
     //Set the height of a given cell
-    pub fn set_cell_height(&mut self, x: u32, y: u32, new_height: f32) {
+    pub fn set_cell_height(&mut self, x: u32, y: u32, new_height: f64) {
         if x > self.width || y > self.height {
             println!("Warning - attempting to write to cell that doesnt exist!");
             return;
@@ -527,10 +527,10 @@ impl Heightmap {
     }
 
     //Get the maximum cell height
-    fn get_max(&mut self) -> f32 {
+    fn get_max(&mut self) -> f64 {
         //Check whether a new maximum is required
         if !self.max_updated {
-            let mut new_max: f32 = -999.0;
+            let mut new_max: f64 = -999.0;
 
             //Check every value to see if its the largest
             for row in self.cells.iter_mut() {
@@ -549,10 +549,10 @@ impl Heightmap {
     }
 
     //Get the minimum cell height
-    fn get_min(&mut self) -> f32 {
+    fn get_min(&mut self) -> f64 {
         //Check whether a new minimum calc is required
         if !self.min_updated {
-            let mut new_min: f32 = 999.0;
+            let mut new_min: f64 = 999.0;
 
             //Check every value to see if its the smallest
             for row in self.cells.iter_mut() {
@@ -574,14 +574,14 @@ impl Heightmap {
         //Go through every cell and place a pre-defined value in
         for (x, row) in self.cells.iter_mut().enumerate() {
             for (y, col) in row.iter_mut().enumerate() {
-                *col = (x * y) as f32;
+                *col = (x * y) as f64;
             }
         }
 
         //We can cheat - we precalc the minx and maxes
-        self.min = 0f32;
+        self.min = 0f64;
         self.min_pos = (0, 0);
-        self.max = (self.width * self.height) as f32;
+        self.max = (self.width * self.height) as f64;
         self.max_pos = (self.width, self.height);
     }
 
@@ -590,7 +590,7 @@ impl Heightmap {
         //Go through every cell and give it a random value
         for row in self.cells.iter_mut() {
             for col in row.iter_mut() {
-                *col = rand::rng().random_range(0..100) as f32;
+                *col = rand::rng().random_range(0..100) as f64;
             }
         }
 
@@ -612,8 +612,8 @@ impl Heightmap {
     }
 
     //Returns the flattened cells (i.e. every single cell)
-    pub fn get_flattened_cells(&mut self) -> Result<Vec<f32>, anyhow::Error> {
-        let mut cell_list: Vec<f32> = vec![];
+    pub fn get_flattened_cells(&mut self) -> Result<Vec<f64>, anyhow::Error> {
+        let mut cell_list: Vec<f64> = vec![];
 
         for x in 0..(self.width - 1) as usize {
             for y in 0..(self.height - 1) as usize {
@@ -662,8 +662,8 @@ impl Heightmap {
     }
 
     //Extracts the bounds from a string
-    fn extract_bounds(bnd_line: String) -> Result<[f32; 4], anyhow::Error> {
-        let mut bounds: [f32; 4] = [f32::NAN, f32::NAN, f32::NAN, f32::NAN];
+    fn extract_bounds(bnd_line: String) -> Result<[f64; 4], anyhow::Error> {
+        let mut bounds: [f64; 4] = [f64::NAN, f64::NAN, f64::NAN, f64::NAN];
 
         let mut bnd_cnt = 0;
 
@@ -694,7 +694,7 @@ impl Heightmap {
     }
 
     //Calculates the middle coordinates of a given cell (based on the upper/lower bounds)
-    pub fn calc_cell_mid_pnt(&self, n: u32, m: u32) -> Result<[f32; 2], anyhow::Error> {
+    pub fn calc_cell_mid_pnt(&self, n: u32, m: u32) -> Result<[f64; 2], anyhow::Error> {
         if n >= self.width {
             bail!("Error - out of width bounds!")
         }
@@ -702,16 +702,16 @@ impl Heightmap {
             bail!("Error - out of height bounds!");
         }
 
-        let mut mid_pnt: [f32; 2] = [f32::NAN, f32::NAN];
+        let mut mid_pnt: [f64; 2] = [f64::NAN, f64::NAN];
 
         let cell_width =
-            (self.upper_coord_bounds[0] - self.lower_coord_bounds[0]).abs() / self.width as f32;
+            (self.upper_coord_bounds[0] - self.lower_coord_bounds[0]).abs() / self.width as f64;
         let cell_height =
-            (self.upper_coord_bounds[1] - self.lower_coord_bounds[1]).abs() / self.width as f32;
+            (self.upper_coord_bounds[1] - self.lower_coord_bounds[1]).abs() / self.width as f64;
 
         //Calc the mid point with the offset
-        mid_pnt[0] = (n as f32 * cell_width) + self.lower_coord_bounds[0];
-        mid_pnt[1] = (m as f32 * cell_height) + self.lower_coord_bounds[1];
+        mid_pnt[0] = (n as f64 * cell_width) + self.lower_coord_bounds[0];
+        mid_pnt[1] = (m as f64 * cell_height) + self.lower_coord_bounds[1];
 
         Ok(mid_pnt)
     }

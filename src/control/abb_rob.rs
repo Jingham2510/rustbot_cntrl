@@ -21,19 +21,19 @@ use std::{fs, thread};
 pub struct AbbRob<'a> {
     socket: tcp_sock::TcpSock,
     local: bool,
-    pos: (f32, f32, f32),
-    ori: (f32, f32, f32),
-    jnt_angles: (f32, f32, f32, f32, f32, f32),
-    force: (f32, f32, f32, f32, f32, f32),
+    pos: (f64, f64, f64),
+    ori: (f64, f64, f64),
+    jnt_angles: (f64, f64, f64, f64, f64, f64),
+    force: (f64, f64, f64, f64, f64, f64),
     move_flag: bool,
     traj_done_flag: bool,
     disconnected: bool,
     force_mode_flag: bool,
     force_axis: String,
-    force_target: f32,
+    force_target: f64,
     //Programme setup config
     config: &'a mut Config,
-    force_err: f32,
+    force_err: f64,
 }
 
 //Stores all the relevant test data for when a test starts
@@ -188,10 +188,10 @@ impl AbbRob<'_> {
             let new_rob = AbbRob {
                 socket: rob_sock,
                 local,
-                pos: (f32::NAN, f32::NAN, f32::NAN),
-                ori: (f32::NAN, f32::NAN, f32::NAN),
-                jnt_angles: (f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN),
-                force: (f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN),
+                pos: (f64::NAN, f64::NAN, f64::NAN),
+                ori: (f64::NAN, f64::NAN, f64::NAN),
+                jnt_angles: (f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN),
+                force: (f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN),
                 move_flag: false,
                 traj_done_flag: false,
                 disconnected: false,
@@ -269,7 +269,7 @@ impl AbbRob<'_> {
                         .read_line(&mut user_inp)
                         .expect("Failed to read line");
 
-                    if let Ok(targ) = user_inp.trim().parse::<f32>() {
+                    if let Ok(targ) = user_inp.trim().parse::<f64>() {
                         self.set_force_config("Z", targ)
                             .expect("FAILED TO SET FORCE CONFIG");
                         self.run_test();
@@ -289,7 +289,7 @@ impl AbbRob<'_> {
                         .read_line(&mut user_inp)
                         .expect("Failed to read line");
 
-                    if let Ok(targ) = user_inp.trim().parse::<f32>() {
+                    if let Ok(targ) = user_inp.trim().parse::<f64>() {
                         self.set_force_config("Z", targ)
                             .expect("FAILED TO SET FORCE CONFIG");
                         self.geo_test_regime();
@@ -328,7 +328,7 @@ impl AbbRob<'_> {
     }
 
     //Request the robot move to specific joint angles
-    fn set_joints(&mut self, angs: (f32, f32, f32, f32, f32, f32)) {
+    fn set_joints(&mut self, angs: (f64, f64, f64, f64, f64, f64)) {
         //Check to see if a response was returned
         if let Ok(_resp) = self.socket.req(&format!(
             "STJT:[{},{},{},{},{},{}]",
@@ -382,7 +382,7 @@ impl AbbRob<'_> {
     }
 
     //Set the speed of the robot TCP
-    fn set_speed(&mut self, speed: f32) {
+    fn set_speed(&mut self, speed: f64) {
         if let Ok(resp) = self.socket.req(&format!("STSP:{}", speed)) {
             //Do nothing - no user notification required
             println!("{resp}");
@@ -394,7 +394,7 @@ impl AbbRob<'_> {
 
     //Move the tool relative to its own local coordinate system
     //xyz - how far the tcp will move in each caridnal direction
-    fn move_tool(&mut self, xyz: (f32, f32, f32)) {
+    fn move_tool(&mut self, xyz: (f64, f64, f64)) {
         if let Ok(_resp) = self
             .socket
             .req(&format!("MVTL:[{},{},{}]", xyz.0, xyz.1, xyz.2))
@@ -509,7 +509,7 @@ impl AbbRob<'_> {
 
     //Set the force requirements for force control
     //Safety critical - always bail if state is possibly unknown!
-    fn set_force_config(&mut self, ax: &str, target: f32) -> Result<(), anyhow::Error> {
+    fn set_force_config(&mut self, ax: &str, target: f64) -> Result<(), anyhow::Error> {
         //Format the string request (SeT ForceConfig)
         let conf_str = format!("STFC:{}.{}", ax, target);
 
@@ -697,6 +697,12 @@ impl AbbRob<'_> {
         //Store the desired trajectory
         test_data.store_desired_trajectory(self.force_mode_flag);
 
+        //Calcualte the speed intructions
+        let desired_lat_speed = 0.1;
+        let speed_instructions = calc_xy_timing(&mut test_data.traj, desired_lat_speed);
+
+
+
         //Create a threading channel to trigger the camera
         let (tx, rx) = mpsc::channel();
 
@@ -735,6 +741,7 @@ impl AbbRob<'_> {
         if tx.send(4).is_err() {
             println!("Failed dummy cam trigger");
         }
+
         //Move to the home position - blocker
         self.go_home_pos();
 
@@ -757,15 +764,6 @@ impl AbbRob<'_> {
 
         self.set_speed(2.0);
 
-        //Send the trajectory
-        for (i, pnt) in test_data.traj.iter_mut().enumerate() {
-            //Ignore the first point
-            if i == 0 {
-                continue;
-            }
-            self.rel_mv_queue_add(*pnt)
-                .expect("Failed to add relative move - BAILING");
-        }
 
         //Read the values once
         self.update_rob_info();
@@ -814,10 +812,10 @@ impl AbbRob<'_> {
 
         //Phase 2 - force control until target force is stabilised (PID 1)
         let mut force_stable = false;
-        let mut force_errs: Vec<f32> = vec![];
+        let mut force_errs: Vec<f64> = vec![];
         //Minimum of 500 measurements taken - just to prove its stable
         const FORCE_ERR_ROLL_AVG: usize = 300;
-        let force_avg_threshold: f32 = match self.force_target {
+        let force_avg_threshold: f64 = match self.force_target {
             -5.0 => 0.45,
             -10.0 => 0.30,
             -25.0 => 0.20,
@@ -827,7 +825,7 @@ impl AbbRob<'_> {
         //Actual values have to be within 30% of the desired force
         const FORCE_THRESH_CNT: usize = 100;
         //The force threshold is based on the inverse of the magnitude
-        let force_threshold: f32 = match self.force_target {
+        let force_threshold: f64 = match self.force_target {
             -5.0 => 1.0,
             -10.0 => 0.6,
             -25.0 => 0.5,
@@ -878,7 +876,7 @@ impl AbbRob<'_> {
             //Check if every value in the rolling queue is within the required threshold
             if force_errs.len() == FORCE_ERR_ROLL_AVG {
                 let mut force_sum = 0.0;
-                let force_avg: f32;
+                let force_avg: f64;
 
                 let mut all_within = true;
                 //Check that the rolling average is within 10% (globally correct)
@@ -899,7 +897,7 @@ impl AbbRob<'_> {
 
                 if all_within {
                     //Check that the global average is okay
-                    force_avg = force_sum / FORCE_ERR_ROLL_AVG as f32;
+                    force_avg = force_sum / FORCE_ERR_ROLL_AVG as f64;
                     if (force_avg / self.force_target).abs() < force_avg_threshold {
                         //Count the force as stable
                         force_stable = true;
@@ -921,6 +919,8 @@ impl AbbRob<'_> {
         println!("GEOTECH - PHASE 2 COMPLETE!");
         self.write_marker(&test_data.data_filename, "PHASE 2 ENDED");
 
+        //TODO: Add force relaxation here
+
         //Take snapshot
         let _ = tx.send(1);
         //Phase 3 - Complete trajectory whilst (PID)
@@ -933,38 +933,96 @@ impl AbbRob<'_> {
         self.traj_queue_go();
 
         const DEPTH_FREQ: i32 = 250;
-        //Read the values until the trajectory is reported as done
-        while !self.traj_done_flag {
-            self.update_rob_info();
-            let _ = self.calc_force_err();
-            self.store_state(
-                &test_data.data_filename.clone(),
-                cnt,
-                TRANSFORM_TO_WORK_SPACE,
-            );
 
-            //Trigger at the start - or at a specified interval
-            if cnt % DEPTH_FREQ == 0 || cnt == 0 {
-                if tx.send(1).is_ok() {
-                    //Do nothing here - normal operation
-                } else {
-                    println!("Warning - Cam thread dead!");
+        //Connect to the EGM host
+        let egm_client = self.connect_EGM_pose(self.local).expect("Failed to connect to EGM");
+        egm_client.recv_and_connect().expect("Failed to bind to EGM");
+
+        let mut seqno = 0;
+
+
+        for instruction in speed_instructions.iter(){
+            //Get the time limit
+            let time_lim = Duration::from_secs_f64(instruction.0);
+
+            //Start the timer
+            let start_time = SystemTime::now();
+
+            //Send the speed instruction to the robot via EGM
+            let mut desired_speed: [f64;3];
+
+
+            //While the timer is running
+            while start_time.elapsed().unwrap() < time_lim {
+                //Get the egm message
+                let msg = egm_client.recv_egm().expect("Failed to get egm message");
+
+                let time = msg.get_time().expect("Failed to get egm time");
+                let curr_pos = msg.get_pos_xyz().expect("Failed to get egm pos");
+                let curr_ori = msg.get_quart_ori().expect("Failed to get egm ori");
+                let force = msg.get_measured_force().expect("Failed to get egm force");
+
+                self.force = (force[0], force[1], force[2], force[3], force[4], force[5]);
+                ;
+
+                //Log the robot information gathered by the EGM using
+                self.egm_log_data(cnt as u32, &test_data.data_filename, curr_pos, curr_ori, force);
+
+                //Trigger the camera
+                if cnt % DEPTH_FREQ == 0 || cnt == 0 {
+                    if tx.send(1).is_ok() {
+                        //Do nothing here - normal operation
+                    } else {
+                        println!("Warning - Cam thread dead!");
+                    }
                 }
-            }
 
-            //Calculate how much to move the end-effector by
-            self.force_compensate_zspeed(phase3_cntrl.calc_op(self.force_err).unwrap())
-                .expect("FORCE NOT COMPENSATED FOR");
+                //Apply the controller
+                let des_z_speed = phase3_cntrl.calc_op(self.calc_force_err().expect("Failed to calculate force error")).expect("Failed to calculate desired z speed");
 
-            //Increase the count
-            cnt += 1;
 
-            if self.disconnected {
-                println!("Warning - disconnected during test");
-                let _ = tx.send(0);
-                return;
+                desired_speed = [instruction.1.0, instruction.1.1, des_z_speed];
+
+                let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
+                    seqno,
+                    time,
+                    [0.0, 0.0, 0.0],
+                    curr_ori,
+                    desired_speed,
+                );
+                egm_client
+                    .send_egm(sensor)
+                    .expect("Failed to send sensor info");
+                seqno += 1;
+                cnt += 1;
             }
         }
+
+        let mut egm_state = 3;
+
+        //Run until the EGM has confirmed stopped
+        while egm_state > 2{
+
+
+            //Get the egm message
+            let msg = egm_client.recv_egm().expect("Failed to get egm message");
+
+            egm_state = msg.mci_state.unwrap().state;
+
+            println!("EGM State: {}", egm_state);
+
+            let time = msg.get_time().expect("Failed to get egm time");
+            let curr_pos = msg.get_pos_xyz().expect("Failed to get egm coords");
+            let curr_ori = msg.get_quart_ori().expect("Failed to get egm ori");
+            let sensor: EgmSensor = EgmSensor::stop_egm_pose(seqno, time, curr_pos, curr_ori);
+            egm_client
+                .send_egm(sensor)
+                .expect("Failed to send sensor info");
+
+            seqno += 1;
+
+        }
+
 
         self.write_marker(&test_data.data_filename, "PHASE 3 ENDED");
 
@@ -998,8 +1056,8 @@ impl AbbRob<'_> {
         let mut exp_model = ExpModel::create_exp_model(test_data.traj, 1.0).unwrap();
 
         let (trig_tx, trig_rx): (mpsc::Sender<bool>, Receiver<bool>) = mpsc::channel();
-        let (jnt_send, jnt_recv): (mpsc::Sender<[f32; 6]>, Receiver<[f32; 6]>) = mpsc::channel();
-        let (z_pub, z_recv): (mpsc::Sender<f32>, Receiver<f32>) = mpsc::channel();
+        let (jnt_send, jnt_recv): (mpsc::Sender<[f64; 6]>, Receiver<[f64; 6]>) = mpsc::channel();
+        let (z_pub, z_recv): (mpsc::Sender<f64>, Receiver<f64>) = mpsc::channel();
 
         //Setup the experiment model test
         self.req_jnt_angs();
@@ -1007,7 +1065,7 @@ impl AbbRob<'_> {
         let curr_jnt = self.jnt_angles;
 
         thread::spawn(move || {
-            exp_model.run_model_traj(<[f32; 6]>::from(curr_jnt), trig_rx, jnt_send, z_recv)
+            exp_model.run_model_traj(<[f64; 6]>::from(curr_jnt), trig_rx, jnt_send, z_recv)
         });
 
         let mut cnt = 0;
@@ -1028,7 +1086,7 @@ impl AbbRob<'_> {
 
         while let Ok(jnt_angles) = jnt_recv.recv() {
             //Get the joint angles and send to robot
-            self.set_joints(<(f32, f32, f32, f32, f32, f32)>::from(jnt_angles));
+            self.set_joints(<(f64, f64, f64, f64, f64, f64)>::from(jnt_angles));
 
             //Get all info from robot
             self.update_rob_info();
@@ -1054,9 +1112,9 @@ impl AbbRob<'_> {
         filepath: String,
         test_name: &str,
         hmap: bool,
-        rel_pos: [f32; 3],
-        rel_ori: [f32; 3],
-        scale: f32,
+        rel_pos: [f64; 3],
+        rel_ori: [f64; 3],
+        scale: f64,
     ) {
         //Create a camera
         let mut cam = terr_map_sense::RealsenseCam::initialise().expect("Failed to create camera");
@@ -1151,7 +1209,7 @@ impl AbbRob<'_> {
             //Check that the vector is the right length
             if xyz_vec.len() != 3 {
                 println!("XYZ pos read error!");
-                self.pos = (f32::NAN, f32::NAN, f32::NAN);
+                self.pos = (f64::NAN, f64::NAN, f64::NAN);
             } else {
                 //Store the pos in the robot info
                 self.pos = (xyz_vec[0], xyz_vec[1], xyz_vec[2]);
@@ -1176,7 +1234,7 @@ impl AbbRob<'_> {
             //Check that the vector is the right length
             if ori_vec.len() != 3 {
                 println!("ORI pos read error!");
-                self.ori = (f32::NAN, f32::NAN, f32::NAN);
+                self.ori = (f64::NAN, f64::NAN, f64::NAN);
             } else {
                 //Store the pos in the robot info
                 self.ori = (ori_vec[0], ori_vec[1], ori_vec[2]);
@@ -1200,7 +1258,7 @@ impl AbbRob<'_> {
             if jtang_vec.len() != 6 {
                 println!("joint angle read error!");
                 println!("Expected: 6. Actual: {}", jtang_vec.len());
-                self.jnt_angles = (f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN);
+                self.jnt_angles = (f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN);
             } else {
                 //Store the pos in the robot info
                 self.jnt_angles = (
@@ -1231,7 +1289,7 @@ impl AbbRob<'_> {
             if fc_vec.len() != 6 {
                 println!("joint angle read error!");
                 println!("Expected: 6. Actual: {}", fc_vec.len());
-                self.force = (f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN, f32::NAN);
+                self.force = (f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN);
             } else {
                 //Store the pos in the robot info
                 self.force = (
@@ -1456,10 +1514,10 @@ impl AbbRob<'_> {
     }
 
     //Calculate the error between the
-    fn calc_force_err(&mut self) -> Result<f32, anyhow::Error> {
+    fn calc_force_err(&mut self) -> Result<f64, anyhow::Error> {
         //Check that force mode is enabled (otherwise there's no point in calcing the error
         if self.force_mode_flag {
-            let force_val: f32;
+            let force_val: f64;
             //Extract the correct axis information
             match self.force_axis.as_str() {
                 //Cover both case values
@@ -1483,7 +1541,7 @@ impl AbbRob<'_> {
     //Requests the robot modifies its trajectory to achieve the target force
     //callback function allows for a range of control functions to be tested/used
     //To be used if the PID output is a distance to move
-    fn force_compensate_move(&mut self, move_by: f32) -> Result<(), anyhow::Error> {
+    fn force_compensate_move(&mut self, move_by: f64) -> Result<(), anyhow::Error> {
         let cmd_string = format!("FCCM:{}", move_by);
 
         //Send the compensation command to the robot
@@ -1495,7 +1553,7 @@ impl AbbRob<'_> {
     }
 
     //Gives the robot a desired z-speed which it then uses to calculate the target height that will achieve that
-    fn force_compensate_zspeed(&mut self, desired_z_speed: f32) -> Result<(), anyhow::Error> {
+    fn force_compensate_zspeed(&mut self, desired_z_speed: f64) -> Result<(), anyhow::Error> {
         let cmd_string = format!("FCCS:{}", desired_z_speed);
 
         //Send the compensation command to the robot
@@ -1657,9 +1715,9 @@ impl AbbRob<'_> {
         let desired_lat_speed = 100.0;
 
         //Calculate the list of desired speeds
-        let mut speed_instructions = calc_xy_timing(test_data.traj, desired_lat_speed);
+        let mut speed_instructions = calc_xy_timing(&mut test_data.traj, desired_lat_speed);
 
-        println!("{:?}", speed_instructions);
+
 
         let mut seqno = 0;
 
@@ -1682,7 +1740,7 @@ impl AbbRob<'_> {
             let start_time = SystemTime::now();
 
             //Send the speed instruction to the robot via EGM
-            let desired_speed = [instruction.1.0, instruction.1.1, 0.0];
+            let mut desired_speed = [instruction.1.0, instruction.1.1, 0.0];
 
             let mut prev_x_pos = 0.0;
             let mut prev_y_pos = 0.0;
@@ -1701,38 +1759,8 @@ impl AbbRob<'_> {
                 //Log the robot information gathered by the EGM using
                 self.egm_log_data(seqno, &test_data.data_filename, curr_pos, curr_ori, force);
 
-                println!("desired - x:{}, y:{}", desired_speed[0], desired_speed[1]);
-                println!(
-                    "x speed - {}, y speed - {}",
-                    (curr_pos[0] - prev_x_pos)
-                        / (msg
-                            .feed_back
-                            .as_ref()
-                            .unwrap()
-                            .time
-                            .unwrap()
-                            .as_timestamp_ms()
-                            - prev_time) as f64,
-                    (curr_pos[1] - prev_y_pos)
-                        / (msg
-                            .feed_back
-                            .as_ref()
-                            .unwrap()
-                            .time
-                            .unwrap()
-                            .as_timestamp_ms()
-                            - prev_time)as f64
-                );
 
-                prev_x_pos = curr_pos[0];
-                prev_y_pos = curr_pos[1];
-                prev_time = msg
-                    .feed_back
-                    .as_ref()
-                    .unwrap()
-                    .time
-                    .unwrap()
-                    .as_timestamp_ms();
+                desired_speed = [instruction.1.0, instruction.1.1, rand::random_range(-1.0..1.0)];
 
                 let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
                     seqno,

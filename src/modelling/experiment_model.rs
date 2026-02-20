@@ -103,10 +103,10 @@ impl ExpModel<IRB6400Model> {
     //Takes three messengers - one that signals for a joint angle, one publishes joint angles, one that recieves desired z speeds
     pub fn run_model_traj(
         &mut self,
-        initial_joint_cfg: [f32; 6],
+        initial_joint_cfg: [f64; 6],
         trig: Receiver<bool>,
-        pub_j: Sender<[f32; 6]>,
-        desired_z: Receiver<f32>,
+        pub_j: Sender<[f64; 6]>,
+        desired_z: Receiver<f64>,
     ) {
         //Set the initial joint configuration
 
@@ -148,7 +148,7 @@ impl ExpModel<IRB6400Model> {
             loop {
                 //Update joint angles in model based on time passed and currently modelled speed
                 self.rob_model
-                    .move_joints(joint_speed, last_tick.elapsed().unwrap().as_secs_f32());
+                    .move_joints(joint_speed, last_tick.elapsed().unwrap().as_secs_f64());
                 last_tick = SystemTime::now();
 
                 //Send the joint angles out of the thread

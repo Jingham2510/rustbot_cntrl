@@ -7,7 +7,7 @@ pub fn rem_first_and_last(value: &str) -> &str {
     chars.as_str()
 }
 
-pub fn str_to_vector(inp: &str) -> Vec<f32> {
+pub fn str_to_vector(inp: &str) -> Vec<f64> {
     //Create the vector delimited by ,
     let sep: Vec<_> = inp.split(",").collect();
 

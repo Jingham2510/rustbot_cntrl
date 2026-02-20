@@ -27,7 +27,7 @@ use crate::modelling::experiment_model::ExpModel;
 use crate::modelling::irb6400_model::IRB6400Model;
 use control::abb_rob;
 
-const VER_NUM: &str = "V0.5";
+const VER_NUM: &str = "V0.6";
 //Program title
 const TITLE: &str = "Rustbot Control";
 

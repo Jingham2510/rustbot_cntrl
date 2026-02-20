@@ -246,7 +246,7 @@ pub fn relative_traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Err
 //Calculates the required xy speeds to achieve a desired trajectory
 //Return format (time of speed (s), (X speed (mm/s), Y speed (mm/s))
 pub fn calc_xy_timing(
-    mut traj: Vec<(f64, f64, f64)>,
+    traj: &mut Vec<(f64, f64, f64)>,
     des_lat_speed: f64,
 ) -> Vec<(f64, (f64, f64))> {
     let mut timing_instructions: Vec<(f64, (f64, f64))> = vec![];

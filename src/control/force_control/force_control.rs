@@ -28,15 +28,15 @@ pub fn prop_gain_control(err: f32) -> Result<f32, anyhow::Error> {
 }
 
 pub struct PDController {
-    prev_err: f32,
+    prev_err: f64,
     prev_time: DateTime<Local>,
-    kp_gain: f32,
-    kd_gain: f32,
+    kp_gain: f64,
+    kd_gain: f64,
 }
 
 impl PDController {
     #![allow(nonstandard_style)]
-    pub fn create_PD(KP_gain: f32, KD_gain: f32) -> PDController {
+    pub fn create_PD(KP_gain: f64, KD_gain: f64) -> PDController {
         PDController {
             prev_err: 0.0,
             prev_time: chrono::offset::Local::now(),
@@ -45,12 +45,12 @@ impl PDController {
         }
     }
 
-    pub fn calc_op(&mut self, err: f32) -> Result<f32, anyhow::Error> {
+    pub fn calc_op(&mut self, err: f64) -> Result<f64, anyhow::Error> {
         //Get current time
         let now = chrono::offset::Local::now();
 
         //Calculate the derivative of the current slope
-        let derr = (err - self.prev_err) / ((now - self.prev_time).as_seconds_f32());
+        let derr = (err - self.prev_err) / ((now - self.prev_time).as_seconds_f64());
 
         //Update the previous values
         self.prev_time = now;
@@ -61,12 +61,12 @@ impl PDController {
 }
 
 pub struct PIDController {
-    errs: Vec<f32>,
+    errs: Vec<f64>,
     timestamps: Vec<DateTime<Local>>,
-    curr_integral: f32,
-    kp_gain: f32,
-    ki_gain: f32,
-    kd_gain: f32,
+    curr_integral: f64,
+    kp_gain: f64,
+    ki_gain: f64,
+    kd_gain: f64,
 }
 
 impl Display for PIDController {
@@ -82,7 +82,7 @@ impl Display for PIDController {
 
 impl PIDController {
     #![allow(nonstandard_style)]
-    pub fn create_PID(KP_gain: f32, KI_gain: f32, KD_gain: f32) -> PIDController {
+    pub fn create_PID(KP_gain: f64, KI_gain: f64, KD_gain: f64) -> PIDController {
         PIDController {
             errs: vec![0.0],
             timestamps: vec![Local::now()],
@@ -93,7 +93,7 @@ impl PIDController {
         }
     }
 
-    pub fn calc_op(&mut self, err: f32) -> Result<f32, anyhow::Error> {
+    pub fn calc_op(&mut self, err: f64) -> Result<f64, anyhow::Error> {
         self.timestamps.push(Local::now());
         self.errs.push(err);
 
@@ -101,7 +101,7 @@ impl PIDController {
         let derr = (err - self.errs[self.errs.len() - 2])
             / ((self.timestamps[self.timestamps.len() - 1]
                 - self.timestamps[self.timestamps.len() - 2])
-                .as_seconds_f32());
+                .as_seconds_f64());
 
         //Calculate the integral (iteratively)
         self.calc_integral_trap_approx();
@@ -117,8 +117,8 @@ impl PIDController {
     }
 
     //Approximate the integral area using the trapezium approximation
-    fn calc_integral_trap_approx(&mut self) -> f32 {
-        let new_area: f32;
+    fn calc_integral_trap_approx(&mut self) -> f64 {
+        let new_area: f64;
 
         let curr_err = self.errs[self.errs.len() - 1];
         let prev_err = self.errs[self.errs.len() - 2];
@@ -129,11 +129,11 @@ impl PIDController {
         //Check the sign of the error and the previous error
         //BOTH ERRS POS
         if (curr_err >= 0.0) & (prev_err >= 0.0) {
-            new_area = (time_delta as f32) * ((prev_err + curr_err) / 2.0)
+            new_area = (time_delta as f64) * ((prev_err + curr_err) / 2.0)
         }
         //BOTH ERRS NEGATIVE
         else if (curr_err <= 0.0) & (prev_err <= 0.0) {
-            new_area = (time_delta as f32) * ((prev_err + curr_err) / 2.0)
+            new_area = (time_delta as f64) * ((prev_err + curr_err) / 2.0)
         } else {
             //Calc the midpoint (where it crosses the polarity approx)
 
@@ -148,16 +148,16 @@ impl PIDController {
 
 //Proportional Heaviside PID Controller (basically two PID controllers)
 pub struct PHPIDController {
-    errs: Vec<f32>,
+    errs: Vec<f64>,
     timestamps: Vec<DateTime<Local>>,
-    curr_integral: f32,
-    hi_kp_gain: f32,
-    hi_ki_gain: f32,
-    hi_kd_gain: f32,
-    heaviside_val: f32,
-    lo_kp_gain: f32,
-    lo_ki_gain: f32,
-    lo_kd_gain: f32,
+    curr_integral: f64,
+    hi_kp_gain: f64,
+    hi_ki_gain: f64,
+    hi_kd_gain: f64,
+    heaviside_val: f64,
+    lo_kp_gain: f64,
+    lo_ki_gain: f64,
+    lo_kd_gain: f64,
 }
 
 impl Display for PHPIDController {
@@ -179,13 +179,13 @@ impl Display for PHPIDController {
 impl PHPIDController {
     #![allow(nonstandard_style)]
     pub fn create_PHPID(
-        Hi_KP_gain: f32,
-        Hi_KI_gain: f32,
-        Hi_KD_gain: f32,
-        heaviside_val: f32,
-        Lo_KP_gain: f32,
-        Lo_KI_gain: f32,
-        Lo_KD_gain: f32,
+        Hi_KP_gain: f64,
+        Hi_KI_gain: f64,
+        Hi_KD_gain: f64,
+        heaviside_val: f64,
+        Lo_KP_gain: f64,
+        Lo_KI_gain: f64,
+        Lo_KD_gain: f64,
     ) -> PHPIDController {
         PHPIDController {
             errs: vec![0.0],
@@ -201,7 +201,7 @@ impl PHPIDController {
         }
     }
 
-    pub fn calc_op(&mut self, err: f32) -> Result<f32, anyhow::Error> {
+    pub fn calc_op(&mut self, err: f64) -> Result<f64, anyhow::Error> {
         self.timestamps.push(Local::now());
         self.errs.push(err);
 
@@ -209,7 +209,7 @@ impl PHPIDController {
         let derr = (err - self.errs[self.errs.len() - 2])
             / ((self.timestamps[self.timestamps.len() - 1]
                 - self.timestamps[self.timestamps.len() - 2])
-                .as_seconds_f32());
+                .as_seconds_f64());
 
         //Calculate the integral (iteratively)
         self.calc_integral_trap_approx();
@@ -227,8 +227,8 @@ impl PHPIDController {
     }
 
     //Approximate the integral area using the trapezium approximation
-    fn calc_integral_trap_approx(&mut self) -> f32 {
-        let new_area: f32;
+    fn calc_integral_trap_approx(&mut self) -> f64 {
+        let new_area: f64;
 
         let curr_err = self.errs[self.errs.len() - 1];
         let prev_err = self.errs[self.errs.len() - 2];
@@ -239,11 +239,11 @@ impl PHPIDController {
         //Check the sign of the error and the previous error
         //BOTH ERRS POS
         if (curr_err >= 0.0) & (prev_err >= 0.0) {
-            new_area = (time_delta as f32) * ((prev_err + curr_err) / 2.0)
+            new_area = (time_delta as f64) * ((prev_err + curr_err) / 2.0)
         }
         //BOTH ERRS NEGATIVE
         else if (curr_err <= 0.0) & (prev_err <= 0.0) {
-            new_area = (time_delta as f32) * ((prev_err + curr_err) / 2.0)
+            new_area = (time_delta as f64) * ((prev_err + curr_err) / 2.0)
         } else {
             //Calc the midpoint (where it crosses the polarity approx)
 

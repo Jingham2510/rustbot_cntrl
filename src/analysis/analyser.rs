@@ -70,7 +70,7 @@ impl Analyser {
     }
 
     //Get the rectangular bounds of the test (i.e. where the end-effector interacted with the soil)
-    pub fn get_traj_bounds(&mut self) -> Result<[f32; 4], anyhow::Error> {
+    pub fn get_traj_bounds(&mut self) -> Result<[f64; 4], anyhow::Error> {
         self.data_handler.get_traj_rect_bnds()
     }
 
@@ -146,7 +146,7 @@ impl Analyser {
 
             let mut filled_cells = 0;
             for cell in map.get_flattened_cells()? {
-                if !f32::is_nan(cell) {
+                if !f64::is_nan(cell) {
                     filled_cells += 1;
                 }
             }
@@ -282,9 +282,9 @@ impl Analyser {
     //Generates the isolation rectangle to surround the trajectory
     fn gen_iso_rect(
         &mut self,
-        iso_x_radius: f32,
-        iso_y_radius: f32,
-    ) -> Result<[f32; 4], anyhow::Error> {
+        iso_x_radius: f64,
+        iso_y_radius: f64,
+    ) -> Result<[f64; 4], anyhow::Error> {
         //Get the bounds of the trajectory
         let mut traj_bounds = self.get_traj_bounds()?;
 
@@ -306,8 +306,8 @@ impl Analyser {
     //Turns it into a heightmap and displays it
     pub fn disp_iso_traj_path(
         &mut self,
-        iso_x_radius: f32,
-        iso_y_radius: f32,
+        iso_x_radius: f64,
+        iso_y_radius: f64,
     ) -> Result<(), anyhow::Error> {
         //Load every pointcloud taken during the test
         let pcls = self.load_all_pcl()?;
@@ -340,7 +340,7 @@ impl Analyser {
         &mut self,
         width: usize,
         height: usize,
-    ) -> Result<Vec<Vec<f32>>, anyhow::Error> {
+    ) -> Result<Vec<Vec<f64>>, anyhow::Error> {
         //Get the base pointcloud - calculate the bounds
         let fp = format!("{}/pcl_{}_START.txt", self.test_fp, self.test_name);
 
@@ -386,7 +386,7 @@ impl Analyser {
         width: usize,
         height: usize,
         option: ForceSel,
-    ) -> Result<Vec<Vec<f32>>, anyhow::Error> {
+    ) -> Result<Vec<Vec<f64>>, anyhow::Error> {
         //Get the base pointcloud - calculate the bounds
         let fp = format!("{}/pcl_{}_START.txt", self.test_fp, self.test_name);
 
@@ -400,7 +400,7 @@ impl Analyser {
 
         let traj_force_dat = self.data_handler.get_traj_force_pairs();
 
-        let mut pnts: Vec<[f32; 3]> = vec![];
+        let mut pnts: Vec<[f64; 3]> = vec![];
 
         //Calculate the map with different intensity values based on
         match option {
@@ -500,9 +500,9 @@ impl Analyser {
     //Rotate all PCLs associated with the test, and regenerate the heightmaps
     pub fn rotate_and_regen(
         &mut self,
-        yaw: f32,
-        pitch: f32,
-        roll: f32,
+        yaw: f64,
+        pitch: f64,
+        roll: f64,
         width: u32,
         height: u32,
     ) -> Result<(), anyhow::Error> {

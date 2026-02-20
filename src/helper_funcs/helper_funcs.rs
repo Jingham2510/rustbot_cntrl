@@ -17,15 +17,15 @@ pub enum MapGenOpt {
 
 //Transforms 3 point data into a 2.5d heightmap ( where the 3rd data point is the "height"/intensity)
 pub fn trans_to_heightmap(
-    data: Vec<[f32; 3]>,
+    data: Vec<[f64; 3]>,
     width: usize,
     height: usize,
-    total_width: f32,
-    total_height: f32,
-    min_x_bnd: f32,
-    min_y_bnd: f32,
+    total_width: f64,
+    total_height: f64,
+    min_x_bnd: f64,
+    min_y_bnd: f64,
     opt: MapGenOpt,
-) -> Result<Vec<Vec<f32>>, anyhow::Error> {
+) -> Result<Vec<Vec<f64>>, anyhow::Error> {
     //Create the empty cell matrix
     //NaN spots are areas with 0 action
     let mut cells_pnt_list = vec![vec![vec![]; height]; width];
@@ -39,9 +39,10 @@ pub fn trans_to_heightmap(
         let mut n_fnd = false;
         let mut m_fnd = false;
 
+
         //Find the horizontal pos
         while !n_fnd {
-            if pnt[0] < ((total_width / width as f32) * n as f32) + min_x_bnd {
+            if pnt[0] < (((total_width / width as f64) * n as f64) + min_x_bnd) {
                 n_fnd = true;
             } else {
                 n += 1;
@@ -55,7 +56,7 @@ pub fn trans_to_heightmap(
 
         //Find the vertical pos
         while !m_fnd {
-            if pnt[1] < ((total_height / height as f32) * m as f32) + min_y_bnd {
+            if pnt[1] < (((total_height / height as f64) * m as f64) + min_y_bnd) {
                 m_fnd = true;
             } else {
                 m += 1;
@@ -71,18 +72,18 @@ pub fn trans_to_heightmap(
     }
 
     //Calculate the height of each cell based on the chosen hmap option
-    let mut cells: Vec<Vec<f32>> = vec![vec![]; width];
+    let mut cells: Vec<Vec<f64>> = vec![vec![]; width];
 
     //Iterate through each point list
     for (i, pnt_list) in cells_pnt_list.iter_mut().enumerate() {
         for pnts in pnt_list {
             //If the cell is NAN - keep it as a null cell
             if pnts.iter().any(|x| x.is_nan()) || pnts.is_empty() {
-                cells[i].push(f32::NAN);
+                cells[i].push(f64::NAN);
                 continue;
             }
 
-            let mut pnt_to_add: f32 = 0.0;
+            let mut pnt_to_add: f64 = 0.0;
 
             //Determine the value of the cell bsaed on the provided heightmap options
             match opt {
@@ -96,12 +97,12 @@ pub fn trans_to_heightmap(
                     }
 
                     //Divide by the length of the list
-                    pnt_to_add /= cnt as f32;
+                    pnt_to_add /= cnt as f64;
                 }
 
                 MapGenOpt::Median => {
                     //Sort the list - unstable because we dont care about initial order of indices and also its faster
-                    pnts.sort_unstable_by(f32::total_cmp);
+                    pnts.sort_unstable_by(f64::total_cmp);
 
                     if pnts.len() == 1 {
                         pnt_to_add = pnts[0]
@@ -156,9 +157,9 @@ pub fn trans_to_heightmap(
 
 //Returns the median value of a matrix
 //Designed to be used with the 2.5D heightmaps
-pub fn get_min_med_max(data: &Vec<Vec<f32>>) -> (f32, f32, f32) {
-    let mut max: f32 = -9999.0;
-    let mut min: f32 = 9999.0;
+pub fn get_min_med_max(data: &Vec<Vec<f64>>) -> (f64, f64, f64) {
+    let mut max: f64 = -9999.0;
+    let mut min: f64 = 9999.0;
 
     //Get the max min values
     for val in data.iter().flatten() {
@@ -184,7 +185,7 @@ pub enum ColOpt {
 //Options for different colour schemes
 pub fn display_magnitude_map(
     wind_title: &str,
-    mut data: Vec<Vec<f32>>,
+    mut data: Vec<Vec<f64>>,
     width: usize,
     height: usize,
     col_opt: ColOpt,
@@ -338,7 +339,7 @@ pub fn display_magnitude_map(
             //Calculate which cell the position corresponds to
             let x_cell = (perc_x * width as f32).floor() as usize;
             let y_cell = (perc_y * height as f32).floor() as usize;
-            data_height = data[x_cell][y_cell];
+            data_height = data[x_cell][y_cell] as f32;
         }
     }
 
@@ -346,7 +347,7 @@ pub fn display_magnitude_map(
 }
 
 //Calculate the colour gradient based on +/- distance from median
-fn median_cell_col(val: f32, min: f32, med_val: f32, max: f32) -> Color {
+fn median_cell_col(val: f64, min: f64, med_val: f64, max: f64) -> Color {
     if val <= med_val {
         Color::new(
             (255.0 * (1.0 - ((val - min) / (med_val - min)))) as u8,
@@ -365,7 +366,7 @@ fn median_cell_col(val: f32, min: f32, med_val: f32, max: f32) -> Color {
 }
 
 //Calculate the colour as a percentage of the distance from max value
-fn intensity_cell_col(val: f32, min: f32, max: f32) -> Color {
+fn intensity_cell_col(val: f64, min: f64, max: f64) -> Color {
     Color::new(
         255.0 as u8,
         255.0 as u8,
@@ -375,7 +376,7 @@ fn intensity_cell_col(val: f32, min: f32, max: f32) -> Color {
 }
 
 //Calculate the color as a percentage of the distance from the min value
-fn inv_intensity_cell_col(val: f32, min: f32, max: f32) -> Color {
+fn inv_intensity_cell_col(val: f64, min: f64, max: f64) -> Color {
     Color::new(
         255.0 as u8,
         255.0 as u8,
