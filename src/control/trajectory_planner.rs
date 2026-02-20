@@ -265,8 +265,8 @@ pub fn calc_xy_timing(
         //Calculate distance between points
         let lat_distance = (xy_distances.0.powi(2) + xy_distances.1.powi(2)).sqrt();
 
-        let req_x_speed;
-        let req_y_speed;
+        let mut req_x_speed;
+        let mut req_y_speed;
 
         //If either X or Y are not changing
         if xy_distances.0 == 0.0 {
@@ -277,11 +277,20 @@ pub fn calc_xy_timing(
             req_y_speed = 0.0;
         } else {
             //Determine the end-eff speed as a combination of XY based on the XY ratio of the distance
-            let xy_ratio = xy_distances.0 / xy_distances.1;
+            let xy_ratio = (xy_distances.0 / xy_distances.1).abs();
 
             req_y_speed = (des_lat_speed.powi(2) / (xy_ratio.powi(2) + 1.0)).sqrt();
             req_x_speed = xy_ratio * req_y_speed;
         }
+
+        //If the robot needs to move in a negative direction
+        if pnt.0 < last_pnt.0{
+            req_x_speed = -req_x_speed;
+        }
+        if pnt.1 < last_pnt.1{
+            req_y_speed = - req_y_speed;
+        }
+
 
         //Create the timing instruction
         timing_instructions.push((lat_distance / des_lat_speed, (req_x_speed, req_y_speed)));

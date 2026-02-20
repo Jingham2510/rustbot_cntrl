@@ -307,8 +307,8 @@ impl AbbRob<'_> {
 
                 //Whatever function is being tested at the moment
                 "test" => {
-                    //self.egm_speed_trajectory();
-                    self.egm_test();
+                    self.egm_speed_trajectory();
+                    //self.egm_test();
                 }
 
                 "home" => {
@@ -1581,10 +1581,10 @@ impl AbbRob<'_> {
         let mut rob_dat = egm_serv.recv_and_connect().unwrap();
 
         let mut seqno = rob_dat.get_sqno().unwrap() + 1;
-        let time = rob_dat.feed_back.as_ref().unwrap().time.unwrap().as_tuple();
+        let _time = rob_dat.feed_back.as_ref().unwrap().time.unwrap().as_tuple();
 
-        //let target_pos = [220.0, 1800.0, 955.0];
-        let target_pos = [0.0, 0.0, 0.0];
+        let mut target_pos = [220.0, 1800.0, 955.0];
+        //let mut target_pos = [0.0, 0.0, 0.0];
 
         let initial_config = egm_serv.recv_egm().unwrap();
         let initial_pos = initial_config.get_pos_xyz().unwrap();
@@ -1598,7 +1598,7 @@ impl AbbRob<'_> {
             let time = rob_dat.feed_back.as_ref().unwrap().time.unwrap().as_tuple();
 
             let curr_pos = rob_dat.get_pos_xyz().unwrap();
-            //let target_pos = [curr_pos[0], curr_pos[1] + 1.0, curr_pos[2]];
+            let target_pos = [curr_pos[0], curr_pos[1] + 1.0, curr_pos[2]];
             let curr_ori = rob_dat
                 .feed_back
                 .as_ref()
@@ -1615,20 +1615,22 @@ impl AbbRob<'_> {
                 curr_pos[2] - initial_pos[2],
             ];
 
-            println!("EGM PLANNED: {:?}", rob_dat.planned.unwrap().cartesian);
+            //println!("EGM PLANNED: {:?}", rob_dat.planned.unwrap().cartesian);
 
-            println!("Distance travelled:{:?}", dist_travelled);
+            //println!("Distance travelled:{:?}", dist_travelled);
             let vec_dist =
                 (dist_travelled[0].powi(2) + dist_travelled[1].powi(2) + dist_travelled[2].powi(2))
                     .sqrt();
-            println!("Vector distance:{}", vec_dist);
+            //println!("Vector distance:{}", vec_dist);
 
             //determine robot move to a position
+            let sensor_msg: EgmSensor = EgmSensor::set_pose(seqno, time, target_pos, curr_ori);
 
-            let sensor: EgmSensor = EgmSensor::set_pose(seqno, time, target_pos, curr_ori);
 
             //Send command
-            let _ = egm_serv.send_egm(sensor);
+            let _ = egm_serv.send_egm(sensor_msg);
+
+
 
             seqno += 1;
             index += 1;
@@ -1652,7 +1654,7 @@ impl AbbRob<'_> {
         //Go to the start position
         self.set_pos(test_data.traj[0]);
 
-        let desired_lat_speed = 10.0;
+        let desired_lat_speed = 100.0;
 
         //Calculate the list of desired speeds
         let mut speed_instructions = calc_xy_timing(test_data.traj, desired_lat_speed);
@@ -1703,25 +1705,23 @@ impl AbbRob<'_> {
                 println!(
                     "x speed - {}, y speed - {}",
                     (curr_pos[0] - prev_x_pos)
-                        / ((msg
+                        / (msg
                             .feed_back
                             .as_ref()
                             .unwrap()
                             .time
                             .unwrap()
                             .as_timestamp_ms()
-                            - prev_time)
-                            / 1000) as f64,
+                            - prev_time) as f64,
                     (curr_pos[1] - prev_y_pos)
-                        / ((msg
+                        / (msg
                             .feed_back
                             .as_ref()
                             .unwrap()
                             .time
                             .unwrap()
                             .as_timestamp_ms()
-                            - prev_time)
-                            / 1000) as f64
+                            - prev_time)as f64
                 );
 
                 prev_x_pos = curr_pos[0];
@@ -1747,6 +1747,32 @@ impl AbbRob<'_> {
                 seqno += 1;
             }
         }
+
+        let mut egm_state = 3;
+
+        //Run until the EGM has confirmed stopped
+        while egm_state > 2{
+
+
+            //Get the egm message
+            let msg = egm_client.recv_egm().expect("Failed to get egm message");
+
+            egm_state = msg.mci_state.unwrap().state;
+
+            println!("EGM State: {}", egm_state);
+
+            let time = msg.get_time().expect("Failed to get egm time");
+            let curr_pos = msg.get_pos_xyz().expect("Failed to get egm coords");
+            let curr_ori = msg.get_quart_ori().expect("Failed to get egm ori");
+            let sensor: EgmSensor = EgmSensor::stop_egm_pose(seqno, time, curr_pos, curr_ori);
+            egm_client
+                .send_egm(sensor)
+                .expect("Failed to send sensor info");
+
+            seqno += 1;
+
+        }
+
 
         //Once done disconnect the EGM stream
         drop(egm_client);

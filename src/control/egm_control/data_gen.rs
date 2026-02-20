@@ -302,4 +302,31 @@ impl EgmSensor {
             rapi_dto_robot: None,
         }
     }
+
+    //Stops the EGM process by sending a stop signal and a static pose instruction
+    pub fn stop_egm_pose(seqno: u32,
+                    time: (u64, u64), curr_pos : [f64;3], curr_ori : [f64;4])->Self{
+        let clock = EgmClock::from(time);
+        EgmSensor{
+            header: Some(EgmHeader::create_header(seqno, clock.as_timestamp_ms())),
+            rapi_dto_robot: Some(EgmRapiDdata::stop_sig()),
+            planned: Some(EgmPlanned::create_egm_planned_cartesian(curr_pos, curr_ori, time)),
+            speed_ref: Some(EgmSpeedRef::create_egm_speed_linear([0.0, 0.0, 0.0]))
+        }
+    }
+
+
+
+}
+
+impl EgmRapiDdata{
+    pub fn stop_sig() ->Self{
+
+        let data : Vec<f64> =vec![0.0, 1.0];
+
+        EgmRapiDdata{
+            dnum : data,
+            dig_val : Some(true)
+        }
+    }
 }
