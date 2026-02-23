@@ -107,5 +107,9 @@ impl EgmServer {
             seqno += 1;
 
         }
+
+        println!("EGM stopped");
+
     }
+
 }

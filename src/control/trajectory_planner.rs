@@ -6,7 +6,7 @@ use std::fs::File;
 use std::io::{BufRead, stdin};
 use std::{fs, io};
 
-const IMPL_TRAJS: [&str; 4] = ["line", "circle", "slidedown", "custom"];
+const IMPL_TRAJS: [&str; 5] = ["line", "circle", "slidedown", "dline","custom"];
 
 //120
 const DEFAULT_Z: f64 = 161.0;

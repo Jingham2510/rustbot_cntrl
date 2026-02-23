@@ -259,6 +259,13 @@ impl AbbRob<'_> {
                         .read_line(&mut user_inp)
                         .expect("Failed to read line");
 
+                    if let Ok(targ) = user_inp.trim().parse::<f64>(){
+                        self.force_err = targ;
+                    }else{
+                        println!("Invalid force target... returning to cmd line");
+                        return
+                    }
+
                         self.geo_test_regime();
 
                 }
@@ -449,7 +456,7 @@ impl AbbRob<'_> {
             test_data.traj[0].1,
             test_data.traj[0].2,
         );
-        println!("START POSIITON: {}", test_data.traj[0].2);
+        println!("START POSITION: {}", test_data.traj[0].2);
 
         self.write_marker(&test_data.data_filename, "TEST STARTED");
 
@@ -472,21 +479,25 @@ impl AbbRob<'_> {
         //Find the vert force------------------------------
 
         //Setup and connect EGM
-        let egm_client = self.connect_EGM_pose().expect("Failed to connect to EGM");
+        let egm_client = self.connect_egm_pose().expect("Failed to connect to EGM");
+
+
+        if self.start_egm_stream_speed().is_err(){
+            println!("Failed to start the egm stream")
+        }else{
+            println!("EGM stream started");
+        };
         egm_client.recv_and_connect().expect("Failed to return connection");
 
         //Set desired z-speed
-        let desired_speed = [0.0,0.0,-0.1];
+        let desired_speed = [0.0,0.0,-10.0];
 
-        let mut measured_z_force = 0.0;
         let mut seqno = 0;
 
-        self.start_egm_stream_speed().unwrap();
         //Move down until target z-force reached
         while self.force.2 > self.force_target{
 
             let recv_msg = egm_client.recv_egm().unwrap();
-
             let time = recv_msg.get_time().unwrap();
 
             //Log the robot information gathered by the EGM using
@@ -494,7 +505,7 @@ impl AbbRob<'_> {
             self.store_state(&test_data.data_filename, cnt);
 
             //Update the robot EGM requirements
-            egm_client.send_egm(EgmSensor::set_pose_set_speed(seqno, time, self.pos.into(), self.ori.into(), desired_speed)).unwrap();
+            egm_client.send_egm(EgmSensor::set_pose_set_speed(seqno, time, [0.0, 0.0, 0.0], self.ori.into(), desired_speed)).unwrap();
 
             seqno += 1;
         }
@@ -641,10 +652,19 @@ impl AbbRob<'_> {
         const DEPTH_FREQ: i32 = 250;
 
         //Connect to the EGM host
-        let mut egm_client = self.connect_EGM_pose().expect("Failed to connect to EGM");
+        let egm_client = self.connect_egm_pose().expect("Failed to connect to EGM");
+
+        if self.start_egm_stream_speed().is_err(){
+            println!("Failed to start the egm stream")
+        }else{
+            println!("EGM stream started");
+        };
+
         egm_client.recv_and_connect().expect("Failed to bind to EGM");
 
         let mut seqno = 0;
+
+
 
 
         for instruction in speed_instructions.iter(){
@@ -1176,7 +1196,7 @@ impl AbbRob<'_> {
 
     //EGM commands---------------------------------------------------------------------------------
     //Create a UDP EGM socket and ask the robot to connect
-    fn connect_EGM_pose(&mut self) -> Result<EgmServer, anyhow::Error> {
+    fn connect_egm_pose(&mut self) -> Result<EgmServer, anyhow::Error> {
         let serv = if self.local {
             EgmServer::local()
         } else {
@@ -1191,7 +1211,12 @@ impl AbbRob<'_> {
 
     //Request the robot to start the EGM stream
     fn start_egm_stream_speed(&mut self) -> Result<(), anyhow::Error> {
+
+        println!("Requesting starting EGM");
+
         self.socket.req("EGSS:0")?;
+
+        println!("EGM speed stream started");
 
         Ok(())
     }

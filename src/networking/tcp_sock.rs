@@ -85,6 +85,7 @@ impl TcpSock {
 
     //Public interface for sending a request to the robot
     pub fn req(&mut self, msg: &str) -> Result<String, anyhow::Error> {
+        //println!("{}", msg);
         self.write(msg);
 
         let s = self.read();
