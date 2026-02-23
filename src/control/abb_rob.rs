@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::control::egm_control::abb_egm::EgmSensor;
+use crate::control::egm_control::abb_egm::{EgmRobot, EgmSensor};
 use crate::control::egm_control::egm_udp::EgmServer;
 use crate::control::force_control::force_control::{PHPIDController, PIDController};
 use crate::control::misc_tools::{angle_tools, string_tools};
@@ -22,7 +22,7 @@ pub struct AbbRob<'a> {
     socket: tcp_sock::TcpSock,
     local: bool,
     pos: (f64, f64, f64),
-    ori: (f64, f64, f64),
+    ori: (f64, f64, f64, f64),
     jnt_angles: (f64, f64, f64, f64, f64, f64),
     force: (f64, f64, f64, f64, f64, f64),
     disconnected: bool,
@@ -187,7 +187,7 @@ impl AbbRob<'_> {
                 socket: rob_sock,
                 local,
                 pos: (f64::NAN, f64::NAN, f64::NAN),
-                ori: (f64::NAN, f64::NAN, f64::NAN),
+                ori: (f64::NAN, f64::NAN, f64::NAN, f64::NAN),
                 jnt_angles: (f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN),
                 force: (f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN),
                 disconnected: false,
@@ -250,8 +250,7 @@ impl AbbRob<'_> {
 
 
                 "geo test" => {
-                    self.set_force_control_mode(true)
-                        .expect("FAILED TO SET FORCE MODE");
+                    self.force_mode_flag = true;
 
                     println!("Please type the target force");
 
@@ -260,13 +259,8 @@ impl AbbRob<'_> {
                         .read_line(&mut user_inp)
                         .expect("Failed to read line");
 
-                    if let Ok(targ) = user_inp.trim().parse::<f64>() {
-                        self.set_force_config("Z", targ)
-                            .expect("FAILED TO SET FORCE CONFIG");
                         self.geo_test_regime();
-                    } else {
-                        println!("Invalid target.... returning");
-                    }
+
                 }
 
 
@@ -382,27 +376,6 @@ impl AbbRob<'_> {
 
 
 
-    //Set the robot force mode
-    fn set_force_control_mode(&mut self, force_control: bool) -> Result<(), anyhow::Error> {
-        let fc_cntrl_string = format!("STFM:{}", force_control);
-
-        if let Ok(resp) = self.socket.req(&fc_cntrl_string) {
-            let expected_resp = format!("FM:{}", force_control);
-
-            if !resp.eq_ignore_ascii_case(&expected_resp) {
-                bail!("Incorrect response, mode not changed!");
-            } else {
-                //Update internal flag
-                self.force_mode_flag = force_control;
-                Ok(())
-            }
-        } else {
-            //This is a bail because it is safety critical that the mode is known
-            bail!("Error - no response robot control mode may be incorrect!");
-        }
-    }
-
-
 
 
 
@@ -496,23 +469,39 @@ impl AbbRob<'_> {
 
         self.write_marker(&test_data.data_filename, "PHASE 1 STARTED");
 
-        //Request the robot find the vert force
-        self.req_find_vert_force();
+        //Find the vert force------------------------------
 
-        //While vert force not found
-        while !self.get_vert_force_found_flag().unwrap() {
-            //Update robot info
-            self.update_rob_info();
-            //Update force error
-            let _ = self.calc_force_err();
-            //report to data log
-            self.store_state(
-                &test_data.data_filename.clone(),
-                cnt,
-                TRANSFORM_TO_WORK_SPACE,
-            );
-            cnt += 1;
+        //Setup and connect EGM
+        let egm_client = self.connect_EGM_pose().expect("Failed to connect to EGM");
+        egm_client.recv_and_connect().expect("Failed to return connection");
+
+        //Set desired z-speed
+        let desired_speed = [0.0,0.0,-0.1];
+
+        let mut measured_z_force = 0.0;
+        let mut seqno = 0;
+
+        self.start_egm_stream_speed().unwrap();
+        //Move down until target z-force reached
+        while self.force.2 > self.force_target{
+
+            let recv_msg = egm_client.recv_egm().unwrap();
+
+            let time = recv_msg.get_time().unwrap();
+
+            //Log the robot information gathered by the EGM using
+            self.egm_update_state(recv_msg);
+            self.store_state(&test_data.data_filename, cnt);
+
+            //Update the robot EGM requirements
+            egm_client.send_egm(EgmSensor::set_pose_set_speed(seqno, time, self.pos.into(), self.ori.into(), desired_speed)).unwrap();
+
+            seqno += 1;
         }
+
+        //Disconnect the EGM client
+        egm_client.egm_end();
+
 
         //Take snapshot
         let _ = tx.send(1);
@@ -523,8 +512,7 @@ impl AbbRob<'_> {
         //report to data log
         self.store_state(
             &test_data.data_filename.clone(),
-            cnt,
-            TRANSFORM_TO_WORK_SPACE,
+            cnt
         );
         cnt += 1;
 
@@ -560,8 +548,7 @@ impl AbbRob<'_> {
         let _ = self.calc_force_err();
         self.store_state(
             &test_data.data_filename.clone(),
-            cnt,
-            TRANSFORM_TO_WORK_SPACE,
+            cnt
         );
         cnt += 1;
 
@@ -579,8 +566,7 @@ impl AbbRob<'_> {
             //Store the state of the robot
             self.store_state(
                 &test_data.data_filename.clone(),
-                cnt,
-                TRANSFORM_TO_WORK_SPACE,
+                cnt
             );
 
             cnt += 1;
@@ -626,8 +612,7 @@ impl AbbRob<'_> {
                         self.update_rob_info();
                         self.store_state(
                             &test_data.data_filename.clone(),
-                            cnt,
-                            TRANSFORM_TO_WORK_SPACE,
+                            cnt
                         );
                         cnt += 1;
                     } else {
@@ -656,7 +641,7 @@ impl AbbRob<'_> {
         const DEPTH_FREQ: i32 = 250;
 
         //Connect to the EGM host
-        let egm_client = self.connect_EGM_pose(self.local).expect("Failed to connect to EGM");
+        let mut egm_client = self.connect_EGM_pose().expect("Failed to connect to EGM");
         egm_client.recv_and_connect().expect("Failed to bind to EGM");
 
         let mut seqno = 0;
@@ -679,15 +664,10 @@ impl AbbRob<'_> {
                 let msg = egm_client.recv_egm().expect("Failed to get egm message");
 
                 let time = msg.get_time().expect("Failed to get egm time");
-                let curr_pos = msg.get_pos_xyz().expect("Failed to get egm pos");
-                let curr_ori = msg.get_quart_ori().expect("Failed to get egm ori");
-                let force = msg.get_measured_force().expect("Failed to get egm force");
-
-                self.force = (force[0], force[1], force[2], force[3], force[4], force[5]);
-                ;
 
                 //Log the robot information gathered by the EGM using
-                self.egm_log_data(cnt as u32, &test_data.data_filename, curr_pos, curr_ori, force);
+                self.egm_update_state(msg);
+                self.store_state(&test_data.data_filename, cnt);
 
                 //Trigger the camera
                 if cnt % DEPTH_FREQ == 0 || cnt == 0 {
@@ -699,7 +679,7 @@ impl AbbRob<'_> {
                 }
 
                 //Apply the controller
-                let des_z_speed = phase3_cntrl.calc_op(self.calc_force_err().expect("Failed to calculate force error")).expect("Failed to calculate desired z speed");
+                let des_z_speed = phase3_cntrl.calc_op(self.force_err).expect("Failed to calculate desired z speed");
 
 
                 desired_speed = [instruction.1.0, instruction.1.1, des_z_speed];
@@ -708,7 +688,7 @@ impl AbbRob<'_> {
                     seqno,
                     time,
                     [0.0, 0.0, 0.0],
-                    curr_ori,
+                    self.ori.into(),
                     desired_speed,
                 );
                 egm_client
@@ -719,30 +699,7 @@ impl AbbRob<'_> {
             }
         }
 
-        let mut egm_state = 3;
-
-        //Run until the EGM has confirmed stopped
-        while egm_state > 2{
-
-
-            //Get the egm message
-            let msg = egm_client.recv_egm().expect("Failed to get egm message");
-
-            egm_state = msg.mci_state.unwrap().state;
-
-            println!("EGM State: {}", egm_state);
-
-            let time = msg.get_time().expect("Failed to get egm time");
-            let curr_pos = msg.get_pos_xyz().expect("Failed to get egm coords");
-            let curr_ori = msg.get_quart_ori().expect("Failed to get egm ori");
-            let sensor: EgmSensor = EgmSensor::stop_egm_pose(seqno, time, curr_pos, curr_ori);
-            egm_client
-                .send_egm(sensor)
-                .expect("Failed to send sensor info");
-
-            seqno += 1;
-
-        }
+       egm_client.egm_end();
 
         self.write_marker(&test_data.data_filename, "PHASE 3 ENDED");
 
@@ -794,8 +751,7 @@ impl AbbRob<'_> {
         self.update_rob_info();
         self.store_state(
             &test_data.data_filename.clone(),
-            cnt,
-            TRANSFORM_TO_WORK_SPACE,
+            cnt
         );
         cnt += 1;
 
@@ -812,8 +768,7 @@ impl AbbRob<'_> {
             self.update_rob_info();
             self.store_state(
                 &test_data.data_filename.clone(),
-                cnt,
-                TRANSFORM_TO_WORK_SPACE,
+                cnt
             );
 
             //Send the requested z heigt (0 for this)
@@ -949,15 +904,17 @@ impl AbbRob<'_> {
         if let Ok(recv) = self.socket.req("GTOR:0") {
             //Format the string
             let recv = string_tools::rem_first_and_last(&recv);
+
             let ori_vec = string_tools::str_to_vector(recv);
 
+
             //Check that the vector is the right length
-            if ori_vec.len() != 3 {
+            if ori_vec.len() != 4 {
                 println!("ORI pos read error!");
-                self.ori = (f64::NAN, f64::NAN, f64::NAN);
+                self.ori = (f64::NAN, f64::NAN, f64::NAN, f64::NAN);
             } else {
                 //Store the pos in the robot info
-                self.ori = (ori_vec[0], ori_vec[1], ori_vec[2]);
+                self.ori = (ori_vec[0], ori_vec[1], ori_vec[2], ori_vec[3]);
             }
         } else {
             //If the socket request returns nothing
@@ -1060,7 +1017,7 @@ impl AbbRob<'_> {
     }
 
     //Appends relevant test information to the provided filename
-    fn store_state(&mut self, filename: &str, i: i32, transform_to_work_space: bool) {
+    fn store_state(&mut self, filename: &str, i: i32) {
         //Open the file (or create if it doesn't exist)
         let mut file = OpenOptions::new()
             .append(true)
@@ -1069,10 +1026,10 @@ impl AbbRob<'_> {
             .unwrap();
 
         //See whether to transofmr the data by the
-        let line: String = if !transform_to_work_space {
+        let line: String =
             //Format the line to write
             format!(
-                "{},{:?},[{},{},{}],[{},{},{}],[{},{},{},{},{},{}],{}",
+                "{},{:?},[{},{},{}],[{},{},{},{}],[{},{},{},{},{},{}],{}",
                 i,
                 SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)
@@ -1085,6 +1042,7 @@ impl AbbRob<'_> {
                 self.ori.0,
                 self.ori.1,
                 self.ori.2,
+                self.ori.3,
                 self.force.0,
                 self.force.1,
                 self.force.2,
@@ -1092,31 +1050,8 @@ impl AbbRob<'_> {
                 self.force.4,
                 self.force.5,
                 self.force_err
-            )
-        } else {
-            format!(
-                "{},{:?},[{},{},{}],[{},{},{}],[{},{},{},{},{},{}],{}",
-                i,
-                SystemTime::now()
-                    .duration_since(SystemTime::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs_f64(),
-                //Make sure that you don't print a lack of information in the data
-                self.pos.0 - self.config.rob_info.pos_to_zero()[0],
-                self.pos.1 - self.config.rob_info.pos_to_zero()[1],
-                self.pos.2 - self.config.rob_info.pos_to_zero()[2],
-                self.ori.0 - self.config.rob_info.ori_to_zero()[0],
-                self.ori.1 - self.config.rob_info.ori_to_zero()[1],
-                self.ori.2 - self.config.rob_info.ori_to_zero()[2],
-                self.force.0,
-                self.force.1,
-                self.force.2,
-                self.force.3,
-                self.force.4,
-                self.force.5,
-                self.force_err
-            )
-        };
+            );
+
 
         //Write to the file - indicating if writing failed (but don't worry about it!)
         if let Err(e) = writeln!(file, "{}", line) {
@@ -1239,34 +1174,10 @@ impl AbbRob<'_> {
 
 
 
-    //Request the robot find the vertical force taret
-    fn req_find_vert_force(&mut self) {
-        if self.socket.req("RQVF:0").is_err() {
-            panic!("Failed to ask the robot to find the vertical force spot!")
-        }
-    }
-
-    fn get_vert_force_found_flag(&mut self) -> Result<bool, anyhow::Error> {
-        //Check to see if the vertical force found flag has been set
-        match self.socket.req("GTVF:?") {
-            Ok(recv) => {
-                if recv == "TRUE" {
-                    Ok(true)
-                } else {
-                    Ok(false)
-                }
-            }
-            Err(_recv) => {
-                println!("WARNING - INVALID RESP TO VERT FORCE FLAG CHECK");
-                bail!("INVALID RESP TO VERT FORCE FLAG CHECK")
-            }
-        }
-    }
-
     //EGM commands---------------------------------------------------------------------------------
     //Create a UDP EGM socket and ask the robot to connect
-    fn connect_EGM_pose(&mut self, local: bool) -> Result<EgmServer, anyhow::Error> {
-        let serv = if local {
+    fn connect_EGM_pose(&mut self) -> Result<EgmServer, anyhow::Error> {
+        let serv = if self.local {
             EgmServer::local()
         } else {
             EgmServer::remote()
@@ -1298,51 +1209,41 @@ impl AbbRob<'_> {
         Ok(())
     }
 
-    fn egm_log_data(
-        &mut self,
-        i: u32,
-        filename: &str,
-        curr_pos: [f64; 3],
-        curr_ori: [f64; 4],
-        curr_force: [f64; 6],
-    ) {
-        //Open the file (or create if it doesn't exist)
-        let mut file = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(filename.trim())
-            .unwrap();
 
-        //See whether to transformthe data by the
 
-        //Format the line to write
-        let line = format!(
-            "{},{:?},[{},{},{}],[{},{},{},{}],[{},{},{},{},{},{}],{}",
-            i,
-            SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs_f64(),
-            //Make sure that you don't print a lack of information in the data
-            curr_pos[0],
-            curr_pos[1],
-            curr_pos[2],
-            curr_ori[0],
-            curr_ori[1],
-            curr_ori[2],
-            curr_ori[3],
-            curr_force[0],
-            curr_force[1],
-            curr_force[2],
-            curr_force[3],
-            curr_force[4],
-            curr_force[5],
-            self.force_err
-        );
 
-        //Write to the file - indicating if writing failed (but don't worry about it!)
-        if let Err(e) = writeln!(file, "{}", line) {
-            eprint!("Couldn't write to file: {}", e);
+    fn egm_update_state(&mut self, msg : EgmRobot) -> Result<(), anyhow::Error>{
+
+        //Update position
+         if let Some(pos) = msg.get_pos_xyz(){
+            self.pos = pos.into();
+        }else{
+             bail!("Failed to update state - pos");
+         };
+
+        //Update orientation
+        if let Some(ori) = msg.get_quart_ori(){
+            self.ori = ori.into();
+        }else{
+            bail!("Failed to update state - ori");
+        };
+
+        //Update current measured force
+        if let Some(force) = msg.get_measured_force(){
+            self.force = force.into();
+        }else{
+            bail!("Failed to update state - pos");
+        };
+
+        //if force mode update force error
+        if self.force_mode_flag{
+            self.calc_force_err()?;
         }
+
+
+        Ok(())
+
+
+
     }
 }
