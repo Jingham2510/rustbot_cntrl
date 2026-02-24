@@ -495,6 +495,14 @@ impl AbbRob<'_> {
             self.egm_update_state(recv_msg);
             self.store_state(&test_data.data_filename, cnt);
 
+            if self.limit_check(){
+                println!("Out of bounds");
+                egm_client.egm_end();
+                self.go_home_pos();
+                self.write_marker(&test_data.data_filename, "TEST OUT OF  SAFETY BOUNDS");
+                return;
+            }
+
             //Update the robot EGM requirements
             egm_client.send_egm(EgmSensor::set_pose_set_speed(seqno, time, [0.0, 0.0, 0.0], self.ori.into(), desired_speed)).unwrap();
 
@@ -544,6 +552,14 @@ impl AbbRob<'_> {
             //Log the robot information gathered by the EGM using
             self.egm_update_state(recv_msg);
             self.store_state(&test_data.data_filename, cnt);
+
+            if self.limit_check(){
+                println!("Out of bounds");
+                egm_client.egm_end();
+                self.go_home_pos();
+                self.write_marker(&test_data.data_filename, "TEST OUT OF  SAFETY BOUNDS");
+                return;
+            }
 
             //Apply the controller
             let des_z_speed = phase2_cntrl.calc_op(self.force_err).expect("Failed to calculate desired z speed");
@@ -639,6 +655,15 @@ impl AbbRob<'_> {
                 //Log the robot information gathered by the EGM using
                 self.egm_update_state(msg);
                 self.store_state(&test_data.data_filename, cnt);
+
+                if self.limit_check(){
+                    println!("Out of bounds");
+                    egm_client.egm_end();
+                    self.go_home_pos();
+                    self.write_marker(&test_data.data_filename, "TEST OUT OF  SAFETY BOUNDS");
+                    return;
+                }
+
 
                 //Trigger the camera
                 if cnt % DEPTH_FREQ == 0 || cnt == 0 {
@@ -1218,8 +1243,29 @@ impl AbbRob<'_> {
 
 
         Ok(())
+    }
 
+    //Checks whether the robot is within the specified allowed cartesian limits
+    fn limit_check(&mut self) -> bool{
 
+        let min_x = -425.0;
+        let min_y = 1350.0;
+        let min_z = 95.0;
+        let max_x = 650.0;
+        let max_y = 2650.0;
+        let max_z = 2000.0;
+
+        if self.pos.0 > max_x || self.pos.0 < min_x{
+            return true
+        }
+        if self.pos.1 > max_y || self.pos.1 < min_y{
+            return true
+        }
+         if self.pos.2 > max_z || self.pos.2 < min_z{
+            return true
+        }
+
+        false
 
     }
 }
