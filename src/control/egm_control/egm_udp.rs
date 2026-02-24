@@ -36,7 +36,6 @@ impl EgmServer {
         Self::create_egm_socket(UdpSocket::bind("192.168.10.20:6510").unwrap())
     }
 
-    //TODO: send & recv to a bound connection
     pub fn send_egm(&self, msg: EgmSensor) -> Result<(), anyhow::Error> {
         //Encode the message into a btye vector
         let encoded_msg = msg.encode_to_vec();

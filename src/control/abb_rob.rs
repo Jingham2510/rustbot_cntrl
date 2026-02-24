@@ -108,7 +108,15 @@ impl TestData {
             .read_line(&mut user_inp)
             .expect("Failed to read line");
 
-        //TODO : Chcek user for valid strings
+        //Check if invalid filename characters in string
+        let invalid_chars = ["!", "?", ".", " "];
+
+        for char in invalid_chars{
+            if user_inp.contains(char){
+                println!("illegal character in input");
+                return String::from("default")
+            }
+        }
 
         user_inp.trim().to_string()
     }
@@ -439,7 +447,8 @@ impl AbbRob<'_> {
             test_data.traj[0].1,
             test_data.traj[0].2,
         );
-        println!("START POSITION: {}", test_data.traj[0].2);
+
+        println!("START height: {}", test_data.traj[0].2);
 
         self.write_marker(&test_data.data_filename, "TEST STARTED");
 
@@ -496,7 +505,6 @@ impl AbbRob<'_> {
         //Take snapshot
         let _ = tx.send(1);
 
-        cnt += 1;
 
         println!("GEOTECH- Phase 1 Complete!");
         self.write_marker(&test_data.data_filename, "PHASE 1 END");
@@ -546,6 +554,7 @@ impl AbbRob<'_> {
             egm_client.send_egm(EgmSensor::set_pose_set_speed(seqno, time, [0.0, 0.0, 0.0], self.ori.into(), desired_speed)).unwrap();
 
             seqno += 1;
+            cnt += 1;
 
             //Calc the force error and add to rolling average list
             if force_errs.len() < FORCE_ERR_ROLL_AVG {
@@ -584,14 +593,6 @@ impl AbbRob<'_> {
                     if (force_avg / self.force_target).abs() < force_avg_threshold {
                         //Count the force as stable
                         force_stable = true;
-
-                        //update the robot info
-                        self.update_rob_info();
-                        self.store_state(
-                            &test_data.data_filename.clone(),
-                            cnt
-                        );
-                        cnt += 1;
                     } else {
                         println!("GLOBAL AVG INCORRECT: {force_avg}")
                     }
@@ -651,9 +652,8 @@ impl AbbRob<'_> {
                 //Apply the controller
                 let des_z_speed = phase3_cntrl.calc_op(self.force_err).expect("Failed to calculate desired z speed");
 
-
+                //Send the EGM control
                 desired_speed = [instruction.1.0, instruction.1.1, des_z_speed];
-
                 let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
                     seqno,
                     time,
@@ -669,7 +669,8 @@ impl AbbRob<'_> {
             }
         }
 
-       egm_client.egm_end();
+        //End the EGM client
+        egm_client.egm_end();
 
         self.write_marker(&test_data.data_filename, "PHASE 3 ENDED");
 
@@ -1080,7 +1081,7 @@ impl AbbRob<'_> {
 
         //Save another line with the robot pos/ori config data
         let line = format!(
-            "ROB: NAME: \"{}\" POS:[{},{},{}] ORI:[{},{},{}][ EMB:[{}]",
+            "ROB: NAME: \"{}\" POS:[{},{},{}] ORI:[{},{},{}] EMB:[{}]",
             self.config.rob_info.rob_name(),
             self.config.rob_info.pos_to_zero()[0],
             self.config.rob_info.pos_to_zero()[1],

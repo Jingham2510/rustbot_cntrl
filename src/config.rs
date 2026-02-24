@@ -325,18 +325,21 @@ impl RobInfo {
 
         //Access the orientation
         let mut ori_for_zero = [f64::NAN, f64::NAN, f64::NAN];
-        let oris = para_split[2].replace("]", "");
+        let oris = para_split[2].replace("] EMB:", "");
         let oris: Vec<&str> = oris.trim().split(",").collect();
         for (ori_cnt, ori) in oris.into_iter().enumerate() {
             ori_for_zero[ori_cnt] = ori.parse()?;
         }
 
+        let mut min_embed_height = f64::NAN;
+        let embed_height = para_split[3].replace("]", "");
+        min_embed_height = embed_height.parse()?;
+
         Ok(RobInfo {
             rob_name: rob_name.to_string(),
             pos_for_zero,
             ori_for_zero,
-            //TODO: read properly - for now just manual
-            min_embed_height: 161.0,
+            min_embed_height,
         })
     }
 

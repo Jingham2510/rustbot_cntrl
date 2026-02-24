@@ -164,11 +164,10 @@ impl ExpModel<IRB6400Model> {
                 );
 
                 //Set the joint speed required to achieve this
-                todo!("Change types");
 
-                //joint_speed = self.rob_model.get_joint_speed(des_end_eff_speed);
+                joint_speed = self.rob_model.get_joint_speed(des_end_eff_speed);
 
-                //println!("{:?}", joint_speed);
+                println!("{:?}", joint_speed);
 
                 //Check if current time reached
                 if start_time.elapsed().unwrap() > time_lim {
