@@ -304,23 +304,9 @@ impl AbbRob<'_> {
     }
 
     fn go_home_pos(&mut self) {
-        //Define the home point
-        const HOME_POS: (f64, f64, f64) = (220.0, 1355.0, 955.0);
+       self.set_speed(150.0);
 
-        //Define the home orientation
-        const HOME_ORI: angle_tools::Quartenion = angle_tools::Quartenion {
-            w: 0.00203,
-            x: -0.98623,
-            y: -0.16536,
-            z: 0.00062,
-        };
-
-        self.set_speed(150.0);
-
-        //Set the pos and ori
-        self.set_pos(HOME_POS);
-
-        self.set_ori(HOME_ORI);
+        self.socket.req("HOME:0").expect("Failed to send robot home - panicking!");
 
         self.set_speed(50.0);
 
@@ -392,8 +378,7 @@ impl AbbRob<'_> {
             return;
         }
 
-        //Set up the test data
-        //Creates the test data and the filepaths
+        //Create the test data and the filepaths
         let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
         //Store the desired trajectory
         test_data.store_desired_trajectory(self.force_mode_flag);
@@ -402,8 +387,6 @@ impl AbbRob<'_> {
         let desired_lat_speed = 0.1;
         let speed_instructions = calc_xy_timing(&mut test_data.traj, desired_lat_speed);
 
-
-
         //Create a threading channel to trigger the camera
         let (tx, rx) = mpsc::channel();
 
@@ -411,18 +394,6 @@ impl AbbRob<'_> {
         let rel_pos = self.config.cam_info.rel_pos();
         let rel_ori = self.config.cam_info.rel_ori();
         let scale = self.config.cam_info.x_scale();
-
-        //Setup the seperate PID controllers
-        let mut phase2_cntrl =
-            PHPIDController::create_PHPID(0.001, 0.000, 0.00002, 0.0, 0.001, 0.0001, 0.00001);
-        let mut phase3_cntrl = PIDController::create_PID(0.00005, 0.000005, 0.000);
-
-        //Setup the config information
-        self.config.set_phase2_cntrl(phase2_cntrl.to_string());
-        self.config.set_phase3_cntrl(phase3_cntrl.to_string());
-
-        //Log the config
-        self.log_config(&test_data.config_filename);
 
         //Create the thread that handles the depth camera
         thread::spawn(move || {
@@ -437,18 +408,30 @@ impl AbbRob<'_> {
             )
         });
 
-        sleep(Duration::from_secs(2));
+        //Setup the seperate PID controllers
+        let mut phase2_cntrl =
+            PHPIDController::create_PHPID(0.001, 0.000, 0.00002, 0.0, 0.001, 0.0001, 0.00001);
+        let mut phase3_cntrl = PIDController::create_PID(0.00005, 0.000005, 0.000);
 
+        //Setup the config information
+        self.config.set_phase2_cntrl(phase2_cntrl.to_string());
+        self.config.set_phase3_cntrl(phase3_cntrl.to_string());
+
+        //Log the config
+        self.log_config(&test_data.config_filename);
+
+        //Give the camera turn on process time to warm up
+        sleep(Duration::from_secs(2));
         if tx.send(4).is_err() {
             println!("Failed dummy cam trigger");
         }
 
-        //Move to the home position - blocker
+        //Move the robot out of the way of the camera
         self.go_home_pos();
 
         //Trigger before the test begins
         if tx.send(2).is_err() {
-            println!("Failed dummy cam trigger");
+            println!("Failed initial cam trigger");
         }
 
         let start_pos = (
@@ -465,13 +448,13 @@ impl AbbRob<'_> {
 
         self.set_speed(2.0);
 
-
         //Read the values once
         self.update_rob_info();
 
         let mut cnt = 0;
 
         //SETUP COMPLETE-----------------------
+
         //Phase 1 - position control until target force reached
 
         self.write_marker(&test_data.data_filename, "PHASE 1 STARTED");
@@ -481,7 +464,6 @@ impl AbbRob<'_> {
         //Setup and connect EGM
         let egm_client = self.connect_egm_pose().expect("Failed to connect to EGM");
 
-
         if self.start_egm_stream_speed().is_err(){
             println!("Failed to start the egm stream")
         }else{
@@ -490,7 +472,7 @@ impl AbbRob<'_> {
         egm_client.recv_and_connect().expect("Failed to return connection");
 
         //Set desired z-speed
-        let desired_speed = [0.0,0.0,-10.0];
+        let mut desired_speed = [0.0,0.0,-5.0];
 
         let mut seqno = 0;
 
@@ -508,29 +490,21 @@ impl AbbRob<'_> {
             egm_client.send_egm(EgmSensor::set_pose_set_speed(seqno, time, [0.0, 0.0, 0.0], self.ori.into(), desired_speed)).unwrap();
 
             seqno += 1;
+            cnt += 1;
         }
-
-        //Disconnect the EGM client
-        egm_client.egm_end();
-
 
         //Take snapshot
         let _ = tx.send(1);
-        //Update robot info
-        self.update_rob_info();
-        //Update force error
-        let _ = self.calc_force_err();
-        //report to data log
-        self.store_state(
-            &test_data.data_filename.clone(),
-            cnt
-        );
+
         cnt += 1;
 
         println!("GEOTECH- Phase 1 Complete!");
         self.write_marker(&test_data.data_filename, "PHASE 1 END");
 
         //Phase 2 - force control until target force is stabilised (PID 1)
+
+        let phase2_force_scaler = 2.0;
+        self.force_target /= phase2_force_scaler;
         let mut force_stable = false;
         let mut force_errs: Vec<f64> = vec![];
         //Minimum of 500 measurements taken - just to prove its stable
@@ -553,34 +527,25 @@ impl AbbRob<'_> {
             _ => 0.10,
         };
 
-        //update the robot info
-        self.update_rob_info();
-        //Check the force error
-        let _ = self.calc_force_err();
-        self.store_state(
-            &test_data.data_filename.clone(),
-            cnt
-        );
-        cnt += 1;
-
-        //Set the speed of the robot
-        self.set_speed(5.0);
-
         self.write_marker(&test_data.data_filename, "PHASE 2 STARTED");
         while !force_stable {
-            //Use the error to calculate the amount to move & request the robot do the move to compensate for error
-            self.move_tool((0.0, 0.0, phase2_cntrl.calc_op(self.force_err).unwrap()));
 
-            //Update the robot info
-            self.update_rob_info();
-            let _ = self.calc_force_err();
-            //Store the state of the robot
-            self.store_state(
-                &test_data.data_filename.clone(),
-                cnt
-            );
+            let recv_msg = egm_client.recv_egm().unwrap();
+            let time = recv_msg.get_time().unwrap();
 
-            cnt += 1;
+            //Log the robot information gathered by the EGM using
+            self.egm_update_state(recv_msg);
+            self.store_state(&test_data.data_filename, cnt);
+
+            //Apply the controller
+            let des_z_speed = phase2_cntrl.calc_op(self.force_err).expect("Failed to calculate desired z speed");
+
+            desired_speed = [0.0, 0.0, des_z_speed];
+
+            //Update the robot EGM requirements
+            egm_client.send_egm(EgmSensor::set_pose_set_speed(seqno, time, [0.0, 0.0, 0.0], self.ori.into(), desired_speed)).unwrap();
+
+            seqno += 1;
 
             //Calc the force error and add to rolling average list
             if force_errs.len() < FORCE_ERR_ROLL_AVG {
@@ -606,7 +571,7 @@ impl AbbRob<'_> {
                     if i >= FORCE_THRESH_CNT {
                         let curr_val = force / self.force_target;
                         if curr_val.abs() > force_threshold {
-                            println!("Failed at: {curr_val}");
+                            //println!("Failed at: {curr_val}");
                             all_within = false;
                             break;
                         }
@@ -619,6 +584,7 @@ impl AbbRob<'_> {
                     if (force_avg / self.force_target).abs() < force_avg_threshold {
                         //Count the force as stable
                         force_stable = true;
+
                         //update the robot info
                         self.update_rob_info();
                         self.store_state(
@@ -636,7 +602,8 @@ impl AbbRob<'_> {
         println!("GEOTECH - PHASE 2 COMPLETE!");
         self.write_marker(&test_data.data_filename, "PHASE 2 ENDED");
 
-        //TODO: Add force relaxation here
+        //Reset the force target to the desired
+        self.force_target *= phase2_force_scaler;
 
         //Take snapshot
         let _ = tx.send(1);
@@ -651,22 +618,6 @@ impl AbbRob<'_> {
 
         const DEPTH_FREQ: i32 = 250;
 
-        //Connect to the EGM host
-        let egm_client = self.connect_egm_pose().expect("Failed to connect to EGM");
-
-        if self.start_egm_stream_speed().is_err(){
-            println!("Failed to start the egm stream")
-        }else{
-            println!("EGM stream started");
-        };
-
-        egm_client.recv_and_connect().expect("Failed to bind to EGM");
-
-        let mut seqno = 0;
-
-
-
-
         for instruction in speed_instructions.iter(){
             //Get the time limit
             let time_lim = Duration::from_secs_f64(instruction.0);
@@ -676,7 +627,6 @@ impl AbbRob<'_> {
 
             //Send the speed instruction to the robot via EGM
             let mut desired_speed: [f64;3];
-
 
             //While the timer is running
             while start_time.elapsed().unwrap() < time_lim {
