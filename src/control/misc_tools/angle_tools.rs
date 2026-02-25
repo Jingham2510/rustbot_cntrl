@@ -3,10 +3,10 @@
 //Implementations/Calculations taken from
 //https://danceswithcode.net/engineeringnotes/quaternions/quaternions.html
 pub struct Quartenion {
-    pub w: f32,
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
+    pub w: f64,
+    pub x: f64,
+    pub y: f64,
+    pub z: f64,
 }
 
 impl Quartenion {
@@ -16,16 +16,27 @@ impl Quartenion {
     }
 }
 
-struct Euler {
-    //x
-    roll: f32,
-    //y
-    pitch: f32,
-    //z
-    yaw: f32,
+impl From<[f64;4]> for Quartenion{
+    fn from(value: [f64; 4]) -> Self {
+        Quartenion{
+            w : value[0],
+            x : value[1],
+            y : value[2],
+            z :value[3]
+        }
+    }
 }
 
-const PI: f32 = std::f32::consts::PI;
+struct Euler {
+    //x
+    roll: f64,
+    //y
+    pitch: f64,
+    //z
+    yaw: f64,
+}
+
+const PI: f64 = std::f64::consts::PI;
 
 //Euler structure
 // //x - roll, y - pitch, z - yaw,

@@ -2,7 +2,8 @@ use crate::config::Config;
 use crate::control::egm_control::abb_egm::{EgmRobot, EgmSensor};
 use crate::control::egm_control::egm_udp::EgmServer;
 use crate::control::force_control::force_control::{PHPIDController, PIDController};
-use crate::control::misc_tools::{angle_tools, string_tools};
+use crate::control::misc_tools::angle_tools::Quartenion;
+use crate::control::misc_tools::string_tools;
 use crate::control::trajectory_planner;
 use crate::control::trajectory_planner::calc_xy_timing;
 use crate::mapping::terr_map_sense;
@@ -278,6 +279,10 @@ impl AbbRob<'_> {
 
                 }
 
+                "test" =>{
+                    self.verify_load_cell();
+                }
+
 
 
                 "home" => {
@@ -324,7 +329,7 @@ impl AbbRob<'_> {
     //Set the orientation of the robots tcp
     //Currently assumes that the quartenion is valid
     //q - the desired orientation
-    fn set_ori(&mut self, q: angle_tools::Quartenion) {
+    fn set_ori(&mut self, q: &Quartenion) {
         if let Ok(_resp) = self
             .socket
             .req(&format!("STOR:[{}, {}, {}, {}]", q.w, q.x, q.y, q.z))
@@ -1268,4 +1273,70 @@ impl AbbRob<'_> {
         false
 
     }
+
+    ///The load cell verification script
+    /// Robot moves to three seperate poses and the force is measured for 100 ticks and stored
+    fn verify_load_cell(&mut self) {
+
+        //The two positions
+        let tool_change_xyz = [1.0,2.0,3.0];
+        let tool_change_ori = [0.0, 0.0, 0.0, 0.0];
+        let rotate_xyz = [1.0,2.0,3.0];
+
+
+
+        //The four orientations
+        let ori_zero = Quartenion::from([0.0, 1.0, 0.0, 0.0]);
+        let ori_one = Quartenion::from([0.70611, -0.70711, 0.0, 0.03741]);
+        let ori_two = Quartenion::from([0.5, -0.5, -0.5, -0.5]);
+        let ori_three = Quartenion::from([0.37113, -0.64315, 0.66968, 0.01226]);
+
+        let oris = [ori_zero, ori_one, ori_two, ori_three];
+
+
+        //Create the test file
+        let test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
+
+        //Robot move to a position where its easy to attach tools etc
+
+
+        //Robot move to a position where it is safe to perform the rotations
+
+
+        self.write_marker(&test_data.data_filename, "Test start");
+        //For every rotation
+        let mut cnt = 0;
+        for (i ,ori) in oris.iter().enumerate(){
+
+            //Move the robot to the requested orientation
+            self.set_ori(ori);
+
+            //Set the marker in the test file
+            self.write_marker(&test_data.data_filename, &format!("ORIENTATION {}", i));
+
+            //Take 10000 force measurements
+            for _ in 0..10000{
+                self.update_rob_info();
+
+                //Store the measurement
+                self.store_state(&test_data.data_filename, cnt);
+                cnt += 1;
+            }
+        }
+
+        //Go back to the original orientation
+        self.set_ori(&Quartenion::from([0.0, 1.0, 0.0, 0.0]));
+
+        //Return home
+        self.go_home_pos();
+
+        self.write_marker(&test_data.data_filename, "Test end");
+
+
+    }
+
+
+
+
+
 }
