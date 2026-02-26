@@ -18,6 +18,7 @@ use std::sync::mpsc::Receiver;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 use std::{fs, thread};
+use crate::control::misc_tools::misc::wait_for_enter;
 
 pub struct AbbRob<'a> {
     socket: tcp_sock::TcpSock,
@@ -1279,29 +1280,41 @@ impl AbbRob<'_> {
     fn verify_load_cell(&mut self) {
 
         //The two positions
-        let tool_change_xyz = [1.0,2.0,3.0];
-        let tool_change_ori = [0.0, 0.0, 0.0, 0.0];
-        let rotate_xyz = [1.0,2.0,3.0];
+        let rotate_joints = (81.0, 12.2, 34.0, 0.0, 54.80, -118.38);
+        let tool_change_joints = (21.15, 42.0, 59.0, 0.0, -57.07, -114.51);
 
 
 
         //The four orientations
         let ori_zero = Quartenion::from([0.0, 1.0, 0.0, 0.0]);
         let ori_one = Quartenion::from([0.70611, -0.70711, 0.0, 0.03741]);
-        let ori_two = Quartenion::from([0.5, -0.5, -0.5, -0.5]);
-        let ori_three = Quartenion::from([0.37113, -0.64315, 0.66968, 0.01226]);
+        let ori_two = Quartenion::from([0.5, -0.5, 0.5, 0.5]);
+        let ori_three = Quartenion::from([0.32998, -0.819, 0.45460, 0.11697]);
 
         let oris = [ori_zero, ori_one, ori_two, ori_three];
 
 
-        //Create the test file
+        //Create the test file and the config
         let test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
+        self.log_config(&test_data.config_filename);
 
         //Robot move to a position where its easy to attach tools etc
+        println!("Moving to attach tool");
+        self.set_joints(tool_change_joints);
 
+        //Pause for user input to say tool changed
+        wait_for_enter();
+
+        //Go home to ensure clearance for movement to the rotation spot
+        self.go_home_pos();
+
+
+        //Pause for user input to say tool changed
+        wait_for_enter();
 
         //Robot move to a position where it is safe to perform the rotations
-
+        println!("Moving to rotation spot");
+        self.set_joints(rotate_joints);
 
         self.write_marker(&test_data.data_filename, "Test start");
         //For every rotation
