@@ -323,21 +323,34 @@ impl RobInfo {
             pos_for_zero[pos_cnt] = pos.parse()?;
         }
 
-
+        //Backwards compatability
+        let ori_rep = if para_split.len() > 3 {
+            "] EMB:"
+        }else{
+            "]"
+        };
 
         //Access the orientation
         let mut ori_for_zero = [f64::NAN, f64::NAN, f64::NAN];
-        let oris = para_split[2].replace("] EMB:", "");
+        let oris = para_split[2].replace(ori_rep, "");
         let oris: Vec<&str> = oris.trim().split(",").collect();
         for (ori_cnt, ori) in oris.into_iter().enumerate() {
             ori_for_zero[ori_cnt] = ori.parse()?;
         }
 
+        //Backwards compatability - if embed height doesn't exist replace with a default
+        let min_embed_height : f64 = if para_split.len() > 3 {
+            let embed_height = para_split[3].replace("]", "");
+            let parsed: f64 = f64::NAN;
 
-
-        let mut min_embed_height = f64::NAN;
-        let embed_height = para_split[3].replace("]", "");
-        min_embed_height = embed_height.trim().parse()?;
+            if Ok(parsed) == embed_height.trim().parse() {
+                parsed
+            } else {
+                160.0
+            }
+        }else{
+            160.0
+        };
 
 
 
