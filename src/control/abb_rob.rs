@@ -1287,9 +1287,9 @@ impl AbbRob<'_> {
 
         //The four orientations
         let ori_zero = Quartenion::from([0.0, 1.0, 0.0, 0.0]);
-        let ori_one = Quartenion::from([0.70611, -0.70711, 0.0, 0.03741]);
-        let ori_two = Quartenion::from([0.5, -0.5, 0.5, 0.5]);
-        let ori_three = Quartenion::from([0.32998, -0.819, 0.45460, 0.11697]);
+        let ori_one = Quartenion::from([0.35218, -0.39616, -0.59986, -0.59933]);
+        let ori_two = Quartenion::from([0.187, -0.15665, 0.69299, 0.67843]);
+        let ori_three = Quartenion::from([0.16195, 0.43884, 0.83970, 0.27583]);
 
         let oris = [ori_zero, ori_one, ori_two, ori_three];
 
@@ -1327,18 +1327,21 @@ impl AbbRob<'_> {
             //Set the marker in the test file
             self.write_marker(&test_data.data_filename, &format!("ORIENTATION {}", i));
 
-            //Take 10000 force measurements
-            for _ in 0..10000{
+            //Take 1000 force measurements
+            for _ in 0..1000{
                 self.update_rob_info();
 
                 //Store the measurement
                 self.store_state(&test_data.data_filename, cnt);
                 cnt += 1;
+
+
             }
         }
 
         //Go back to the original orientation
-        self.set_ori(&Quartenion::from([0.0, 1.0, 0.0, 0.0]));
+        self.set_ori(&Quartenion::from([0.0,
+            1.0, 0.0, 0.0]));
 
         //Return home
         self.go_home_pos();

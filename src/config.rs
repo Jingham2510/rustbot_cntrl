@@ -323,6 +323,8 @@ impl RobInfo {
             pos_for_zero[pos_cnt] = pos.parse()?;
         }
 
+
+
         //Access the orientation
         let mut ori_for_zero = [f64::NAN, f64::NAN, f64::NAN];
         let oris = para_split[2].replace("] EMB:", "");
@@ -331,9 +333,13 @@ impl RobInfo {
             ori_for_zero[ori_cnt] = ori.parse()?;
         }
 
+
+
         let mut min_embed_height = f64::NAN;
         let embed_height = para_split[3].replace("]", "");
-        min_embed_height = embed_height.parse()?;
+        min_embed_height = embed_height.trim().parse()?;
+
+
 
         Ok(RobInfo {
             rob_name: rob_name.to_string(),

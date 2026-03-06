@@ -54,6 +54,7 @@ impl Analyser {
         let data_handler = DataHandler::read_data_from_file(data_fp)?;
 
         //Get the config info
+        println!("Loading config - {test_fp}");
         let config_info = get_config(&test_fp, &test_name)?;
 
         println!("{:?}", config_info.0);

@@ -239,6 +239,8 @@ fn analyse(config: &Config) -> Result<(), anyhow::Error> {
     //Create analysis tool from chosen test
     let mut analyser = Analyser::init(depth_test_fp, test_enum[user_sel].1.clone())?;
 
+    println!("Analyser created");
+
     //analyser.display_all();
 
     analyser.disp_overall_change()?;
@@ -247,9 +249,9 @@ fn analyse(config: &Config) -> Result<(), anyhow::Error> {
 
     //analyser.disp_force_map(200, 200, ForceSel::ForceAvg)?;
 
-    analyser.rotate_and_regen(0.0, 0.2618, 0.0, 200, 200)?;
+    //analyser.rotate_and_regen(0.0, 0.2618, 0.0, 200, 200)?;
 
-    analyser.disp_overall_change()?;
+    //analyser.disp_overall_change()?;
 
     //analyser.disp_iso_traj_path(50.0, 50.0);
 
