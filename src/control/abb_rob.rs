@@ -809,11 +809,12 @@ impl AbbRob<'_> {
                 //Create a pointcloud
                 let mut curr_pcl = cam.get_depth_pnts().expect("Failed to get get pointcloud");
 
-                //filter the data - save raw (transformed to robot frame)
+                //Scale/rotate/transform the depth data so it is useable
                 curr_pcl.scale_even(scale);
                 curr_pcl.rotate(rel_ori[0], rel_ori[1], rel_ori[2]);
                 curr_pcl.translate(rel_pos[0], rel_pos[1], rel_pos[2]);
 
+                //Pass band filter the transformed data to keep interest in the box only.
                 curr_pcl.passband_filter(-10.0, 2000.0, -10.0, 2000.0, -150.0, 200.0);
 
                 //Save the pointcloud

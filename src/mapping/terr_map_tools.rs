@@ -19,6 +19,8 @@ pub struct PointCloud {
     rel_timestamp: f64,
 
     global_timestamp: DateTime<Utc>,
+
+    filename : Option<String>
 }
 
 impl PointCloud {
@@ -32,6 +34,7 @@ impl PointCloud {
             no_of_points,
             rel_timestamp: timestamp,
             global_timestamp: Utc::now(),
+            filename : None
         }
     }
 
@@ -56,6 +59,7 @@ impl PointCloud {
             no_of_points,
             rel_timestamp: timestamp,
             global_timestamp: Utc::now(),
+            filename : None
         }
     }
 
@@ -65,7 +69,7 @@ impl PointCloud {
         let filepath = filepath.to_string();
 
         //Open the file and create a buffer to read the lines
-        let file = File::open(filepath)?;
+        let file = File::open(filepath.clone())?;
         let mut line_reader = BufReader::new(file);
 
         //Read the first line to get the date
@@ -98,6 +102,7 @@ impl PointCloud {
             //Relative timestamp is -1.0 because there is no reference start time
             rel_timestamp: -1.0,
             global_timestamp,
+            filename : Some(filepath)
         })
     }
 
@@ -143,11 +148,11 @@ impl PointCloud {
         [x_min, x_max, y_min, y_max]
     }
 
-    //Rotate a pointcloud - inplace
-    //Can cheat with the mat multiplication here, we know the predefined sizes already
-    //Yaw - X
-    //Pitch - Y
-    //Roll - Z
+    ///Rotate a pointcloud - inplace
+    ///Can cheat with the mat multiplication here, we know the predefined sizes already
+    ///Yaw - X
+    ///Pitch - Y
+    ///Roll - Z
     pub fn rotate(&mut self, yaw: f64, pitch: f64, roll: f64) {
         //Create the transform matrix rows
         let x_rot = [
@@ -261,6 +266,22 @@ impl PointCloud {
         //Return the all clear
         Ok(())
     }
+
+    ///Returns whether the pointcloud is registered as the last of a series
+    ///Based on the filename
+    pub fn is_end(&self) -> bool{
+        //Check that the pointcloud has a filename
+        if self.filename.is_none(){
+             false
+        }else {
+            if self.filename.as_ref().unwrap().contains("_END") {
+                true
+            }else{
+                false
+            }
+        }
+    }
+
 }
 
 //Map structure - contains the size and height information for each cell

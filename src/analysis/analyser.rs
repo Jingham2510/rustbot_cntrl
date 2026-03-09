@@ -25,6 +25,10 @@ pub struct Analyser {
     cam_info: CamInfo,
     //The robot information for the given test
     rob_info: RobInfo,
+
+    //Coordination pre-transform flag
+    ///True if trajectory already transformed
+    pre_trans : bool
 }
 
 impl Analyser {
@@ -57,7 +61,7 @@ impl Analyser {
         println!("Loading config - {test_fp}");
         let config_info = get_config(&test_fp, &test_name)?;
 
-        println!("{:?}", config_info.0);
+
 
         Ok(Self {
             filepath,
@@ -65,8 +69,9 @@ impl Analyser {
             test_fp,
             data_handler,
             no_of_pcl,
-            cam_info: config_info.1,
             rob_info: config_info.0,
+            cam_info: config_info.1,
+            pre_trans : config_info.2
         })
     }
 
@@ -289,6 +294,14 @@ impl Analyser {
         //Get the bounds of the trajectory
         let mut traj_bounds = self.get_traj_bounds()?;
 
+        if !self.pre_trans{
+            traj_bounds[0] = traj_bounds[0] + self.rob_info.pos_to_zero()[0];
+            traj_bounds[1] = traj_bounds[1] + self.rob_info.pos_to_zero()[0];
+            traj_bounds[2] = traj_bounds[2] + self.rob_info.pos_to_zero()[1];
+            traj_bounds[3] = traj_bounds[3] + self.rob_info.pos_to_zero()[1];
+
+        }
+
         println!("Trajectory bounds - {:?}", traj_bounds);
 
         //Increase the bounds by the iso radius
@@ -318,19 +331,22 @@ impl Analyser {
 
         //Apply the iso-radius bounds as a pass-band filter to each pointcloud
         for mut pcl in pcls {
-            //Z is extreme because we have no modification to the z data
-            pcl.passband_filter(
-                iso_bounds[0],
-                iso_bounds[1],
-                iso_bounds[2],
-                iso_bounds[3],
-                -999.0,
-                999.0,
-            );
+            if pcl.is_end() {
 
-            //Transform the pointcloud to a heightmap and display it
-            let mut curr_hmap = Heightmap::create_from_pcl(pcl, 100, 100);
-            curr_hmap.disp_map()?;
+                //Z is extreme because we have no modification to the z data
+                pcl.passband_filter(
+                    iso_bounds[0],
+                    iso_bounds[1],
+                    iso_bounds[2],
+                    iso_bounds[3],
+                    -999.0,
+                    999.0,
+                );
+
+                //Transform the pointcloud to a heightmap and display it
+                let mut curr_hmap = Heightmap::create_from_pcl(pcl, 100, 100);
+                curr_hmap.disp_map()?;
+            }
         }
 
         Ok(())
@@ -351,9 +367,14 @@ impl Analyser {
         let total_width = bounds[1] - bounds[0];
         let total_height = bounds[3] - bounds[2];
 
-        //Assume that both the trajectory and pointcloud have alreayd been trasnformed/mapped to the workspace
+
         //Get the trajectory
-        let traj = self.data_handler.get_traj();
+        let mut traj = self.data_handler.get_traj();
+
+        //Check if the trajectory has been transformed
+        if !self.pre_trans{
+            traj = self.transform_traj(traj);
+        }
 
         //Transform the trajectory to the heightmap space
         trans_to_heightmap(
@@ -398,8 +419,25 @@ impl Analyser {
         let total_height = bounds[3] - bounds[2];
 
         //Get the trajectory data coupled with the force data
+        let mut traj_force_dat = self.data_handler.get_traj_force_pairs();
 
-        let traj_force_dat = self.data_handler.get_traj_force_pairs();
+        //If the trajectory hasn't already been trasnformed
+        if !self.pre_trans{
+            //Extract the trajectory
+            let mut traj  : Vec<[f64; 3]> = vec!();
+
+            for pair in traj_force_dat.iter(){
+                traj.push(pair.0);
+            }
+
+            //Transform the trajectory
+            traj = self.transform_traj(traj);
+
+            //Rezip back into the trajectory pairs
+            for (index, pnt) in traj.iter().enumerate(){
+                traj_force_dat[index].0 = *pnt;
+            }
+        }
 
         let mut pnts: Vec<[f64; 3]> = vec![];
 
@@ -498,7 +536,8 @@ impl Analyser {
         Ok(())
     }
 
-    //Rotate all PCLs associated with the test, and regenerate the heightmaps
+    ///Rotate all PCLs associated with the test, and regenerate the heightmaps
+    /// Rotations specified in radians
     pub fn rotate_and_regen(
         &mut self,
         yaw: f64,
@@ -575,6 +614,20 @@ impl Analyser {
 
         Ok(())
     }
+
+
+
+    ///Transform the trajectory in xyz frame
+    fn transform_traj(&mut self, traj : Vec<[f64;3]>) -> Vec<[f64; 3]>{
+
+        let mut new_traj : Vec<[f64;3]> = vec!();
+        let transform = self.rob_info.pos_to_zero();
+
+        for pnt in traj.iter(){
+            new_traj.push([pnt[0] + transform[0], pnt[1] + transform[1], pnt[2] + transform[2]]);
+        }
+        new_traj
+    }
 }
 
 //Enumerator to determine
@@ -589,7 +642,7 @@ pub enum ForceSel {
     Zmom,
 }
 
-fn get_config(filepath: &String, test_name: &String) -> Result<(RobInfo, CamInfo), anyhow::Error> {
+fn get_config(filepath: &String, test_name: &String) -> Result<(RobInfo, CamInfo, bool), anyhow::Error> {
     //Get the first line of the cam config file
     let config_fp = format!("{}/conf_{}.txt", filepath, test_name);
 
@@ -604,9 +657,20 @@ fn get_config(filepath: &String, test_name: &String) -> Result<(RobInfo, CamInfo
     let mut rob_info_line = String::new();
     line_reader.read_line(&mut rob_info_line)?;
 
+    //Check if trajectory data has already been transformed (to the box frame)
+    println!("Loading transform flag");
+    let mut trans_flag_str = String::new();
+    line_reader.read_line(&mut trans_flag_str)?;
+    println!("{trans_flag_str}");
+    let trans_flag = trans_flag_str.contains("true");
+
+
+
     //Attempt to create both the configs inplace
     Ok((
         RobInfo::create_rob_info_from_line(rob_info_line)?,
         CamInfo::create_cam_info_from_line(cam_info_line)?,
+        trans_flag
     ))
+
 }

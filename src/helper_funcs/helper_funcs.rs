@@ -209,7 +209,7 @@ pub fn display_magnitude_map(
 
     //calculate the cell width
     let cell_width: f32 =
-        (grid_disp_width - ((width as f32 + 2.0) * LINE_THICKNESS)) / (width as f32);
+        (grid_disp_width - ((width as f32 + 2.0) * LINE_THICKNESS)) / (width  as f32) ;
 
     let cell_height: f32 =
         (grid_disp_height - ((height as f32 + 2.0) * LINE_THICKNESS)) / (height as f32);
