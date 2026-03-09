@@ -393,7 +393,7 @@ impl Analyser {
     pub fn disp_action_map(&mut self, width: usize, height: usize) -> Result<(), anyhow::Error> {
         //Calculate the action map matrix
         if let Ok(ac_mat) = self.calc_action_map(width, height) {
-            display_magnitude_map("Action map", ac_mat, width, height, ColOpt::Median)?;
+            display_magnitude_map("Action map", ac_mat, width, height, ColOpt::Median, false)?;
         } else {
             bail!("Error when displaying action map");
         }
@@ -529,7 +529,7 @@ impl Analyser {
     ) -> Result<(), anyhow::Error> {
         //Calculate the force map matrix
         if let Ok(fc_mat) = self.calc_force_map(width, height, option) {
-            display_magnitude_map("Force map", fc_mat, width, height, ColOpt::Intensity)?;
+            display_magnitude_map("Force map", fc_mat, width, height, ColOpt::Intensity, false)?;
         } else {
             bail!("Error when displaying action map");
         }

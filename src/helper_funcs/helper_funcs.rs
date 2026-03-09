@@ -189,6 +189,7 @@ pub fn display_magnitude_map(
     width: usize,
     height: usize,
     col_opt: ColOpt,
+    remove_nan : bool
 ) -> Result<(), anyhow::Error> {
     //Constants to determine generic window size
     const WINDOW_WIDTH: f32 = 1024.0;
@@ -206,6 +207,10 @@ pub fn display_magnitude_map(
 
     //Line thickness
     const LINE_THICKNESS: f32 = 3.0;
+
+    if remove_nan{
+        data = remove_NaN(data);
+    }
 
     //calculate the cell width
     let cell_width: f32 =
@@ -383,4 +388,76 @@ fn inv_intensity_cell_col(val: f64, min: f64, max: f64) -> Color {
         255.0 as u8,
         (255.0 * (1.0 - (val - min) / (max - min))) as u8,
     )
+}
+
+
+///Remove any NaN entries in the provided data matrix
+/// Achieved by interpolating the point as an average between every surrounding point
+/// Assumes a 3x3 kernel (does not account for equal or smaller data matrices)
+fn remove_NaN(mut data_mat: Vec<Vec<f64>>) -> Vec<Vec<f64>>{
+
+    //Flags to indicate whether the data is at the edge of matrix
+    let mut L_EDGE_FLAG = false;
+    let mut R_EDGE_FLAG = false;
+    let mut T_EDGE_FLAG = false;
+    let mut B_EDGE_FLAG = false;
+
+    let mat_width = data_mat.len();
+    let mat_height = data_mat[0].len();
+
+    //Go through every row
+    for (i, row) in data_mat.iter().enumerate(){
+        if i == 0{
+            T_EDGE_FLAG = true;
+        }else if i == mat_height - 1{
+            B_EDGE_FLAG = true;
+        }else{
+            T_EDGE_FLAG = false;
+            B_EDGE_FLAG = false;
+        }
+
+        //Go through every pixel in each row
+        for (j, mut val) in row.iter().enumerate(){
+
+            if !val.is_nan(){
+                continue;
+            }
+
+            if j == 0{
+                L_EDGE_FLAG = true;
+            }else if j == mat_width - 1{
+                R_EDGE_FLAG = true;
+            }else{
+                L_EDGE_FLAG = false;
+                R_EDGE_FLAG = false;
+            }
+
+            //check every possibility of states
+            let new_val = if T_EDGE_FLAG & L_EDGE_FLAG{
+                &((data_mat[i][j + 1] + data_mat[i + 1][j] + data_mat[i + 1][j + 1]) / 3.0)
+            }else if T_EDGE_FLAG & R_EDGE_FLAG{
+                &((data_mat[i][j - 1] + data_mat[i + 1][j-1] + data_mat[i + 1][j]) / 3.0)
+            }else if T_EDGE_FLAG & !L_EDGE_FLAG{
+                &((data_mat[i][j-1] + data_mat[i+1][j-1] + data_mat[i][j + 1] + data_mat[i + 1][j] + data_mat[i + 1][j + 1]) / 5.0)
+            }else if T_EDGE_FLAG & !R_EDGE_FLAG{
+                &((data_mat[i][j - 1] + data_mat[i + 1][j-1] + data_mat[i + 1][j] + data_mat[i][j+1] + data_mat[i+1][j+1]) / 5.0)
+            } else  if B_EDGE_FLAG & L_EDGE_FLAG{
+                &((data_mat[i][j + 1] + data_mat[i - 1][j] + data_mat[i - 1][j + 1]) / 3.0)
+            }else if B_EDGE_FLAG & R_EDGE_FLAG{
+                &((data_mat[i][j - 1] + data_mat[i - 1][j] + data_mat[i - 1][j - 1]) / 3.0)
+            }else if B_EDGE_FLAG & !L_EDGE_FLAG{
+                &((data_mat[i][j-1] + data_mat[i-1][j-1] + data_mat[i][j + 1] + data_mat[i - 1][j] + data_mat[i - 1][j + 1]) / 5.0)
+            }else if B_EDGE_FLAG & !R_EDGE_FLAG{
+                &((data_mat[i][j - 1] + data_mat[i - 1][j] + data_mat[i - 1][j - 1] + data_mat[i-1][j+1] + data_mat[i][j+1]) / 5.0)
+            }else{ //No edge flags set
+                &((data_mat[i-1][j - 1] + data_mat[i - 1][j] + data_mat[i - 1][j + 1] + data_mat[i][j-1] + data_mat[i][j+1] + data_mat[i+1][j-1] + data_mat[i+1][j] + data_mat[i+1][j+1]) / 8.0)
+            };
+
+            val = new_val;
+        }
+
+    }
+
+    data_mat
+
 }

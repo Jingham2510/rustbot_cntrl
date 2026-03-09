@@ -628,6 +628,7 @@ impl Heightmap {
             self.width as usize,
             self.height as usize,
             ColOpt::Median,
+            true
         )?;
         Ok(())
     }
