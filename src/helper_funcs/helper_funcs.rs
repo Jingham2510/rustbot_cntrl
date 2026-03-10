@@ -27,8 +27,9 @@ pub fn trans_to_heightmap(
     opt: MapGenOpt,
 ) -> Result<Vec<Vec<f64>>, anyhow::Error> {
     //Create the empty cell matrix
-    //NaN spots are areas with 0 action
-    let mut cells_pnt_list = vec![vec![vec![]; height]; width];
+    //NaN spots are areas with no information
+    let mut cells_pnt_list = vec![vec![vec![]; width]; height];
+
 
     //Check where the trajectory lies within the cell space - copied from heightmap generation
     //Check each points and direct it to a cell (updating the average height)
@@ -42,27 +43,27 @@ pub fn trans_to_heightmap(
 
         //Find the horizontal pos
         while !n_fnd {
-            if pnt[0] < (((total_width / width as f64) * n as f64) + min_x_bnd) {
+            if pnt[0] <= (((total_width / width as f64) * n as f64) + min_x_bnd) {
                 n_fnd = true;
             } else {
                 n += 1;
             }
 
             //Check if end pos
-            if n == (width - 1) {
+            if n == width - 1 {
                 n_fnd = true;
             }
         }
 
         //Find the vertical pos
         while !m_fnd {
-            if pnt[1] < (((total_height / height as f64) * m as f64) + min_y_bnd) {
+            if pnt[1] <= (((total_height / height as f64) * m as f64) + min_y_bnd) {
                 m_fnd = true;
             } else {
                 m += 1;
             }
             //Check if end pos
-            if m == (height - 1) {
+            if m == height - 1 {
                 m_fnd = true;
             }
         }
@@ -188,12 +189,11 @@ pub fn display_magnitude_map(
     mut data: Vec<Vec<f64>>,
     width: usize,
     height: usize,
-    col_opt: ColOpt,
-    remove_nan : bool
+    col_opt: ColOpt
 ) -> Result<(), anyhow::Error> {
     //Constants to determine generic window size
-    const WINDOW_WIDTH: f32 = 1024.0;
-    const WINDOW_HEIGHT: f32 = 768.0;
+    const WINDOW_WIDTH: f32 = 1200.0;
+    const WINDOW_HEIGHT: f32 = 800.0;
 
     //Precalced to save time
     const WINDOW_WIDTH_START: f32 = WINDOW_WIDTH * 0.1;
@@ -207,10 +207,6 @@ pub fn display_magnitude_map(
 
     //Line thickness
     const LINE_THICKNESS: f32 = 3.0;
-
-    if remove_nan{
-        data = remove_NaN(data);
-    }
 
     //calculate the cell width
     let cell_width: f32 =
@@ -279,12 +275,12 @@ pub fn display_magnitude_map(
         for (x, row) in data.iter_mut().enumerate() {
             //Calculate the start point of the rectangle
             let curr_x = (WINDOW_WIDTH_START + (LINE_THICKNESS))
-                + (x as f32 * (cell_width + LINE_THICKNESS));
+                + ((x as f32) * (cell_width + LINE_THICKNESS));
 
             for (y, val) in row.iter_mut().enumerate() {
                 //Calc the starting height
                 let curr_y = (WINDOW_HEIGHT_START + (LINE_THICKNESS))
-                    + (y as f32 * (cell_height + LINE_THICKNESS));
+                    + ((y as f32) * (cell_height + LINE_THICKNESS));
 
                 //Calculate the colour
                 let cell_col: Color;
@@ -391,73 +387,15 @@ fn inv_intensity_cell_col(val: f64, min: f64, max: f64) -> Color {
 }
 
 
-///Remove any NaN entries in the provided data matrix
-/// Achieved by interpolating the point as an average between every surrounding point
-/// Assumes a 3x3 kernel (does not account for equal or smaller data matrices)
-fn remove_NaN(mut data_mat: Vec<Vec<f64>>) -> Vec<Vec<f64>>{
+//Adds a value (that could possibly be NaN) to a variable
+//If the value is NaN just add 0
+pub fn NaN_add(var : f64, val : f64) -> f64{
 
-    //Flags to indicate whether the data is at the edge of matrix
-    let mut L_EDGE_FLAG = false;
-    let mut R_EDGE_FLAG = false;
-    let mut T_EDGE_FLAG = false;
-    let mut B_EDGE_FLAG = false;
-
-    let mat_width = data_mat.len();
-    let mat_height = data_mat[0].len();
-
-    //Go through every row
-    for (i, row) in data_mat.iter().enumerate(){
-        if i == 0{
-            T_EDGE_FLAG = true;
-        }else if i == mat_height - 1{
-            B_EDGE_FLAG = true;
-        }else{
-            T_EDGE_FLAG = false;
-            B_EDGE_FLAG = false;
-        }
-
-        //Go through every pixel in each row
-        for (j, mut val) in row.iter().enumerate(){
-
-            if !val.is_nan(){
-                continue;
-            }
-
-            if j == 0{
-                L_EDGE_FLAG = true;
-            }else if j == mat_width - 1{
-                R_EDGE_FLAG = true;
-            }else{
-                L_EDGE_FLAG = false;
-                R_EDGE_FLAG = false;
-            }
-
-            //check every possibility of states
-            let new_val = if T_EDGE_FLAG & L_EDGE_FLAG{
-                &((data_mat[i][j + 1] + data_mat[i + 1][j] + data_mat[i + 1][j + 1]) / 3.0)
-            }else if T_EDGE_FLAG & R_EDGE_FLAG{
-                &((data_mat[i][j - 1] + data_mat[i + 1][j-1] + data_mat[i + 1][j]) / 3.0)
-            }else if T_EDGE_FLAG & !L_EDGE_FLAG{
-                &((data_mat[i][j-1] + data_mat[i+1][j-1] + data_mat[i][j + 1] + data_mat[i + 1][j] + data_mat[i + 1][j + 1]) / 5.0)
-            }else if T_EDGE_FLAG & !R_EDGE_FLAG{
-                &((data_mat[i][j - 1] + data_mat[i + 1][j-1] + data_mat[i + 1][j] + data_mat[i][j+1] + data_mat[i+1][j+1]) / 5.0)
-            } else  if B_EDGE_FLAG & L_EDGE_FLAG{
-                &((data_mat[i][j + 1] + data_mat[i - 1][j] + data_mat[i - 1][j + 1]) / 3.0)
-            }else if B_EDGE_FLAG & R_EDGE_FLAG{
-                &((data_mat[i][j - 1] + data_mat[i - 1][j] + data_mat[i - 1][j - 1]) / 3.0)
-            }else if B_EDGE_FLAG & !L_EDGE_FLAG{
-                &((data_mat[i][j-1] + data_mat[i-1][j-1] + data_mat[i][j + 1] + data_mat[i - 1][j] + data_mat[i - 1][j + 1]) / 5.0)
-            }else if B_EDGE_FLAG & !R_EDGE_FLAG{
-                &((data_mat[i][j - 1] + data_mat[i - 1][j] + data_mat[i - 1][j - 1] + data_mat[i-1][j+1] + data_mat[i][j+1]) / 5.0)
-            }else{ //No edge flags set
-                &((data_mat[i-1][j - 1] + data_mat[i - 1][j] + data_mat[i - 1][j + 1] + data_mat[i][j-1] + data_mat[i][j+1] + data_mat[i+1][j-1] + data_mat[i+1][j] + data_mat[i+1][j+1]) / 8.0)
-            };
-
-            val = new_val;
-        }
-
+    if val.is_nan(){
+        var
+    }else{
+        var + val
     }
-
-    data_mat
-
 }
+
+

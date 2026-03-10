@@ -89,6 +89,7 @@ impl Analyser {
 
         //If the heightmaps haven't been generated - generate them now
         if self.no_of_pcl > hmap_cnt {
+
             let first_fp = format!("{}/pcl_{}_START.txt", self.test_fp, self.test_name);
 
             first_hmap = Heightmap::create_from_pcl_file(first_fp, 250, 250)?;
@@ -99,15 +100,18 @@ impl Analyser {
         }
         //If the hmaps already exist, just load them
         else {
+            println!("loading from heightmap!");
             let first_fp = format!("{}/hmap_{}_START.txt", self.test_fp, self.test_name);
             first_hmap = Heightmap::create_from_file(first_fp)?;
+
+            println!("first hmap: Width:{}, height:{}", first_hmap.width(), first_hmap.height());
+
 
             let end_fp = format!("{}/hmap_{}_END.txt", self.test_fp, self.test_name);
             last_hmap = Heightmap::create_from_file(end_fp)?;
         }
 
         //Create a new heightmap that compares the first and last
-
         let mut comp_hmap = terr_map_tools::comp_maps(&last_hmap, &first_hmap)?;
 
         comp_hmap.disp_map()?;
@@ -393,7 +397,7 @@ impl Analyser {
     pub fn disp_action_map(&mut self, width: usize, height: usize) -> Result<(), anyhow::Error> {
         //Calculate the action map matrix
         if let Ok(ac_mat) = self.calc_action_map(width, height) {
-            display_magnitude_map("Action map", ac_mat, width, height, ColOpt::Median, false)?;
+            display_magnitude_map("Action map", ac_mat, width, height, ColOpt::Median)?;
         } else {
             bail!("Error when displaying action map");
         }
@@ -529,7 +533,7 @@ impl Analyser {
     ) -> Result<(), anyhow::Error> {
         //Calculate the force map matrix
         if let Ok(fc_mat) = self.calc_force_map(width, height, option) {
-            display_magnitude_map("Force map", fc_mat, width, height, ColOpt::Intensity, false)?;
+            display_magnitude_map("Force map", fc_mat, width, height, ColOpt::Intensity)?;
         } else {
             bail!("Error when displaying action map");
         }
