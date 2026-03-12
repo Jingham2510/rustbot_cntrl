@@ -10,7 +10,8 @@ use std::io::{BufRead, BufReader};
 #[derive(Debug)]
 pub struct Config {
     test_fp: String,
-    pub cam_info: CamInfo,
+    pub cam_info0: CamInfo,
+    pub cam_info1: CamInfo,
     pub rob_info: RobInfo,
     pub phase2_cntrl_settings: String,
     pub phase3_cntrl_settings: String,
@@ -48,7 +49,8 @@ impl Default for Config {
             test_fp: "C:/Users/User/Documents/Results/DEPTH_TESTS"
                 .parse()
                 .unwrap(),
-            cam_info: CamInfo::default(),
+            cam_info0: CamInfo::default(),
+            cam_info1: CamInfo::default(),
             rob_info: RobInfo::default(),
             phase2_cntrl_settings: "NONE".parse().unwrap(),
             phase3_cntrl_settings: "NONE".parse().unwrap(),
@@ -86,12 +88,11 @@ impl Config {
         //Get the test filepath
         let test_fp = Self::extract_test_fp()?;
 
-
-
         //Get the Caminfo (from the file)
         Ok(Self {
             test_fp,
-            cam_info: CamInfo::read_cam_info_from_file()?,
+            cam_info0: CamInfo::read_cam_info_from_file(0)?,
+            cam_info1: CamInfo::read_cam_info_from_file(1)?,
             rob_info: RobInfo::read_rob_info_from_file()?,
             phase2_cntrl_settings: "NONE".parse()?,
             phase3_cntrl_settings: "NONE".parse()?,
@@ -194,10 +195,10 @@ impl CamInfo {
         Ok(cam_info)
     }
 
-    fn read_cam_info_from_file() -> Result<Self, anyhow::Error> {
+    fn read_cam_info_from_file(cam_no: usize) -> Result<Self, anyhow::Error> {
         //Construct the filepath
-        const CAM_CONFIG_FILENAME: &str = "caminfo.txt";
-        let fp = format!("{}/{}", CONFIG_FP, CAM_CONFIG_FILENAME);
+        let cam_config_filename = format!("caminfo{}.txt", cam_no);
+        let fp = format!("{}/{}", CONFIG_FP, cam_config_filename);
 
         //Open the cam config file
         let cam_config_file = File::open(fp)?;
@@ -224,7 +225,6 @@ impl CamInfo {
                 bail!("Invalid cam config! - unknown line!")
             }
         }
-
 
         Ok(Self {
             rel_pos,
@@ -273,8 +273,6 @@ impl RobInfo {
         //Open the file and iterate line by line
         let rob_config_file = File::open(fp)?;
 
-
-
         for line in BufReader::new(rob_config_file).lines() {
             let curr_line = line?;
 
@@ -297,7 +295,6 @@ impl RobInfo {
         }
 
         println!("Got rob info");
-
 
         Ok(Self {
             rob_name,
@@ -324,11 +321,7 @@ impl RobInfo {
         }
 
         //Backwards compatability
-        let ori_rep = if para_split.len() > 3 {
-            "] EMB:"
-        }else{
-            "]"
-        };
+        let ori_rep = if para_split.len() > 3 { "] EMB:" } else { "]" };
 
         //Access the orientation
         let mut ori_for_zero = [f64::NAN, f64::NAN, f64::NAN];
@@ -339,7 +332,7 @@ impl RobInfo {
         }
 
         //Backwards compatability - if embed height doesn't exist replace with a default
-        let min_embed_height : f64 = if para_split.len() > 3 {
+        let min_embed_height: f64 = if para_split.len() > 3 {
             let embed_height = para_split[3].replace("]", "");
             let parsed: f64 = f64::NAN;
 
@@ -348,11 +341,9 @@ impl RobInfo {
             } else {
                 160.0
             }
-        }else{
+        } else {
             160.0
         };
-
-
 
         Ok(RobInfo {
             rob_name: rob_name.to_string(),

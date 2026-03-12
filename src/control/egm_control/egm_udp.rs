@@ -78,16 +78,13 @@ impl EgmServer {
     }
 
     //Gracefully ends the EGM stream
-    pub fn egm_end(self){
-
+    pub fn egm_end(self) {
         let mut seqno = 0;
 
         let mut egm_state = 3;
 
         //Run until the EGM has confirmed stopped
-        while egm_state > 2{
-
-
+        while egm_state > 2 {
             //Get the egm message
             let msg = self.recv_egm().expect("Failed to get egm message");
 
@@ -99,16 +96,11 @@ impl EgmServer {
             let curr_pos = msg.get_pos_xyz().expect("Failed to get egm coords");
             let curr_ori = msg.get_quart_ori().expect("Failed to get egm ori");
             let sensor: EgmSensor = EgmSensor::stop_egm_pose(seqno, time, curr_pos, curr_ori);
-            self
-                .send_egm(sensor)
-                .expect("Failed to send sensor info");
+            self.send_egm(sensor).expect("Failed to send sensor info");
 
             seqno += 1;
-
         }
 
         println!("EGM stopped");
-
     }
-
 }

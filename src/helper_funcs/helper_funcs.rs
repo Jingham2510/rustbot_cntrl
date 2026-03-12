@@ -30,7 +30,6 @@ pub fn trans_to_heightmap(
     //NaN spots are areas with no information
     let mut cells_pnt_list = vec![vec![vec![]; width]; height];
 
-
     //Check where the trajectory lies within the cell space - copied from heightmap generation
     //Check each points and direct it to a cell (updating the average height)
     for pnt in data {
@@ -39,7 +38,6 @@ pub fn trans_to_heightmap(
 
         let mut n_fnd = false;
         let mut m_fnd = false;
-
 
         //Find the horizontal pos
         while !n_fnd {
@@ -143,10 +141,6 @@ pub fn trans_to_heightmap(
                         }
                     }
                 }
-
-                _ => {
-                    bail!("Invalid map gen option")
-                }
             }
 
             cells[i].push(pnt_to_add);
@@ -189,7 +183,7 @@ pub fn display_magnitude_map(
     mut data: Vec<Vec<f64>>,
     width: usize,
     height: usize,
-    col_opt: ColOpt
+    col_opt: ColOpt,
 ) -> Result<(), anyhow::Error> {
     //Constants to determine generic window size
     const WINDOW_WIDTH: f32 = 1200.0;
@@ -210,7 +204,7 @@ pub fn display_magnitude_map(
 
     //calculate the cell width
     let cell_width: f32 =
-        (grid_disp_width - ((width as f32 + 2.0) * LINE_THICKNESS)) / (width  as f32) ;
+        (grid_disp_width - ((width as f32 + 2.0) * LINE_THICKNESS)) / (width as f32);
 
     let cell_height: f32 =
         (grid_disp_height - ((height as f32 + 2.0) * LINE_THICKNESS)) / (height as f32);
@@ -386,16 +380,8 @@ fn inv_intensity_cell_col(val: f64, min: f64, max: f64) -> Color {
     )
 }
 
-
 //Adds a value (that could possibly be NaN) to a variable
 //If the value is NaN just add 0
-pub fn NaN_add(var : f64, val : f64) -> f64{
-
-    if val.is_nan(){
-        var
-    }else{
-        var + val
-    }
+pub fn NaN_add(var: f64, val: f64) -> f64 {
+    if val.is_nan() { var } else { var + val }
 }
-
-

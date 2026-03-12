@@ -4,8 +4,7 @@ use std::io::stdin;
 
 ///Waits for a user input (i.e. an entry)
 /// Doesn't care what the input is
-pub fn wait_for_enter(){
-
+pub fn wait_for_enter() {
     println!("Press enter to continue...");
 
     //Get user input
@@ -13,5 +12,4 @@ pub fn wait_for_enter(){
     stdin()
         .read_line(&mut user_inp)
         .expect("Failed to read line");
-
 }

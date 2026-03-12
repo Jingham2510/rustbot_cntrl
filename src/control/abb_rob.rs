@@ -3,6 +3,7 @@ use crate::control::egm_control::abb_egm::{EgmRobot, EgmSensor};
 use crate::control::egm_control::egm_udp::EgmServer;
 use crate::control::force_control::force_control::{PHPIDController, PIDController};
 use crate::control::misc_tools::angle_tools::Quartenion;
+use crate::control::misc_tools::misc::wait_for_enter;
 use crate::control::misc_tools::string_tools;
 use crate::control::trajectory_planner;
 use crate::control::trajectory_planner::calc_xy_timing;
@@ -18,7 +19,6 @@ use std::sync::mpsc::Receiver;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 use std::{fs, thread};
-use crate::control::misc_tools::misc::wait_for_enter;
 
 pub struct AbbRob<'a> {
     socket: tcp_sock::TcpSock,
@@ -113,10 +113,10 @@ impl TestData {
         //Check if invalid filename characters in string
         let invalid_chars = ["!", "?", ".", " "];
 
-        for char in invalid_chars{
-            if user_inp.contains(char){
+        for char in invalid_chars {
+            if user_inp.contains(char) {
                 println!("illegal character in input");
-                return String::from("default")
+                return String::from("default");
             }
         }
 
@@ -258,7 +258,6 @@ impl AbbRob<'_> {
                     self.req_ori();
                 }
 
-
                 "geo test" => {
                     self.force_mode_flag = true;
 
@@ -269,22 +268,19 @@ impl AbbRob<'_> {
                         .read_line(&mut user_inp)
                         .expect("Failed to read line");
 
-                    if let Ok(targ) = user_inp.trim().parse::<f64>(){
+                    if let Ok(targ) = user_inp.trim().parse::<f64>() {
                         self.force_err = targ;
-                    }else{
+                    } else {
                         println!("Invalid force target... returning to cmd line");
-                        return
+                        return;
                     }
 
-                        self.geo_test_regime();
-
+                    self.geo_test_regime();
                 }
 
-                "test" =>{
+                "test" => {
                     self.verify_load_cell();
                 }
-
-
 
                 "home" => {
                     self.go_home_pos();
@@ -318,9 +314,11 @@ impl AbbRob<'_> {
     }
 
     fn go_home_pos(&mut self) {
-       self.set_speed(150.0);
+        self.set_speed(150.0);
 
-        self.socket.req("HOME:0").expect("Failed to send robot home - panicking!");
+        self.socket
+            .req("HOME:0")
+            .expect("Failed to send robot home - panicking!");
 
         self.set_speed(50.0);
 
@@ -381,11 +379,6 @@ impl AbbRob<'_> {
         }
     }
 
-
-
-
-
-
     fn geo_test_regime(&mut self) {
         if !self.force_mode_flag {
             println!("Force mode not set! Returning!");
@@ -405,9 +398,9 @@ impl AbbRob<'_> {
         let (tx, rx) = mpsc::channel();
 
         //Clone the cam configs to avoid handing ownership to the thread
-        let rel_pos = self.config.cam_info.rel_pos();
-        let rel_ori = self.config.cam_info.rel_ori();
-        let scale = self.config.cam_info.x_scale();
+        let rel_pos_0 = self.config.cam_info0.rel_pos();
+        let rel_ori_0 = self.config.cam_info0.rel_ori();
+        let scale_0 = self.config.cam_info0.x_scale();
 
         //Create the thread that handles the depth camera
         thread::spawn(move || {
@@ -416,9 +409,10 @@ impl AbbRob<'_> {
                 test_data.filepath.clone(),
                 &test_data.test_name.clone(),
                 true,
-                rel_pos,
-                rel_ori,
-                scale,
+                rel_pos_0,
+                rel_ori_0,
+                scale_0,
+                0,
             )
         });
 
@@ -479,21 +473,22 @@ impl AbbRob<'_> {
         //Setup and connect EGM
         let egm_client = self.connect_egm_pose().expect("Failed to connect to EGM");
 
-        if self.start_egm_stream_speed().is_err(){
+        if self.start_egm_stream_speed().is_err() {
             println!("Failed to start the egm stream")
-        }else{
+        } else {
             println!("EGM stream started");
         };
-        egm_client.recv_and_connect().expect("Failed to return connection");
+        egm_client
+            .recv_and_connect()
+            .expect("Failed to return connection");
 
         //Set desired z-speed
-        let mut desired_speed = [0.0,0.0,-5.0];
+        let mut desired_speed = [0.0, 0.0, -5.0];
 
         let mut seqno = 0;
 
         //Move down until target z-force reached
-        while self.force.2 > self.force_target{
-
+        while self.force.2 > self.force_target {
             let recv_msg = egm_client.recv_egm().unwrap();
             let time = recv_msg.get_time().unwrap();
 
@@ -501,7 +496,7 @@ impl AbbRob<'_> {
             self.egm_update_state(recv_msg);
             self.store_state(&test_data.data_filename, cnt);
 
-            if self.limit_check(){
+            if self.limit_check() {
                 println!("Out of bounds");
                 egm_client.egm_end();
                 self.go_home_pos();
@@ -510,7 +505,15 @@ impl AbbRob<'_> {
             }
 
             //Update the robot EGM requirements
-            egm_client.send_egm(EgmSensor::set_pose_set_speed(seqno, time, [0.0, 0.0, 0.0], self.ori.into(), desired_speed)).unwrap();
+            egm_client
+                .send_egm(EgmSensor::set_pose_set_speed(
+                    seqno,
+                    time,
+                    [0.0, 0.0, 0.0],
+                    self.ori.into(),
+                    desired_speed,
+                ))
+                .unwrap();
 
             seqno += 1;
             cnt += 1;
@@ -518,7 +521,6 @@ impl AbbRob<'_> {
 
         //Take snapshot
         let _ = tx.send(1);
-
 
         println!("GEOTECH- Phase 1 Complete!");
         self.write_marker(&test_data.data_filename, "PHASE 1 END");
@@ -551,7 +553,6 @@ impl AbbRob<'_> {
 
         self.write_marker(&test_data.data_filename, "PHASE 2 STARTED");
         while !force_stable {
-
             let recv_msg = egm_client.recv_egm().unwrap();
             let time = recv_msg.get_time().unwrap();
 
@@ -559,7 +560,7 @@ impl AbbRob<'_> {
             self.egm_update_state(recv_msg);
             self.store_state(&test_data.data_filename, cnt);
 
-            if self.limit_check(){
+            if self.limit_check() {
                 println!("Out of bounds");
                 egm_client.egm_end();
                 self.go_home_pos();
@@ -568,12 +569,22 @@ impl AbbRob<'_> {
             }
 
             //Apply the controller
-            let des_z_speed = phase2_cntrl.calc_op(self.force_err).expect("Failed to calculate desired z speed");
+            let des_z_speed = phase2_cntrl
+                .calc_op(self.force_err)
+                .expect("Failed to calculate desired z speed");
 
             desired_speed = [0.0, 0.0, des_z_speed];
 
             //Update the robot EGM requirements
-            egm_client.send_egm(EgmSensor::set_pose_set_speed(seqno, time, [0.0, 0.0, 0.0], self.ori.into(), desired_speed)).unwrap();
+            egm_client
+                .send_egm(EgmSensor::set_pose_set_speed(
+                    seqno,
+                    time,
+                    [0.0, 0.0, 0.0],
+                    self.ori.into(),
+                    desired_speed,
+                ))
+                .unwrap();
 
             seqno += 1;
             cnt += 1;
@@ -638,10 +649,9 @@ impl AbbRob<'_> {
         //Start the trajectory
         self.write_marker(&test_data.data_filename, "PHASE 3 STARTED");
 
-
         const DEPTH_FREQ: i32 = 250;
 
-        for instruction in speed_instructions.iter(){
+        for instruction in speed_instructions.iter() {
             //Get the time limit
             let time_lim = Duration::from_secs_f64(instruction.0);
 
@@ -649,7 +659,7 @@ impl AbbRob<'_> {
             let start_time = SystemTime::now();
 
             //Send the speed instruction to the robot via EGM
-            let mut desired_speed: [f64;3];
+            let mut desired_speed: [f64; 3];
 
             //While the timer is running
             while start_time.elapsed().unwrap() < time_lim {
@@ -662,14 +672,13 @@ impl AbbRob<'_> {
                 self.egm_update_state(msg);
                 self.store_state(&test_data.data_filename, cnt);
 
-                if self.limit_check(){
+                if self.limit_check() {
                     println!("Out of bounds");
                     egm_client.egm_end();
                     self.go_home_pos();
                     self.write_marker(&test_data.data_filename, "TEST OUT OF  SAFETY BOUNDS");
                     return;
                 }
-
 
                 //Trigger the camera
                 if cnt % DEPTH_FREQ == 0 || cnt == 0 {
@@ -681,7 +690,9 @@ impl AbbRob<'_> {
                 }
 
                 //Apply the controller
-                let des_z_speed = phase3_cntrl.calc_op(self.force_err).expect("Failed to calculate desired z speed");
+                let des_z_speed = phase3_cntrl
+                    .calc_op(self.force_err)
+                    .expect("Failed to calculate desired z speed");
 
                 //Send the EGM control
                 desired_speed = [instruction.1.0, instruction.1.1, des_z_speed];
@@ -751,10 +762,7 @@ impl AbbRob<'_> {
 
         //log the info
         self.update_rob_info();
-        self.store_state(
-            &test_data.data_filename.clone(),
-            cnt
-        );
+        self.store_state(&test_data.data_filename.clone(), cnt);
         cnt += 1;
 
         //Trigger the experiment model to start
@@ -768,10 +776,7 @@ impl AbbRob<'_> {
 
             //Get all info from robot
             self.update_rob_info();
-            self.store_state(
-                &test_data.data_filename.clone(),
-                cnt
-            );
+            self.store_state(&test_data.data_filename.clone(), cnt);
 
             //Send the requested z heigt (0 for this)
             let _ = z_pub.send(-1.0);
@@ -792,9 +797,11 @@ impl AbbRob<'_> {
         rel_pos: [f64; 3],
         rel_ori: [f64; 3],
         scale: f64,
+        cam_no: usize,
     ) {
         //Create a camera
-        let mut cam = terr_map_sense::RealsenseCam::initialise().expect("Failed to create camera");
+        let mut cam =
+            terr_map_sense::RealsenseCam::initialise(cam_no).expect("Failed to create camera");
 
         let mut cnt = 0;
 
@@ -821,9 +828,9 @@ impl AbbRob<'_> {
                 let pcl_filepath: String;
 
                 match opt {
-                    1 => pcl_filepath = format!("{filepath}/pcl_{test_name}_{cnt}"),
-                    2 => pcl_filepath = format!("{filepath}/pcl_{test_name}_START"),
-                    3 => pcl_filepath = format!("{filepath}/pcl_{test_name}_END"),
+                    1 => pcl_filepath = format!("{filepath}/pcl_C{cam_no}_{test_name}_{cnt}"),
+                    2 => pcl_filepath = format!("{filepath}/pcl_C{cam_no}_{test_name}_START"),
+                    3 => pcl_filepath = format!("{filepath}/pcl_C{cam_no}_{test_name}_END"),
 
                     //Sacrificial scan (i.e. to get a crappy one out the way
                     4 => {
@@ -834,7 +841,7 @@ impl AbbRob<'_> {
                     }
 
                     //If invalid number just take a count
-                    _ => pcl_filepath = format!("{filepath}/pcl_{test_name}_{cnt}"),
+                    _ => pcl_filepath = format!("{filepath}/pcl_C{cam_no}_{test_name}_{cnt}"),
                 }
 
                 curr_pcl.save_to_file(&pcl_filepath).unwrap();
@@ -910,7 +917,6 @@ impl AbbRob<'_> {
 
             let ori_vec = string_tools::str_to_vector(recv);
 
-
             //Check that the vector is the right length
             if ori_vec.len() != 4 {
                 println!("ORI pos read error!");
@@ -983,8 +989,6 @@ impl AbbRob<'_> {
         }
     }
 
-
-
     //Requests the model name of the robot
     fn req_model(&mut self) -> Result<String, anyhow::Error> {
         //Request the model name
@@ -1016,7 +1020,6 @@ impl AbbRob<'_> {
         if self.disconnected {
             return;
         }
-
     }
 
     //Appends relevant test information to the provided filename
@@ -1054,7 +1057,6 @@ impl AbbRob<'_> {
                 self.force.5,
                 self.force_err
             );
-
 
         //Write to the file - indicating if writing failed (but don't worry about it!)
         if let Err(e) = writeln!(file, "{}", line) {
@@ -1098,15 +1100,29 @@ impl AbbRob<'_> {
 
         //Save the cam info
         let line = format!(
-            "CAM: POS:[{},{},{}] ORI:[{},{},{}] X_SC:[{}] Y_SC:[{}]",
-            self.config.cam_info.rel_pos()[0],
-            self.config.cam_info.rel_pos()[1],
-            self.config.cam_info.rel_pos()[2],
-            self.config.cam_info.rel_ori()[0],
-            self.config.cam_info.rel_ori()[1],
-            self.config.cam_info.rel_ori()[2],
-            self.config.cam_info.x_scale(),
-            self.config.cam_info.y_scale()
+            "CAM0: POS:[{},{},{}] ORI:[{},{},{}] X_SC:[{}] Y_SC:[{}]",
+            self.config.cam_info0.rel_pos()[0],
+            self.config.cam_info0.rel_pos()[1],
+            self.config.cam_info0.rel_pos()[2],
+            self.config.cam_info0.rel_ori()[0],
+            self.config.cam_info0.rel_ori()[1],
+            self.config.cam_info0.rel_ori()[2],
+            self.config.cam_info0.x_scale(),
+            self.config.cam_info0.y_scale()
+        );
+
+        writeln!(file, "{}", line).expect("FAILED TO WRITE CAM TO CONFIG - CLOSING");
+
+        let line = format!(
+            "CAM1: POS:[{},{},{}] ORI:[{},{},{}] X_SC:[{}] Y_SC:[{}]",
+            self.config.cam_info1.rel_pos()[0],
+            self.config.cam_info1.rel_pos()[1],
+            self.config.cam_info1.rel_pos()[2],
+            self.config.cam_info1.rel_ori()[0],
+            self.config.cam_info1.rel_ori()[1],
+            self.config.cam_info1.rel_ori()[2],
+            self.config.cam_info1.x_scale(),
+            self.config.cam_info1.y_scale()
         );
 
         writeln!(file, "{}", line).expect("FAILED TO WRITE CAM TO CONFIG - CLOSING");
@@ -1174,9 +1190,6 @@ impl AbbRob<'_> {
         }
     }
 
-
-
-
     //EGM commands---------------------------------------------------------------------------------
     //Create a UDP EGM socket and ask the robot to connect
     fn connect_egm_pose(&mut self) -> Result<EgmServer, anyhow::Error> {
@@ -1194,7 +1207,6 @@ impl AbbRob<'_> {
 
     //Request the robot to start the EGM stream
     fn start_egm_stream_speed(&mut self) -> Result<(), anyhow::Error> {
-
         println!("Requesting starting EGM");
 
         self.socket.req("EGSS:0")?;
@@ -1217,44 +1229,38 @@ impl AbbRob<'_> {
         Ok(())
     }
 
-
-
-
-    fn egm_update_state(&mut self, msg : EgmRobot) -> Result<(), anyhow::Error>{
-
+    fn egm_update_state(&mut self, msg: EgmRobot) -> Result<(), anyhow::Error> {
         //Update position
-         if let Some(pos) = msg.get_pos_xyz(){
+        if let Some(pos) = msg.get_pos_xyz() {
             self.pos = pos.into();
-        }else{
-             bail!("Failed to update state - pos");
-         };
+        } else {
+            bail!("Failed to update state - pos");
+        };
 
         //Update orientation
-        if let Some(ori) = msg.get_quart_ori(){
+        if let Some(ori) = msg.get_quart_ori() {
             self.ori = ori.into();
-        }else{
+        } else {
             bail!("Failed to update state - ori");
         };
 
         //Update current measured force
-        if let Some(force) = msg.get_measured_force(){
+        if let Some(force) = msg.get_measured_force() {
             self.force = force.into();
-        }else{
+        } else {
             bail!("Failed to update state - pos");
         };
 
         //if force mode update force error
-        if self.force_mode_flag{
+        if self.force_mode_flag {
             self.calc_force_err()?;
         }
-
 
         Ok(())
     }
 
     //Checks whether the robot is within the specified allowed cartesian limits
-    fn limit_check(&mut self) -> bool{
-
+    fn limit_check(&mut self) -> bool {
         let min_x = -425.0;
         let min_y = 1350.0;
         let min_z = 95.0;
@@ -1262,29 +1268,25 @@ impl AbbRob<'_> {
         let max_y = 2650.0;
         let max_z = 2000.0;
 
-        if self.pos.0 > max_x || self.pos.0 < min_x{
-            return true
+        if self.pos.0 > max_x || self.pos.0 < min_x {
+            return true;
         }
-        if self.pos.1 > max_y || self.pos.1 < min_y{
-            return true
+        if self.pos.1 > max_y || self.pos.1 < min_y {
+            return true;
         }
-         if self.pos.2 > max_z || self.pos.2 < min_z{
-            return true
+        if self.pos.2 > max_z || self.pos.2 < min_z {
+            return true;
         }
 
         false
-
     }
 
     ///The load cell verification script
     /// Robot moves to three seperate poses and the force is measured for 100 ticks and stored
     fn verify_load_cell(&mut self) {
-
         //The two positions
         let rotate_joints = (81.0, 12.2, 34.0, 0.0, 54.80, -118.38);
         let tool_change_joints = (21.15, 42.0, 59.0, 0.0, -57.07, -114.51);
-
-
 
         //The four orientations
         let ori_zero = Quartenion::from([0.0, 1.0, 0.0, 0.0]);
@@ -1293,7 +1295,6 @@ impl AbbRob<'_> {
         let ori_three = Quartenion::from([0.16195, 0.43884, 0.83970, 0.27583]);
 
         let oris = [ori_zero, ori_one, ori_two, ori_three];
-
 
         //Create the test file and the config
         let test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
@@ -1309,7 +1310,6 @@ impl AbbRob<'_> {
         //Go home to ensure clearance for movement to the rotation spot
         self.go_home_pos();
 
-
         //Pause for user input to say tool changed
         wait_for_enter();
 
@@ -1320,8 +1320,7 @@ impl AbbRob<'_> {
         self.write_marker(&test_data.data_filename, "Test start");
         //For every rotation
         let mut cnt = 0;
-        for (i ,ori) in oris.iter().enumerate(){
-
+        for (i, ori) in oris.iter().enumerate() {
             //Move the robot to the requested orientation
             self.set_ori(ori);
 
@@ -1329,31 +1328,21 @@ impl AbbRob<'_> {
             self.write_marker(&test_data.data_filename, &format!("ORIENTATION {}", i));
 
             //Take 1000 force measurements
-            for _ in 0..1000{
+            for _ in 0..1000 {
                 self.update_rob_info();
 
                 //Store the measurement
                 self.store_state(&test_data.data_filename, cnt);
                 cnt += 1;
-
-
             }
         }
 
         //Go back to the original orientation
-        self.set_ori(&Quartenion::from([0.0,
-            1.0, 0.0, 0.0]));
+        self.set_ori(&Quartenion::from([0.0, 1.0, 0.0, 0.0]));
 
         //Return home
         self.go_home_pos();
 
         self.write_marker(&test_data.data_filename, "Test end");
-
-
     }
-
-
-
-
-
 }

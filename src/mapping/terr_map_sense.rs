@@ -1,7 +1,7 @@
 //! Configure and stream a 435i sensor.
 //!
 //! Notice that the streaming configuration changes based on the USB speed of the sensor.
-//! If one attemps to set a streaming configuration that is too much for the current USB
+//! If one attempts to set a streaming configuration that is too much for the current USB
 //! speed, RealSense will return with an error. However, that error is non-descript and will
 //! not help identify the underlying problem, i.e. the bandwidth of the connection.
 
@@ -37,14 +37,24 @@ pub struct RealsenseCam {
 //The pointcloud object
 
 impl RealsenseCam {
-    //Initialise the camera - pipeline and config
-    pub fn initialise() -> Result<Self> {
+    //Initialise the camera - pipeline and conficam_nog
+    pub fn initialise(cam_no: usize) -> Result<Self> {
         // Check for depth or color-compatible devices.
         let mut queried_devices = HashSet::new();
         queried_devices.insert(Rs2ProductLine::D400);
         let context = Context::new()?;
         let devices = context.query_devices(queried_devices);
         ensure!(!devices.is_empty(), "No devices found");
+
+        if cam_no > devices.len() {
+            bail!("Invalid camera number");
+        }
+
+        println!("devs: {:?}", devices);
+        println!(
+            "Selected: {:?}",
+            devices[cam_no].info(Rs2CameraInfo::SerialNumber)
+        );
 
         //Try and create the inactive pipeline
         let pipeline = InactivePipeline::try_from(&Context::new()?)?;
@@ -54,7 +64,7 @@ impl RealsenseCam {
 
         //Only enable the  depth stream (not bothered about gyro/infra/colour atm)
         config
-            .enable_device_from_serial(devices[0].info(Rs2CameraInfo::SerialNumber).unwrap())?
+            .enable_device_from_serial(devices[cam_no].info(Rs2CameraInfo::SerialNumber).unwrap())?
             .disable_all_streams()?
             //.enable_all_streams()?;
             //Height of 0 indicates to realsense that it should select the most appropriate height itself

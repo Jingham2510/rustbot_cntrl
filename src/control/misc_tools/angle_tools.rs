@@ -16,13 +16,13 @@ impl Quartenion {
     }
 }
 
-impl From<[f64;4]> for Quartenion{
+impl From<[f64; 4]> for Quartenion {
     fn from(value: [f64; 4]) -> Self {
-        Quartenion{
-            w : value[0],
-            x : value[1],
-            y : value[2],
-            z :value[3]
+        Quartenion {
+            w: value[0],
+            x: value[1],
+            y: value[2],
+            z: value[3],
         }
     }
 }

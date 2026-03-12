@@ -20,7 +20,7 @@ pub struct PointCloud {
 
     global_timestamp: DateTime<Utc>,
 
-    filename : Option<String>
+    filename: Option<String>,
 }
 
 impl PointCloud {
@@ -34,7 +34,7 @@ impl PointCloud {
             no_of_points,
             rel_timestamp: timestamp,
             global_timestamp: Utc::now(),
-            filename : None
+            filename: None,
         }
     }
 
@@ -59,7 +59,7 @@ impl PointCloud {
             no_of_points,
             rel_timestamp: timestamp,
             global_timestamp: Utc::now(),
-            filename : None
+            filename: None,
         }
     }
 
@@ -102,7 +102,7 @@ impl PointCloud {
             //Relative timestamp is -1.0 because there is no reference start time
             rel_timestamp: -1.0,
             global_timestamp,
-            filename : Some(filepath)
+            filename: Some(filepath),
         })
     }
 
@@ -269,19 +269,26 @@ impl PointCloud {
 
     ///Returns whether the pointcloud is registered as the last of a series
     ///Based on the filename
-    pub fn is_end(&self) -> bool{
+    pub fn is_end(&self) -> bool {
         //Check that the pointcloud has a filename
-        if self.filename.is_none(){
-             false
-        }else {
+        if self.filename.is_none() {
+            false
+        } else {
             if self.filename.as_ref().unwrap().contains("_END") {
                 true
-            }else{
+            } else {
                 false
             }
         }
     }
 
+    //Consumes another pointcloud into this object
+    pub fn combine(&mut self, other: PointCloud) {
+        for pnt in other.points {
+            self.points.push(pnt);
+            self.no_of_points += 1;
+        }
+    }
 }
 
 //Map structure - contains the size and height information for each cell
@@ -419,52 +426,35 @@ impl Heightmap {
             bounds_res = bounds?
         }
 
-
         let mut height = 0;
         let mut width = 0;
         let mut width_set = false;
-        let mut first_line = true;
 
         let mut cells: Vec<Vec<f64>> = vec![];
-
-
-
         //Go through each cell and update the
         for line in line_reader.lines() {
-
-
-
-
             //Create the empty row
             let mut row: Vec<f64> = vec![];
 
             //Split via comma then iterate
             for token in line?.split(",") {
-
-
-
                 if !token.is_empty() {
                     if !width_set {
                         width += 1;
                     }
 
-                row.push(token.parse::<f64>()?);
-
+                    row.push(token.parse::<f64>()?);
                 }
-
             }
 
             if !width_set {
                 width_set = true;
             }
 
-
-
             //Store the row
             cells.push(row);
             height += 1;
         }
-
 
         //Check to see if the grid is square
         let mut square = false;
@@ -636,11 +626,9 @@ impl Heightmap {
 
     //Display the map as a grid - colouring in cells based on the distance from the median
     pub fn disp_map(&mut self) -> Result<(), anyhow::Error> {
-
-        if true{
+        if true {
             self.interpolate_NaN();
         }
-
 
         //Display the heightmap
         helper_funcs::helper_funcs::display_magnitude_map(
@@ -680,7 +668,6 @@ impl Heightmap {
             self.upper_coord_bounds[1]
         );
         file.write_all(first_line.as_bytes())?;
-
 
         //Iterate thorugh each row
         for row in self.cells.iter() {
@@ -759,44 +746,38 @@ impl Heightmap {
         Ok(mid_pnt)
     }
 
-
     ///Remove any NaN entries in the provided data matrix
     /// Achieved by interpolating the point as an average between every surrounding point
     /// Assumes a 3x3 kernel (does not account for equal or smaller data matrices)
     fn interpolate_NaN(&mut self) {
-
         //Flags to indicate whether the data is at the edge of matrix
         let mut L_EDGE_FLAG = false;
         let mut R_EDGE_FLAG = false;
         let mut T_EDGE_FLAG = false;
         let mut B_EDGE_FLAG = false;
 
-        let mat_width = self.cells.len();
-        let mat_height = self.cells[0].len();
-
         //Go through every row
-        for i in 0..self.height{
-            if i == 0{
+        for i in 0..self.height {
+            if i == 0 {
                 T_EDGE_FLAG = true;
-            }else if i == self.height - 1{
+            } else if i == self.height - 1 {
                 B_EDGE_FLAG = true;
-            }else{
+            } else {
                 T_EDGE_FLAG = false;
                 B_EDGE_FLAG = false;
             }
 
             //Go through every pixel in each row
-            for j in 0..self.width{
-
-                if !self.cells[i as usize][j as usize].is_nan(){
+            for j in 0..self.width {
+                if !self.cells[i as usize][j as usize].is_nan() {
                     continue;
                 }
 
-                if j == 0{
+                if j == 0 {
                     L_EDGE_FLAG = true;
-                }else if j == self.width - 1{
+                } else if j == self.width - 1 {
                     R_EDGE_FLAG = true;
-                }else{
+                } else {
                     L_EDGE_FLAG = false;
                     R_EDGE_FLAG = false;
                 }
@@ -804,48 +785,46 @@ impl Heightmap {
                 let mut total = 0.0;
                 let mut cnt = 0;
 
-
                 //Check the top row
-                if !T_EDGE_FLAG{
-                    total = NaN_add(total, self.cells[(i-1) as usize][j as usize]);
+                if !T_EDGE_FLAG {
+                    total = NaN_add(total, self.cells[(i - 1) as usize][j as usize]);
                     cnt += 1;
 
-                    if !L_EDGE_FLAG{
-                        total = NaN_add(total, self.cells[(i-1) as usize][(j-1) as usize]);
-                        cnt+=1;
+                    if !L_EDGE_FLAG {
+                        total = NaN_add(total, self.cells[(i - 1) as usize][(j - 1) as usize]);
+                        cnt += 1;
                     }
-                    if !R_EDGE_FLAG{
-                        total = NaN_add(total, self.cells[(i-1) as usize][(j+1) as usize]);
-                        cnt+=1;
+                    if !R_EDGE_FLAG {
+                        total = NaN_add(total, self.cells[(i - 1) as usize][(j + 1) as usize]);
+                        cnt += 1;
                     }
                 }
                 //Check the middle row
-                if !L_EDGE_FLAG{
-                    total = NaN_add(total,self.cells[i as usize][(j-1) as usize]);
+                if !L_EDGE_FLAG {
+                    total = NaN_add(total, self.cells[i as usize][(j - 1) as usize]);
                     cnt += 1;
                 }
-                if !R_EDGE_FLAG{
-                    total = NaN_add(total, self.cells[i as usize][(j+1) as usize]);
+                if !R_EDGE_FLAG {
+                    total = NaN_add(total, self.cells[i as usize][(j + 1) as usize]);
                     cnt += 1;
                 }
 
                 //check the bottom row
-                if !B_EDGE_FLAG{
-                    total = NaN_add(total, self.cells[(i+1) as usize][j as usize]);
+                if !B_EDGE_FLAG {
+                    total = NaN_add(total, self.cells[(i + 1) as usize][j as usize]);
                     cnt += 1;
-                    if !L_EDGE_FLAG{
-                        total = NaN_add(total, self.cells[(i+1) as usize][(j-1) as usize]);
-                        cnt+=1;
+                    if !L_EDGE_FLAG {
+                        total = NaN_add(total, self.cells[(i + 1) as usize][(j - 1) as usize]);
+                        cnt += 1;
                     }
-                    if !R_EDGE_FLAG{
-                        total = NaN_add(total, self.cells[(i+1) as usize][(j+1) as usize]);
-                        cnt+=1;
+                    if !R_EDGE_FLAG {
+                        total = NaN_add(total, self.cells[(i + 1) as usize][(j + 1) as usize]);
+                        cnt += 1;
                     }
                 }
 
                 self.cells[i as usize][j as usize] = (total / (cnt as f64));
             }
-
         }
     }
 }
@@ -860,16 +839,12 @@ pub fn comp_maps(
         bail!("Warning - Maps are not the same size - cannot be compared");
     }
 
-
-
     //Create a new empty map that holds the difference
     let mut diff_map: Heightmap = Heightmap::new(curr_map.width, curr_map.height);
 
     //Sweep through each cell and replace with the new map height
     for (m, row) in diff_map.cells.iter_mut().enumerate() {
-
         for (n, col) in row.iter_mut().enumerate() {
-
             //First index is the row number (i.e. the height)
             let diff = curr_map.cells[m][n] - desired_map.cells[m][n];
 

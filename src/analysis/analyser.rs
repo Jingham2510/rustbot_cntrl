@@ -22,13 +22,13 @@ pub struct Analyser {
     //Number of pointclouds taken in this test
     no_of_pcl: i32,
     //The camera information for the given test
-    cam_info: CamInfo,
+    cam_info: Vec<CamInfo>,
     //The robot information for the given test
     rob_info: RobInfo,
 
     //Coordination pre-transform flag
     ///True if trajectory already transformed
-    pre_trans : bool
+    pre_trans: bool,
 }
 
 impl Analyser {
@@ -61,8 +61,6 @@ impl Analyser {
         println!("Loading config - {test_fp}");
         let config_info = get_config(&test_fp, &test_name)?;
 
-
-
         Ok(Self {
             filepath,
             test_name: test_name.to_string(),
@@ -71,7 +69,7 @@ impl Analyser {
             no_of_pcl,
             rob_info: config_info.0,
             cam_info: config_info.1,
-            pre_trans : config_info.2
+            pre_trans: config_info.2,
         })
     }
 
@@ -89,7 +87,6 @@ impl Analyser {
 
         //If the heightmaps haven't been generated - generate them now
         if self.no_of_pcl > hmap_cnt {
-
             let first_fp = format!("{}/pcl_{}_START.txt", self.test_fp, self.test_name);
 
             first_hmap = Heightmap::create_from_pcl_file(first_fp, 250, 250)?;
@@ -104,8 +101,11 @@ impl Analyser {
             let first_fp = format!("{}/hmap_{}_START.txt", self.test_fp, self.test_name);
             first_hmap = Heightmap::create_from_file(first_fp)?;
 
-            println!("first hmap: Width:{}, height:{}", first_hmap.width(), first_hmap.height());
-
+            println!(
+                "first hmap: Width:{}, height:{}",
+                first_hmap.width(),
+                first_hmap.height()
+            );
 
             let end_fp = format!("{}/hmap_{}_END.txt", self.test_fp, self.test_name);
             last_hmap = Heightmap::create_from_file(end_fp)?;
@@ -298,12 +298,11 @@ impl Analyser {
         //Get the bounds of the trajectory
         let mut traj_bounds = self.get_traj_bounds()?;
 
-        if !self.pre_trans{
+        if !self.pre_trans {
             traj_bounds[0] = traj_bounds[0] + self.rob_info.pos_to_zero()[0];
             traj_bounds[1] = traj_bounds[1] + self.rob_info.pos_to_zero()[0];
             traj_bounds[2] = traj_bounds[2] + self.rob_info.pos_to_zero()[1];
             traj_bounds[3] = traj_bounds[3] + self.rob_info.pos_to_zero()[1];
-
         }
 
         println!("Trajectory bounds - {:?}", traj_bounds);
@@ -336,7 +335,6 @@ impl Analyser {
         //Apply the iso-radius bounds as a pass-band filter to each pointcloud
         for mut pcl in pcls {
             if pcl.is_end() {
-
                 //Z is extreme because we have no modification to the z data
                 pcl.passband_filter(
                     iso_bounds[0],
@@ -371,12 +369,11 @@ impl Analyser {
         let total_width = bounds[1] - bounds[0];
         let total_height = bounds[3] - bounds[2];
 
-
         //Get the trajectory
         let mut traj = self.data_handler.get_traj();
 
         //Check if the trajectory has been transformed
-        if !self.pre_trans{
+        if !self.pre_trans {
             traj = self.transform_traj(traj);
         }
 
@@ -426,11 +423,11 @@ impl Analyser {
         let mut traj_force_dat = self.data_handler.get_traj_force_pairs();
 
         //If the trajectory hasn't already been trasnformed
-        if !self.pre_trans{
+        if !self.pre_trans {
             //Extract the trajectory
-            let mut traj  : Vec<[f64; 3]> = vec!();
+            let mut traj: Vec<[f64; 3]> = vec![];
 
-            for pair in traj_force_dat.iter(){
+            for pair in traj_force_dat.iter() {
                 traj.push(pair.0);
             }
 
@@ -438,7 +435,7 @@ impl Analyser {
             traj = self.transform_traj(traj);
 
             //Rezip back into the trajectory pairs
-            for (index, pnt) in traj.iter().enumerate(){
+            for (index, pnt) in traj.iter().enumerate() {
                 traj_force_dat[index].0 = *pnt;
             }
         }
@@ -619,16 +616,17 @@ impl Analyser {
         Ok(())
     }
 
-
-
     ///Transform the trajectory in xyz frame
-    fn transform_traj(&mut self, traj : Vec<[f64;3]>) -> Vec<[f64; 3]>{
-
-        let mut new_traj : Vec<[f64;3]> = vec!();
+    fn transform_traj(&mut self, traj: Vec<[f64; 3]>) -> Vec<[f64; 3]> {
+        let mut new_traj: Vec<[f64; 3]> = vec![];
         let transform = self.rob_info.pos_to_zero();
 
-        for pnt in traj.iter(){
-            new_traj.push([pnt[0] + transform[0], pnt[1] + transform[1], pnt[2] + transform[2]]);
+        for pnt in traj.iter() {
+            new_traj.push([
+                pnt[0] + transform[0],
+                pnt[1] + transform[1],
+                pnt[2] + transform[2],
+            ]);
         }
         new_traj
     }
@@ -646,7 +644,10 @@ pub enum ForceSel {
     Zmom,
 }
 
-fn get_config(filepath: &String, test_name: &String) -> Result<(RobInfo, CamInfo, bool), anyhow::Error> {
+fn get_config(
+    filepath: &String,
+    test_name: &String,
+) -> Result<(RobInfo, Vec<CamInfo>, bool), anyhow::Error> {
     //Get the first line of the cam config file
     let config_fp = format!("{}/conf_{}.txt", filepath, test_name);
 
@@ -654,8 +655,12 @@ fn get_config(filepath: &String, test_name: &String) -> Result<(RobInfo, CamInfo
     let mut line_reader = BufReader::new(conf_file);
 
     //Open the file and read the first line
-    let mut cam_info_line = String::new();
-    line_reader.read_line(&mut cam_info_line)?;
+    let mut cam0_info_line = String::new();
+    line_reader.read_line(&mut cam0_info_line)?;
+
+    //Open the file and read the first line
+    let mut cam1_info_line = String::new();
+    line_reader.read_line(&mut cam1_info_line)?;
 
     //Read the second line to get the robot info
     let mut rob_info_line = String::new();
@@ -668,13 +673,13 @@ fn get_config(filepath: &String, test_name: &String) -> Result<(RobInfo, CamInfo
     println!("{trans_flag_str}");
     let trans_flag = trans_flag_str.contains("true");
 
-
-
     //Attempt to create both the configs inplace
     Ok((
         RobInfo::create_rob_info_from_line(rob_info_line)?,
-        CamInfo::create_cam_info_from_line(cam_info_line)?,
-        trans_flag
+        vec![
+            CamInfo::create_cam_info_from_line(cam0_info_line)?,
+            CamInfo::create_cam_info_from_line(cam1_info_line)?,
+        ],
+        trans_flag,
     ))
-
 }

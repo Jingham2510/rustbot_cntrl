@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
-use std::io::{stdin, Write};
+use std::io::{Write, stdin};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -25,7 +25,7 @@ use crate::mapping::terr_map_tools::Heightmap;
 use crate::modelling::irb6400_model::IRB6400Model;
 use control::abb_rob;
 
-const VER_NUM: &str = "V0.7";
+const VER_NUM: &str = "V0.8";
 //Program title
 const TITLE: &str = "Rustbot Control";
 
@@ -110,11 +110,21 @@ fn core_cmd_handler(config: &mut Config) {
             }
 
             "test" => {
-                let model = IRB6400Model::create_model();
+                let mut cam = RealsenseCam::initialise(0).unwrap();
+                let mut cam2 = RealsenseCam::initialise(1).unwrap();
 
-                println!("{}", model.get_transform());
+                let mut pcl_1 = cam.get_depth_pnts().unwrap();
+                let pcl_2 = cam2.get_depth_pnts().unwrap();
 
-                println!("{}", model.calc_simple_jacobian());
+                println!(
+                    "P1 Len : {} P2 Len: {}",
+                    pcl_1.points().len(),
+                    pcl_2.points().len()
+                );
+
+                pcl_1.combine(pcl_2);
+
+                println!("Combined len: {}", pcl_1.points().len());
             }
 
             //Catch all else
@@ -245,7 +255,7 @@ fn analyse(config: &Config) -> Result<(), anyhow::Error> {
 
     analyser.disp_overall_change()?;
 
-   analyser.disp_action_map(100, 100)?;
+    analyser.disp_action_map(100, 100)?;
 
     analyser.disp_force_map(100, 100, ForceSel::ForceAvg)?;
     //analyser.rotate_and_regen(0.0, 0.0, 0.0, 100, 100)?;
@@ -287,7 +297,7 @@ fn save_n_heightmaps(config: &Config) -> Result<(), anyhow::Error> {
         fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
 
         //Create a depth camera handler
-        let mut cam = RealsenseCam::initialise()?;
+        let mut cam = RealsenseCam::initialise(0)?;
 
         //Sleep for 3 seconds to let the camera warm up
         sleep(Duration::from_secs(3));
@@ -301,16 +311,16 @@ fn save_n_heightmaps(config: &Config) -> Result<(), anyhow::Error> {
             curr_pcl.save_to_file(&*pcl_fp)?;
 
             //Rotate the PCL to orient it correctly
-            curr_pcl.scale_even(config.cam_info.x_scale());
+            curr_pcl.scale_even(config.cam_info0.x_scale());
             curr_pcl.rotate(
-                config.cam_info.rel_ori()[0],
-                config.cam_info.rel_ori()[1],
-                config.cam_info.rel_ori()[2],
+                config.cam_info0.rel_ori()[0],
+                config.cam_info0.rel_ori()[1],
+                config.cam_info0.rel_ori()[2],
             );
             curr_pcl.translate(
-                config.cam_info.rel_pos()[0],
-                config.cam_info.rel_pos()[1],
-                config.cam_info.rel_pos()[2],
+                config.cam_info0.rel_pos()[0],
+                config.cam_info0.rel_pos()[1],
+                config.cam_info0.rel_pos()[2],
             );
             //Empirically calculated passband to isolate terrain bed
             curr_pcl.passband_filter(-10.0, 2000.0, -10.0, 2000.0, -150.0, 200.0);
@@ -360,30 +370,34 @@ fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
     fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
 
     //Create a depth camera handler
-    let mut cam = RealsenseCam::initialise()?;
+    let mut cam = RealsenseCam::initialise(0)?;
 
     //Sleep for 3 seconds to let the camera warm up
-    sleep(Duration::from_secs(3));
+    sleep(Duration::from_secs(5));
 
     let pcl_fp = format!("{}/pcl_{}", new_fp, user_inp.trim());
 
     let mut curr_pcl = cam.get_depth_pnts()?;
 
     //Rotate the PCL to orient it correctly
-    curr_pcl.scale_even(config.cam_info.x_scale());
-    curr_pcl.rotate(
-        config.cam_info.rel_ori()[0],
-        config.cam_info.rel_ori()[1],
-        config.cam_info.rel_ori()[2],
-    );
-    curr_pcl.translate(
-        config.cam_info.rel_pos()[0],
-        config.cam_info.rel_pos()[1],
-        config.cam_info.rel_pos()[2],
-    );
-    //Empirically calculated passband to isolate terrain bed
-    curr_pcl.passband_filter(-10.0, 2000.0, -10.0, 2000.0, -150.0, 200.0);
 
+    /*
+
+        curr_pcl.scale_even(config.cam_info.x_scale());
+        curr_pcl.rotate(
+            config.cam_info.rel_ori()[0],
+            config.cam_info.rel_ori()[1],
+            config.cam_info.rel_ori()[2],
+        );
+        curr_pcl.translate(
+            config.cam_info.rel_pos()[0],
+            config.cam_info.rel_pos()[1],
+            config.cam_info.rel_pos()[2],
+        );
+        //Empirically calculated passband to isolate terrain bed
+        curr_pcl.passband_filter(-10.0, 2000.0, -10.0, 2000.0, -150.0, 200.0);
+
+    */
     curr_pcl.save_to_file(&*pcl_fp)?;
 
     //Create an empty data file so that the folder can be used with the analyser
