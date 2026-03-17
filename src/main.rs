@@ -135,8 +135,7 @@ fn core_cmd_handler(config: &mut Config) {
 
 ///Command line for logging into and controlling a robot
 fn rob_connect(config: &mut Config) {
-    //Not const because you cant make constant hashmaps
-
+    //Available profiles available for connecting to the robot
     let profiles = HashMap::from([
         ("local", ["127.0.0.1", "8888"]),
         ("remote", ["192.168.125.1", "8888"]),
@@ -161,7 +160,7 @@ fn rob_connect(config: &mut Config) {
         //Check user inout
         match profiles.get(choice.to_lowercase().trim()) {
             Some(login) => {
-                //Dereference login selection
+                //Set the profile based on the users choice
                 profile = *login;
                 break;
             }
