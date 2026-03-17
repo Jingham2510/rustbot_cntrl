@@ -6,7 +6,7 @@ use std::fs::File;
 use std::io::{BufRead, stdin};
 use std::{fs, io};
 
-const IMPL_TRAJS: [&str; 5] = ["line", "circle", "slidedown", "dline","custom"];
+const IMPL_TRAJS: [&str; 5] = ["line", "circle", "slidedown", "dline", "custom"];
 
 //120
 const DEFAULT_Z: f64 = 161.0;
@@ -284,13 +284,12 @@ pub fn calc_xy_timing(
         }
 
         //If the robot needs to move in a negative direction
-        if pnt.0 < last_pnt.0{
+        if pnt.0 < last_pnt.0 {
             req_x_speed = -req_x_speed;
         }
-        if pnt.1 < last_pnt.1{
-            req_y_speed = - req_y_speed;
+        if pnt.1 < last_pnt.1 {
+            req_y_speed = -req_y_speed;
         }
-
 
         //Create the timing instruction
         timing_instructions.push((lat_distance / des_lat_speed, (req_x_speed, req_y_speed)));

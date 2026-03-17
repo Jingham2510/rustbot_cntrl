@@ -387,6 +387,11 @@ impl AbbRob<'_> {
 
         //Create the test data and the filepaths
         let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
+
+        //Create copys of the config for the threads
+        let fp_copy = test_data.filepath.clone();
+        let test_name_copy=  test_data.test_name.clone();
+
         //Store the desired trajectory
         test_data.store_desired_trajectory(self.force_mode_flag);
 
@@ -394,7 +399,7 @@ impl AbbRob<'_> {
         let desired_lat_speed = 0.1;
         let speed_instructions = calc_xy_timing(&mut test_data.traj, desired_lat_speed);
 
-        //Create a threading channel to trigger the camera
+        //Create the threading channels to trigger the camera
         let (tx, rx) = mpsc::channel();
 
         //Clone the cam configs to avoid handing ownership to the thread
@@ -406,8 +411,8 @@ impl AbbRob<'_> {
         thread::spawn(move || {
             Self::depth_sensing(
                 rx,
-                test_data.filepath.clone(),
-                &test_data.test_name.clone(),
+                &*fp_copy,
+                &*test_name_copy,
                 true,
                 rel_pos_0,
                 rel_ori_0,
@@ -415,6 +420,31 @@ impl AbbRob<'_> {
                 0,
             )
         });
+
+        //Create the threading channels to trigger the camera
+        let (tx1, rx1) = mpsc::channel();
+
+        //Clone the cam configs to avoid handing ownership to the thread
+        let rel_pos_1 = self.config.cam_info1.rel_pos();
+        let rel_ori_1 = self.config.cam_info1.rel_ori();
+        let scale_1 = self.config.cam_info1.x_scale();
+
+        //Create the thread that handles the depth camera
+        thread::spawn(move || {
+            Self::depth_sensing(
+                rx1,
+                &*test_data.filepath.clone(),
+                &test_data.test_name.clone(),
+                true,
+                rel_pos_1,
+                rel_ori_1,
+                scale_1,
+                1,
+            )
+        });
+
+
+
 
         //Setup the seperate PID controllers
         let mut phase2_cntrl =
@@ -430,7 +460,7 @@ impl AbbRob<'_> {
 
         //Give the camera turn on process time to warm up
         sleep(Duration::from_secs(2));
-        if tx.send(4).is_err() {
+        if tx.send(4).is_err()  || tx1.send(4).is_err(){
             println!("Failed dummy cam trigger");
         }
 
@@ -438,7 +468,7 @@ impl AbbRob<'_> {
         self.go_home_pos();
 
         //Trigger before the test begins
-        if tx.send(2).is_err() {
+        if tx.send(2).is_err() || tx1.send(2).is_err(){
             println!("Failed initial cam trigger");
         }
 
@@ -521,6 +551,7 @@ impl AbbRob<'_> {
 
         //Take snapshot
         let _ = tx.send(1);
+        let _ = tx1.send(1);
 
         println!("GEOTECH- Phase 1 Complete!");
         self.write_marker(&test_data.data_filename, "PHASE 1 END");
@@ -641,6 +672,7 @@ impl AbbRob<'_> {
 
         //Take snapshot
         let _ = tx.send(1);
+        let _ = tx1.send(1);
         //Phase 3 - Complete trajectory whilst (PID)
 
         //Set the speed of the robot
@@ -682,7 +714,7 @@ impl AbbRob<'_> {
 
                 //Trigger the camera
                 if cnt % DEPTH_FREQ == 0 || cnt == 0 {
-                    if tx.send(1).is_ok() {
+                    if tx.send(1).is_ok() || tx1.send(1).is_ok(){
                         //Do nothing here - normal operation
                     } else {
                         println!("Warning - Cam thread dead!");
@@ -720,6 +752,7 @@ impl AbbRob<'_> {
         self.go_home_pos();
         //No point error handling - if this fails the test is done anyway
         let _ = tx.send(3);
+        let _ = tx1.send(3);
 
         println!("Trajectory done!");
 
@@ -791,7 +824,7 @@ impl AbbRob<'_> {
     //Function which repeatedly takes depth measurements on trigger from another thread
     fn depth_sensing(
         rx: Receiver<u32>,
-        filepath: String,
+        filepath: &str,
         test_name: &str,
         hmap: bool,
         rel_pos: [f64; 3],
@@ -853,22 +886,22 @@ impl AbbRob<'_> {
                     //Save the heightmap
                     let hmap_filepath: String = match opt {
                         1 => {
-                            format!("{filepath}/hmap_{test_name}_{cnt}")
+                            format!("{filepath}/hmap_C{cam_no}_{test_name}_{cnt}")
                         }
                         2 => {
-                            format!("{filepath}/hmap_{test_name}_START")
+                            format!("{filepath}/hmap_C{cam_no}_{test_name}_START")
                         }
                         3 => {
-                            format!("{filepath}/hmap_{test_name}_END")
+                            format!("{filepath}/hmap_C{cam_no}_{test_name}_END")
                         }
 
                         //If invalid number just take a count
                         _ => {
-                            format!("{filepath}/hmap_{test_name}_{cnt}")
+                            format!("{filepath}/hmap_C{cam_no}_{test_name}_{cnt}")
                         }
                     };
 
-                    println!("{hmap_filepath}");
+                    //println!("{hmap_filepath}");
                     curr_hmap.save_to_file(&hmap_filepath).unwrap()
                 }
 

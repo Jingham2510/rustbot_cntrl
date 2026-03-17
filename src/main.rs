@@ -21,7 +21,7 @@ mod modelling;
 use crate::analysis::analyser::{Analyser, ForceSel};
 use crate::config::Config;
 use crate::mapping::terr_map_sense::RealsenseCam;
-use crate::mapping::terr_map_tools::Heightmap;
+use crate::mapping::terr_map_tools::{Heightmap, PointCloud};
 use crate::modelling::irb6400_model::IRB6400Model;
 use control::abb_rob;
 
@@ -353,11 +353,9 @@ fn save_n_heightmaps(config: &Config) -> Result<(), anyhow::Error> {
 
 //Take a pointcloud - mainly for testing so doesn't save config
 fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
-    let depth_test_fp: String = config.test_fp();
 
-    //Ask the user for a dataset name
     //Create the filename
-    println!("Please provide a test name");
+    println!("How many snapshots?");
 
     //Get user input
     let mut user_inp = String::new();
@@ -365,47 +363,74 @@ fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
         .read_line(&mut user_inp)
         .expect("Failed to read line");
 
-    //Create a folder to hold the test data
-    let new_fp = format!("{}/{}", depth_test_fp, user_inp.trim());
-    fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
+    if let Ok(n) = user_inp.trim().parse::<i32>() {
 
-    //Create a depth camera handler
-    let mut cam = RealsenseCam::initialise(0)?;
 
-    //Sleep for 3 seconds to let the camera warm up
-    sleep(Duration::from_secs(5));
+        let depth_test_fp: String = config.test_fp();
 
-    let pcl_fp = format!("{}/pcl_{}", new_fp, user_inp.trim());
+        //Ask the user for a dataset name
+        //Create the filename
+        println!("Please provide a test name");
 
-    let mut curr_pcl = cam.get_depth_pnts()?;
+        //Get user input
+        let mut user_inp = String::new();
+        stdin()
+            .read_line(&mut user_inp)
+            .expect("Failed to read line");
 
-    //Rotate the PCL to orient it correctly
+        //Create a folder to hold the test data
+        let new_fp = format!("{}/{}", depth_test_fp, user_inp.trim());
+        fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
 
-    /*
+        //Create a depth camera handler
+        let mut cam = RealsenseCam::initialise(0)?;
 
-        curr_pcl.scale_even(config.cam_info.x_scale());
-        curr_pcl.rotate(
-            config.cam_info.rel_ori()[0],
-            config.cam_info.rel_ori()[1],
-            config.cam_info.rel_ori()[2],
-        );
-        curr_pcl.translate(
-            config.cam_info.rel_pos()[0],
-            config.cam_info.rel_pos()[1],
-            config.cam_info.rel_pos()[2],
-        );
-        //Empirically calculated passband to isolate terrain bed
-        curr_pcl.passband_filter(-10.0, 2000.0, -10.0, 2000.0, -150.0, 200.0);
+        //Sleep for 3 seconds to let the camera warm up
+        sleep(Duration::from_secs(5));
 
-    */
-    curr_pcl.save_to_file(&*pcl_fp)?;
+        let mut curr_pcl : PointCloud = cam.get_depth_pnts()?;
+        let pcl_fp = format!("{}/pcl_{}", new_fp, user_inp.trim());
 
-    //Create an empty data file so that the folder can be used with the analyser
-    let data_fp = format!("{}/data_{}.txt", new_fp, user_inp.trim());
-    let mut dat_file = File::create(data_fp)?;
-    dat_file.write("NODATA - PURE PCL TEST".as_bytes())?;
 
-    println!("PCL generated");
+        if n > 1 {
+            for _ in 1..n {
+                curr_pcl.combine(cam.get_depth_pnts()?);
 
+                //Rotate the PCL to orient it correctly
+
+                /*
+
+                    curr_pcl.scale_even(config.cam_info.x_scale());
+                    curr_pcl.rotate(
+                        config.cam_info.rel_ori()[0],
+                        config.cam_info.rel_ori()[1],
+                        config.cam_info.rel_ori()[2],
+                    );
+                    curr_pcl.translate(
+                        config.cam_info.rel_pos()[0],
+                        config.cam_info.rel_pos()[1],
+                        config.cam_info.rel_pos()[2],
+                    );
+                    //Empirically calculated passband to isolate terrain bed
+                    curr_pcl.passband_filter(-10.0, 2000.0, -10.0, 2000.0, -150.0, 200.0);
+
+                */
+
+                //Allow time for another measurement to be taken
+                sleep(Duration::from_secs(2));
+
+            }
+        }
+        curr_pcl.save_to_file(&*pcl_fp)?;
+
+        //Create an empty data file so that the folder can be used with the analyser
+        let data_fp = format!("{}/data_{}.txt", new_fp, user_inp.trim());
+        let mut dat_file = File::create(data_fp)?;
+        dat_file.write("NODATA - PURE PCL TEST".as_bytes())?;
+
+        println!("PCL generated");
+
+
+    }
     Ok(())
 }
