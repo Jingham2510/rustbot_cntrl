@@ -35,7 +35,7 @@ impl From<[f64; 4]> for Quaternion {
 
 ///Euler angle
 ///x - roll, y - pitch, z - yaw,
-struct Euler {
+pub struct Euler {
     ///x
     roll: f64,
     ///y

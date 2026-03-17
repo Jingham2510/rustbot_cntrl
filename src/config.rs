@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 ///Configuraiton setup for the program
 use anyhow::bail;
 use std::fmt::Debug;

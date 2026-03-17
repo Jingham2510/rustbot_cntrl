@@ -55,7 +55,7 @@ impl EgmServer {
         //Allocate a MB for recieving the data
         let mut buffer = vec![0u8; 1024];
         //Recieve the data
-        let (bytes_recieved) = self.socket.recv(&mut buffer)?;
+        let bytes_recieved = self.socket.recv(&mut buffer)?;
         //Decode the bytes
         Ok(EgmRobot::decode(&buffer[..bytes_recieved])?)
     }

@@ -1,7 +1,7 @@
 ///Tools used to visualise andanalyse the measured terrain
 ///Includes pointclouds and heightmaps
 use crate::helper_funcs;
-use crate::helper_funcs::helper_funcs::{ColOpt, NaN_add};
+use crate::helper_funcs::helper_funcs::{ColOpt, add_nan};
 use anyhow::bail;
 use chrono::{DateTime, Utc};
 use rand::RngExt;
@@ -649,7 +649,7 @@ impl Heightmap {
     ///Display the map as a grid - colouring in cells based on the distance from the median
     pub fn disp_map(&mut self) -> Result<(), anyhow::Error> {
         if true {
-            self.interpolate_NaN();
+            self.interpolate_nan();
         }
 
         //Display the heightmap
@@ -771,22 +771,22 @@ impl Heightmap {
     ///Remove any NaN entries in the provided data matrix
     /// Achieved by interpolating the point as an average between every surrounding point
     /// Assumes a 3x3 kernel (does not account for equal or smaller data matrices)
-    fn interpolate_NaN(&mut self) {
+    fn interpolate_nan(&mut self) {
         //Flags to indicate whether the data is at the edge of matrix
-        let mut L_EDGE_FLAG = false;
-        let mut R_EDGE_FLAG = false;
-        let mut T_EDGE_FLAG = false;
-        let mut B_EDGE_FLAG = false;
+        let mut l_edge_flag = false;
+        let mut r_edge_flag = false;
+        let mut t_edge_flag = false;
+        let mut b_edge_flag = false;
 
         //Go through every row
         for i in 0..self.height {
             if i == 0 {
-                T_EDGE_FLAG = true;
+                t_edge_flag = true;
             } else if i == self.height - 1 {
-                B_EDGE_FLAG = true;
+                b_edge_flag = true;
             } else {
-                T_EDGE_FLAG = false;
-                B_EDGE_FLAG = false;
+                t_edge_flag = false;
+                b_edge_flag = false;
             }
 
             //Go through every pixel in each row
@@ -796,56 +796,56 @@ impl Heightmap {
                 }
 
                 if j == 0 {
-                    L_EDGE_FLAG = true;
+                    l_edge_flag = true;
                 } else if j == self.width - 1 {
-                    R_EDGE_FLAG = true;
+                    r_edge_flag = true;
                 } else {
-                    L_EDGE_FLAG = false;
-                    R_EDGE_FLAG = false;
+                    l_edge_flag = false;
+                    r_edge_flag = false;
                 }
 
                 let mut total = 0.0;
                 let mut cnt = 0;
 
                 //Check the top row
-                if !T_EDGE_FLAG {
-                    total = NaN_add(total, self.cells[(i - 1) as usize][j as usize]);
+                if !t_edge_flag {
+                    total = add_nan(total, self.cells[(i - 1) as usize][j as usize]);
                     cnt += 1;
 
-                    if !L_EDGE_FLAG {
-                        total = NaN_add(total, self.cells[(i - 1) as usize][(j - 1) as usize]);
+                    if !l_edge_flag {
+                        total = add_nan(total, self.cells[(i - 1) as usize][(j - 1) as usize]);
                         cnt += 1;
                     }
-                    if !R_EDGE_FLAG {
-                        total = NaN_add(total, self.cells[(i - 1) as usize][(j + 1) as usize]);
+                    if !r_edge_flag {
+                        total = add_nan(total, self.cells[(i - 1) as usize][(j + 1) as usize]);
                         cnt += 1;
                     }
                 }
                 //Check the middle row
-                if !L_EDGE_FLAG {
-                    total = NaN_add(total, self.cells[i as usize][(j - 1) as usize]);
+                if !l_edge_flag {
+                    total = add_nan(total, self.cells[i as usize][(j - 1) as usize]);
                     cnt += 1;
                 }
-                if !R_EDGE_FLAG {
-                    total = NaN_add(total, self.cells[i as usize][(j + 1) as usize]);
+                if !r_edge_flag {
+                    total = add_nan(total, self.cells[i as usize][(j + 1) as usize]);
                     cnt += 1;
                 }
 
                 //check the bottom row
-                if !B_EDGE_FLAG {
-                    total = NaN_add(total, self.cells[(i + 1) as usize][j as usize]);
+                if !b_edge_flag {
+                    total = add_nan(total, self.cells[(i + 1) as usize][j as usize]);
                     cnt += 1;
-                    if !L_EDGE_FLAG {
-                        total = NaN_add(total, self.cells[(i + 1) as usize][(j - 1) as usize]);
+                    if !l_edge_flag {
+                        total = add_nan(total, self.cells[(i + 1) as usize][(j - 1) as usize]);
                         cnt += 1;
                     }
-                    if !R_EDGE_FLAG {
-                        total = NaN_add(total, self.cells[(i + 1) as usize][(j + 1) as usize]);
+                    if !r_edge_flag {
+                        total = add_nan(total, self.cells[(i + 1) as usize][(j + 1) as usize]);
                         cnt += 1;
                     }
                 }
 
-                self.cells[i as usize][j as usize] = (total / (cnt as f64));
+                self.cells[i as usize][j as usize] = total / (cnt as f64);
             }
         }
     }

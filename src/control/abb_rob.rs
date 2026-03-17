@@ -551,7 +551,7 @@ impl AbbRob<'_> {
             let time = recv_msg.get_time().unwrap();
 
             //Log the robot information gathered by the EGM using
-            self.egm_update_state(recv_msg);
+            let _ = self.egm_update_state(recv_msg);
             self.store_state(&test_data.data_filename, cnt);
 
             if self.limit_check() {
@@ -616,7 +616,7 @@ impl AbbRob<'_> {
             let time = recv_msg.get_time().unwrap();
 
             //Log the robot information gathered by the EGM using
-            self.egm_update_state(recv_msg);
+            let _ = self.egm_update_state(recv_msg);
             self.store_state(&test_data.data_filename, cnt);
 
             if self.limit_check() {
@@ -729,7 +729,7 @@ impl AbbRob<'_> {
                 let time = msg.get_time().expect("Failed to get egm time");
 
                 //Log the robot information gathered by the EGM using
-                self.egm_update_state(msg);
+                let _ = self.egm_update_state(msg);
                 self.store_state(&test_data.data_filename, cnt);
 
                 if self.limit_check() {

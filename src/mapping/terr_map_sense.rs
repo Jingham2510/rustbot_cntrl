@@ -182,7 +182,7 @@ impl RealsenseCam {
                         continue;
                     }
 
-                    d.draw_mode3D(cam, |mut d2, cam| {
+                    d.draw_mode3D(cam, |mut d2, _cam| {
                         d2.draw_sphere(Vector3::new(pnt[0], pnt[1], pnt[2]), 0.01, Color::WHITE);
                     });
                 }

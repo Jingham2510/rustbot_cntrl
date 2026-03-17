@@ -1,5 +1,4 @@
 ///A collection of helper functions based around calculating and displaying 2.5D maps
-use anyhow::bail;
 use raylib::callbacks::TraceLogLevel;
 use raylib::color::Color;
 use raylib::consts::MouseButton;
@@ -380,7 +379,7 @@ fn inv_intensity_cell_col(val: f64, min: f64, max: f64) -> Color {
 }
 
 ///Adds a value (that could possibly be NaN) to a variable
-pub fn NaN_add(var: f64, val: f64) -> f64 {
+pub fn add_nan(var: f64, val: f64) -> f64 {
     //If the value is NaN just add nothing
     if val.is_nan() { var } else { var + val }
 }

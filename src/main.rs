@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 ///rustbot control!
 ///A rust and headerless version of the robot controller designed to run tests in the soilbed
 ///Author(s) - Joe Ingham
@@ -21,7 +22,7 @@ use crate::analysis::analyser::{Analyser, ForceSel};
 use crate::config::Config;
 use crate::mapping::terr_map_sense::RealsenseCam;
 use crate::mapping::terr_map_tools::{Heightmap, PointCloud};
-use crate::modelling::irb6400_model::IRB6400Model;
+
 use control::abb_rob;
 
 const VER_NUM: &str = "V0.8";
