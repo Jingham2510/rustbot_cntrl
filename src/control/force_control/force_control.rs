@@ -1,10 +1,11 @@
+///A collection of controller implementations used for force control
+///NOTE - all control functions must have a footprint of fn function_name(err: f32)->Result<f32, anyhow::Error>
+///This is to comply with the callback function used in the main test procedure
 use chrono;
 use chrono::{DateTime, Local};
 use std::fmt::Display;
-//NOTE - all control functions must have a footprint of fn function_name(err: f32)->Result<f32, anyhow::Error>
-//This is to comply with the callback function used in the main test procedure
 
-//Provides a constant step up/down based only on the polarity of the error
+///Provides a constant step up/down based only on the polarity of the error
 pub fn polarity_step_control(err: f32) -> Result<f32, anyhow::Error> {
     //How far the step should be
     const STEP_VALUE: f32 = 1.0;
@@ -19,7 +20,7 @@ pub fn polarity_step_control(err: f32) -> Result<f32, anyhow::Error> {
     }
 }
 
-//Impleemtns a proportional gain controller based on error magnitude
+//a proportional gain controller based on error magnitude
 pub fn prop_gain_control(err: f32) -> Result<f32, anyhow::Error> {
     //How far the step should be if the error is a value of 1N
     const BASE_STEP: f32 = 0.05;
@@ -27,15 +28,21 @@ pub fn prop_gain_control(err: f32) -> Result<f32, anyhow::Error> {
     Ok(BASE_STEP * -err)
 }
 
+///A Proportional derivative controller
 pub struct PDController {
+    ///The error
     prev_err: f64,
+    ///The time when the error was reported
     prev_time: DateTime<Local>,
+    ///Proportional gain
     kp_gain: f64,
+    ///Derivative gain
     kd_gain: f64,
 }
 
 impl PDController {
     #![allow(nonstandard_style)]
+    ///Create a PD controller
     pub fn create_PD(KP_gain: f64, KD_gain: f64) -> PDController {
         PDController {
             prev_err: 0.0,
@@ -45,6 +52,7 @@ impl PDController {
         }
     }
 
+    ///Calculate the output of the controller
     pub fn calc_op(&mut self, err: f64) -> Result<f64, anyhow::Error> {
         //Get current time
         let now = chrono::offset::Local::now();
@@ -60,16 +68,24 @@ impl PDController {
     }
 }
 
+///A PID controller
 pub struct PIDController {
+    ///Error history
     errs: Vec<f64>,
+    ///Timestamps of the errors
     timestamps: Vec<DateTime<Local>>,
+    ///The current calculated integral error
     curr_integral: f64,
+    ///Proportional gain
     kp_gain: f64,
+    ///Integral gain
     ki_gain: f64,
+    ///Derivative gain
     kd_gain: f64,
 }
 
 impl Display for PIDController {
+    ///Display the controller setup
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let string = format!(
             "PID - P:{},I:{},D:{}",
@@ -82,6 +98,7 @@ impl Display for PIDController {
 
 impl PIDController {
     #![allow(nonstandard_style)]
+    ///Create a PID controller
     pub fn create_PID(KP_gain: f64, KI_gain: f64, KD_gain: f64) -> PIDController {
         PIDController {
             errs: vec![0.0],
@@ -93,6 +110,7 @@ impl PIDController {
         }
     }
 
+    ///Calulcate the output of the controller
     pub fn calc_op(&mut self, err: f64) -> Result<f64, anyhow::Error> {
         self.timestamps.push(Local::now());
         self.errs.push(err);
@@ -116,7 +134,7 @@ impl PIDController {
         Ok(move_dist)
     }
 
-    //Approximate the integral area using the trapezium approximation
+    ///Approximate the integral area using the trapezium approximation
     fn calc_integral_trap_approx(&mut self) -> f64 {
         let new_area: f64;
 
@@ -146,21 +164,32 @@ impl PIDController {
     }
 }
 
-//Proportional Heaviside PID Controller (basically two PID controllers)
+///Proportional Heaviside PID Controller (basically two PID controllers)
 pub struct PHPIDController {
+    ///Error history
     errs: Vec<f64>,
+    ///Timestamp of the errors
     timestamps: Vec<DateTime<Local>>,
+    ///The current integral value
     curr_integral: f64,
+    ///Positive error proportional gain
     hi_kp_gain: f64,
+    ///Positive error integral gain
     hi_ki_gain: f64,
+    ///Positive error derivative gain
     hi_kd_gain: f64,
+    ///Value that determines error polarity
     heaviside_val: f64,
+    ///Low error proportional gain
     lo_kp_gain: f64,
+    ///Low error integral gain
     lo_ki_gain: f64,
+    ///Low error derivative gain
     lo_kd_gain: f64,
 }
 
 impl Display for PHPIDController {
+    ///Print the PHPID information
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let string = format!(
             "PHPID - HP:{},HI:{},HD:{},LP:{},LI:{},LD:{}",
@@ -178,6 +207,7 @@ impl Display for PHPIDController {
 
 impl PHPIDController {
     #![allow(nonstandard_style)]
+    ///Create a PHPID controller
     pub fn create_PHPID(
         Hi_KP_gain: f64,
         Hi_KI_gain: f64,
@@ -201,6 +231,7 @@ impl PHPIDController {
         }
     }
 
+    ///Calculate the output of the controller
     pub fn calc_op(&mut self, err: f64) -> Result<f64, anyhow::Error> {
         self.timestamps.push(Local::now());
         self.errs.push(err);
@@ -226,7 +257,7 @@ impl PHPIDController {
         Ok(move_dist)
     }
 
-    //Approximate the integral area using the trapezium approximation
+    ///Approximate the integral area using the trapezium approximation
     fn calc_integral_trap_approx(&mut self) -> f64 {
         let new_area: f64;
 

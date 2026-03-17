@@ -1,10 +1,9 @@
-//! Configure and stream a 435i sensor.
-//!
-//! Notice that the streaming configuration changes based on the USB speed of the sensor.
-//! If one attempts to set a streaming configuration that is too much for the current USB
-//! speed, RealSense will return with an error. However, that error is non-descript and will
-//! not help identify the underlying problem, i.e. the bandwidth of the connection.
+/// Configure and stream a 435i sensor.
 
+/// Notice that the streaming configuration changes based on the USB speed of the sensor.
+/// If one attempts to set a streaming configuration that is too much for the current USB
+/// speed, RealSense will return with an error. However, that error is non-descript and will
+/// not help identify the underlying problem, i.e. the bandwidth of the connection.
 use anyhow::{Result, bail, ensure};
 use realsense_rust;
 use realsense_rust::frame::{FrameEx, PointsFrame};
@@ -27,17 +26,15 @@ use raylib::prelude::{Camera3D, Color};
 
 use raylib::math::Vector3;
 
-//The realsense camera
-//Contains the info about the camera
+///The realsense camera
 pub struct RealsenseCam {
     pipeline: ActivePipeline,
     pcl_block: PointCloudProcBlock,
 }
 
-//The pointcloud object
-
 impl RealsenseCam {
-    //Initialise the camera - pipeline and conficam_nog
+    ///Connect and Initialise a camera
+    /// When using multiple cameras, cam_no is used to specify which one to connect to
     pub fn initialise(cam_no: usize) -> Result<Self> {
         // Check for depth or color-compatible devices.
         let mut queried_devices = HashSet::new();
@@ -46,8 +43,9 @@ impl RealsenseCam {
         let devices = context.query_devices(queried_devices);
         ensure!(!devices.is_empty(), "No devices found");
 
+        //If the provided camera number is too high - bail
         if cam_no > devices.len() {
-            bail!("Invalid camera number");
+            bail!("Invalid camera selection");
         }
 
         println!("devs: {:?}", devices);
@@ -107,9 +105,8 @@ impl RealsenseCam {
         })
     }
 
-    //Return a raw pointcloud - unsafe as it uses realsense-sys basecode
+    ///Return a raw xyz pointcloud from the camera
     pub fn get_depth_pnts(&mut self) -> Result<PointCloud> {
-
         //Wait for a frame to arrive
         let frame = self.pipeline.wait(None)?;
         //Extract the depth frame
@@ -134,9 +131,7 @@ impl RealsenseCam {
         ))
     }
 
-    //Return a filtered pointcloud
-
-    //Visualise the pointcloud stream - FOR DEBUGGING
+    ///Visualise the pointcloud stream - FOR DEBUGGING
     pub fn debug_vis(&mut self) {
         //Create the window
         let (mut rl, thread) = raylib::init()

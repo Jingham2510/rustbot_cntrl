@@ -1,3 +1,5 @@
+///Tools used to visualise andanalyse the measured terrain
+///Includes pointclouds and heightmaps
 use crate::helper_funcs;
 use crate::helper_funcs::helper_funcs::{ColOpt, NaN_add};
 use anyhow::bail;
@@ -7,24 +9,22 @@ use realsense_sys::rs2_vertex;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 
-//Pointcloud structure - contains purely point information
-//Basically a fancy vector wrapper
+///A point cloud
 pub struct PointCloud {
-    //List of the points stored in xyz format
+    ///Vector of the points stored in xyz format
     points: Vec<[f64; 3]>,
-    //The number of points present
+    ///The number of points present
     no_of_points: usize,
-
-    //The timestamp of when the pointcloud was captured (relative to when the camera started)
+    ///The timestamp of when the pointcloud was captured (relative to when the camera started)
     rel_timestamp: f64,
-
+    ///The timestamp of when the pointcloud was captured (relative to the epoch)
     global_timestamp: DateTime<Utc>,
-
+    ///The name of the file the pointcloud was loaded from (if loaded)
     filename: Option<String>,
 }
 
 impl PointCloud {
-    //Create a pointcloud from a list of points
+    ///Create a pointcloud from a list of points
     pub fn create_from_list(pnts: Vec<[f64; 3]>, timestamp: f64) -> Self {
         //Calculate the number of points
         let no_of_points = pnts.len();
@@ -38,6 +38,7 @@ impl PointCloud {
         }
     }
 
+    ///Create a pointcloud from a list of realsense vertices
     pub fn create_from_iter(rs2_vertex: &[rs2_vertex], timestamp: f64) -> Self {
         let mut points: Vec<[f64; 3]> = vec![];
         let mut no_of_points = 0;
@@ -63,7 +64,7 @@ impl PointCloud {
         }
     }
 
-    //Load a pointcloud file and create
+    ///Create a pointcloud from a loaded file
     pub fn create_from_file(filepath: String) -> Result<Self, anyhow::Error> {
         //Create the filepath
         let filepath = filepath.to_string();
@@ -106,19 +107,20 @@ impl PointCloud {
         })
     }
 
+    ///Get the points in the point cloud
     pub fn points(&self) -> Vec<[f64; 3]> {
         self.points.clone()
     }
 
-    //Print all points
+    ///Print all points in the point cloud
     pub fn print_points(&mut self) {
         for pnt in self.points.iter() {
             println!("{:?}", pnt);
         }
     }
 
-    //Calculate the xy bounds of the pointcloud (rectangular)
-    //Assumes z is the height
+    ///Calculate the xy bounds of the pointcloud (rectangular)
+    ///Assumes z is the height
     pub fn get_bounds(&mut self) -> [f64; 4] {
         //Predefine the values we are interested in
         let mut x_min: f64 = 9999.0;
@@ -148,7 +150,7 @@ impl PointCloud {
         [x_min, x_max, y_min, y_max]
     }
 
-    ///Rotate a pointcloud - inplace
+    ///Rotate a pointcloud
     ///Can cheat with the mat multiplication here, we know the predefined sizes already
     ///Yaw - X
     ///Pitch - Y
@@ -185,7 +187,7 @@ impl PointCloud {
         }
     }
 
-    //Translate a pointcloud with xyz coords - inplace
+    ///Translate a pointcloud with xyz coords
     pub fn translate(&mut self, x: f64, y: f64, z: f64) {
         //Iterate through every point
         for pnt in self.points.iter_mut() {
@@ -196,7 +198,7 @@ impl PointCloud {
         }
     }
 
-    //Scale every point by the same value
+    ///Scale every point by the same value
     pub fn scale_even(&mut self, scale_val: f64) {
         //Iterate through every point
         for pnt in self.points.iter_mut() {
@@ -207,7 +209,8 @@ impl PointCloud {
         }
     }
 
-    //Filter a pointcloud by specifying the bounds (bounds inclusive of points on the bound)
+    ///Filter a pointcloud by specifying the valid bounds
+    ///Inclusive of points that lie on the boundary
     pub fn passband_filter(
         &mut self,
         min_x: f64,
@@ -242,8 +245,7 @@ impl PointCloud {
         self.no_of_points = self.points.len();
     }
 
-    //Save the pointcloud to an ASCII file
-
+    ///Save the pointcloud to a text file
     pub fn save_to_file(&mut self, filepath: &str) -> Result<(), anyhow::Error> {
         //Create a file
         let mut file = File::create(filepath.to_owned() + ".txt")?;
@@ -282,7 +284,8 @@ impl PointCloud {
         }
     }
 
-    //Consumes another pointcloud into this object
+    ///Absorbs another pointcloud into this pointcloud
+    ///Timestamp of previous pointcloud becomes timestamp of this one
     pub fn combine(&mut self, other: PointCloud) {
         for pnt in other.points {
             self.points.push(pnt);
@@ -301,40 +304,47 @@ impl PointCloud {
     }
 }
 
-//Map structure - contains the size and height information for each cell
+///Heightmap structure - contains the size and height information for each cell
 pub struct Heightmap {
-    //Height and width of the terrain map
+    ///Number of pixel rows
     height: u32,
+    ///Number of pixel columns
     width: u32,
 
-    //Indicates whether the grid is square or not
+    ///Indicates whether the grid is square or not
     square: bool,
+    ///The number of cells present in the heightmap
     pub no_of_cells: u32,
 
-    //The min and max cell heights
+    ///The point defined minimum cell height
     min: f64,
+    ///The point defined maximum cell height
     max: f64,
-    //keeps track of whether the min or max need to be updated again
+
+    ///State that determines whether the minimum height needs to be checked again
     min_updated: bool,
+    ///State that determines whether the maximum height needs to be checked again
     max_updated: bool,
 
-    //Cell location contianing the min and max height cells
+    ///Cell location at minimum height
     min_pos: (u32, u32),
+    ///Cell location at maximum height
     max_pos: (u32, u32),
 
-    //the 2d vector representing the cells
+    ///the 2d vector representing the cells
     cells: Vec<Vec<f64>>,
 
-    //The pointcloud bounds it was constructed from (used to position the heightmap in the real world)
+    ///The pointcloud lower bounds the hieghtmap is constructed from
     lower_coord_bounds: [f64; 2],
+    ///The pointcloud upper bounds the hieghtmap is constructed from
     upper_coord_bounds: [f64; 2],
 
-    //Store the filepath for usage in analysis
+    ///Store the filepath for usage in analysis
     pub filename: String,
 }
 
 impl Default for Heightmap {
-    //Default heightmap is a blank 250x250
+    ///Default heightmap is a blank 250x250
     fn default() -> Heightmap {
         Heightmap::new(250, 250)
     }
@@ -342,6 +352,7 @@ impl Default for Heightmap {
 
 //Map tools - including display and modification etc
 impl Heightmap {
+    ///Create a new empty heightmap
     pub fn new(width: u32, height: u32) -> Self {
         //Initialise new variables for the object
         let mut square_check = false;
@@ -371,7 +382,7 @@ impl Heightmap {
         }
     }
 
-    //Create a heightmap from a pointcloud (takes ownership of pcl object)
+    ///Create a heightmap from a pointcloud (takes ownership of pcl object)
     pub fn create_from_pcl(mut pcl: PointCloud, width: u32, height: u32) -> Self {
         //Get the bounds
         let bounds = pcl.get_bounds();
@@ -416,7 +427,7 @@ impl Heightmap {
         }
     }
 
-    //Creates a heightmap from a hmap file
+    ///Lodas a hmap file and creates a heightmap from it
     pub fn create_from_file(filepath: String) -> Result<Self, anyhow::Error> {
         //Create the filepath
 
@@ -490,7 +501,7 @@ impl Heightmap {
         })
     }
 
-    //Creates a heightmap from a given pcl file
+    ///Creates a heightmap from a given pcl file
     pub fn create_from_pcl_file(
         filepath: String,
         width: u32,
@@ -503,6 +514,7 @@ impl Heightmap {
         Ok(Heightmap::create_from_pcl(pcl, width, height))
     }
 
+    ///Print the value contained in each cell
     pub fn print_cells(&self) {
         for row in &self.cells {
             for cell in row {
@@ -512,7 +524,7 @@ impl Heightmap {
         }
     }
 
-    //Get the height for a given cell
+    ///Get the height for a given cell
     pub fn get_cell_height(&self, x: u32, y: u32) -> Result<f64, anyhow::Error> {
         if x > self.width || y > self.height {
             bail!("Warning - attempting to read from cell that doesnt exist!");
@@ -521,7 +533,7 @@ impl Heightmap {
         Ok(self.cells[x as usize][y as usize])
     }
 
-    //Set the height of a given cell
+    ///Set the height of a given cell
     pub fn set_cell_height(&mut self, x: u32, y: u32, new_height: f64) {
         if x > self.width || y > self.height {
             println!("Warning - attempting to write to cell that doesnt exist!");
@@ -546,7 +558,7 @@ impl Heightmap {
         }
     }
 
-    //Set the height of all cells
+    ///Set the height of all cells
     pub fn set_map(&mut self, new_heights: Heightmap) {
         //Sweep through each cell and replace with the new map height
         for (x, row) in self.cells.iter_mut().enumerate() {
@@ -562,7 +574,7 @@ impl Heightmap {
         self.get_min();
     }
 
-    //Get the maximum cell height
+    ///Get the maximum cell height
     fn get_max(&mut self) -> f64 {
         //Check whether a new maximum is required
         if !self.max_updated {
@@ -584,7 +596,7 @@ impl Heightmap {
         self.max
     }
 
-    //Get the minimum cell height
+    ///Get the minimum cell height
     fn get_min(&mut self) -> f64 {
         //Check whether a new minimum calc is required
         if !self.min_updated {
@@ -605,7 +617,7 @@ impl Heightmap {
         self.min
     }
 
-    //Generates a pre-defined pattern - for testing purposes
+    ///Generates a pre-defined pattern - for testing purposes
     pub fn gen_test_pattern(&mut self) {
         //Go through every cell and place a pre-defined value in
         for (x, row) in self.cells.iter_mut().enumerate() {
@@ -621,7 +633,7 @@ impl Heightmap {
         self.max_pos = (self.width - 1, self.height - 1);
     }
 
-    //Generates a random pattern - for testing purposes
+    ///Generates a random pattern - for testing purposes
     pub fn gen_random_pattern(&mut self) {
         //Go through every cell and give it a random value
         for row in self.cells.iter_mut() {
@@ -634,7 +646,7 @@ impl Heightmap {
         self.get_min();
     }
 
-    //Display the map as a grid - colouring in cells based on the distance from the median
+    ///Display the map as a grid - colouring in cells based on the distance from the median
     pub fn disp_map(&mut self) -> Result<(), anyhow::Error> {
         if true {
             self.interpolate_NaN();
@@ -651,7 +663,7 @@ impl Heightmap {
         Ok(())
     }
 
-    //Returns the flattened cells (i.e. every single cell)
+    ///Returns the flattened cells (i.e. every single cell in a single vector)
     pub fn get_flattened_cells(&mut self) -> Result<Vec<f64>, anyhow::Error> {
         let mut cell_list: Vec<f64> = vec![];
 
@@ -664,7 +676,7 @@ impl Heightmap {
         Ok(cell_list)
     }
 
-    //Saves the heightmap to a text file
+    ///Saves the heightmap to a text file
     pub fn save_to_file(&mut self, filepath: &str) -> Result<(), anyhow::Error> {
         //Create a file
         let mut file = File::create(filepath.to_owned() + ".txt")?;
@@ -692,16 +704,16 @@ impl Heightmap {
         Ok(())
     }
 
-    //Width getter
+    ///Width getter
     pub fn width(&self) -> u32 {
         self.width
     }
-    //Height getter
+    ///Height getter
     pub fn height(&self) -> u32 {
         self.height
     }
 
-    //Extracts the bounds from a string
+    ///Extracts the bounds from a string
     fn extract_bounds(bnd_line: String) -> Result<[f64; 4], anyhow::Error> {
         let mut bounds: [f64; 4] = [f64::NAN, f64::NAN, f64::NAN, f64::NAN];
 
@@ -733,7 +745,7 @@ impl Heightmap {
         Ok(bounds)
     }
 
-    //Calculates the middle coordinates of a given cell (based on the upper/lower bounds)
+    ///Calculates the middle coordinates of a given cell (based on the upper/lower bounds)
     pub fn calc_cell_mid_pnt(&self, n: u32, m: u32) -> Result<[f64; 2], anyhow::Error> {
         if n >= self.width {
             bail!("Error - out of width bounds!")
@@ -839,7 +851,7 @@ impl Heightmap {
     }
 }
 
-//Compares a given map with a desired map and outputs a map of height differences
+///Compares a given map with a desired map and outputs a map of height differences
 pub fn comp_maps(
     curr_map: &Heightmap,
     desired_map: &Heightmap,

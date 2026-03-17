@@ -1,22 +1,25 @@
-//Data handler object - reads a data file for an associated test
-
+///Data handler object - reads the data file for an associated test
 use crate::control::misc_tools::string_tools;
 use anyhow::bail;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Seek};
 
-//Stores a datafile and the corresponding test data
+///Stores a datafile and the corresponding test data
 pub struct DataHandler {
+    ///The data file itself
     file: File,
+    ///Vector of timestamps for measurements
     timestamps: Vec<f64>,
+    ///Vector of trajectory xyz points
     trajectory: Vec<[f64; 3]>,
+    ///Vector of trajectory orientation (change in progress)
     ori: Vec<[f64; 3]>,
+    ///Vector of xyz MxMyMz measured forces
     forces: Vec<[f64; 6]>,
 }
 
 impl DataHandler {
-    //Create a data handler by associating a data file with it
-    //Do not store all the data in the object for now - can just read it when necessary
+    ///Create a data handler by associating a data file with it
     pub fn read_data_from_file(filepath: String) -> Result<Self, anyhow::Error> {
         let mut file = File::open(filepath)?;
 
@@ -70,8 +73,7 @@ impl DataHandler {
         })
     }
 
-    //Function which gets the rectangular bounds of a trajectory
-    //Z pos currently unused
+    ///Function which gets the rectangular bounds of a trajectory bsaed on the min and max reported positions
     pub fn get_traj_rect_bnds(&mut self) -> Result<[f64; 4], anyhow::Error> {
         let mut min_x = 9999.0;
         let mut max_x = -9999.0;
@@ -97,18 +99,18 @@ impl DataHandler {
         Ok([min_x, max_x, min_y, max_y])
     }
 
-    //Extracts every trajectory point from the datafile
+    ///Extracts every trajectory point from the datafile
     pub fn get_traj(&self) -> Vec<[f64; 3]> {
         //Return the trajectory
         self.trajectory.clone()
     }
 
-    //Returns the trajectory and force data for the file - in an vector comprised of a tuple trajectory/force vector pairs
+    ///Get the measured force
     pub fn get_force(&self) -> Vec<[f64; 6]> {
         self.forces.clone()
     }
 
-    //Returns a tuple which pairs trajectory and force data together (essentially a zip)
+    ///Returns a tuple which pairs trajectory and force data together (essentially a zip)
     pub fn get_traj_force_pairs(&mut self) -> Vec<([f64; 3], [f64; 6])> {
         let mut traj_force_pairs: Vec<([f64; 3], [f64; 6])> = vec![];
 
@@ -121,12 +123,12 @@ impl DataHandler {
     }
 }
 
-//turns a string in the format "[x,y,z]" into a vector
-fn str_to_traj_ori(x: &str) -> Result<[f64; 3], anyhow::Error> {
+///turn a string in the format "[x,y,z]" into a vector
+fn str_to_traj_ori(inp_string: &str) -> Result<[f64; 3], anyhow::Error> {
     let mut curr_vec: [f64; 3] = [f64::NAN, f64::NAN, f64::NAN];
 
     //Strip the "[" and "]"
-    let x_strip = string_tools::rem_first_and_last(x);
+    let x_strip = string_tools::rem_first_and_last(inp_string);
 
     //Extract the individual numbers from the pos string and feed them into a pos array
     for (cnt, token) in x_strip.split(",").enumerate() {
@@ -141,7 +143,7 @@ fn str_to_traj_ori(x: &str) -> Result<[f64; 3], anyhow::Error> {
     Ok(curr_vec)
 }
 
-//Parses the force string into the force vector
+///Parses the force string ("[x,y,z,Mx,My,Mz]")into the force vector
 fn str_to_force(x: &str) -> Result<[f64; 6], anyhow::Error> {
     let mut curr_vec: [f64; 6] = [f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN];
 

@@ -1,17 +1,17 @@
-//Generates trajectories for tests
-
+///Generates xyz trajectories for tests
 use anyhow::bail;
 use std::f64::consts::PI;
 use std::fs::File;
 use std::io::{BufRead, stdin};
 use std::{fs, io};
 
-const IMPL_TRAJS: [&str; 5] = ["line", "circle", "slidedown", "dline", "custom"];
+///The trajectories that have been implemented
+const IMPL_TRAJS: [&str; 6] = ["line", "circle", "slidedown", "dline", "wiggle", "custom"];
 
 //120
 const DEFAULT_Z: f64 = 161.0;
 
-//Selects a trajectory bsaed on string input from user
+///Generates a trajectory bsaed on string input from user
 pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
     //Define the trajcetory - it will be of unknown size so have to store on the heap
     let mut trajectory: Vec<(f64, f64, f64)> = Vec::new();
@@ -54,6 +54,7 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
             trajectory.push(end_pos);
         }
 
+        //A circular trajectory
         "circle" => {
             //Define all characteristics of the circle
             let centre = (200.0, 2160.0, DEFAULT_Z);
@@ -135,7 +136,7 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
     Ok(trajectory)
 }
 
-//Reads a custom trajectory and returns it
+///Reads a custom trajectory file and creates the xyz vector
 fn cust_traj_handler() -> Option<Vec<(f64, f64, f64)>> {
     //Stored within the local directory for the project! (updated manually with custom trajectories)
     const CUST_TRAJ_LOC: &str = "./cust_trajs/";
@@ -219,7 +220,7 @@ fn cust_traj_handler() -> Option<Vec<(f64, f64, f64)>> {
     }
 }
 
-//Calculates the relative distance between points of a desired trajectory
+///Calculates the relative distance between points of a desired trajectory
 pub fn relative_traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
     //Check that the trajectory is valid
     if let Ok(desired_traj) = traj_gen(traj) {
@@ -243,8 +244,8 @@ pub fn relative_traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Err
     }
 }
 
-//Calculates the required xy speeds to achieve a desired trajectory
-//Return format (time of speed (s), (X speed (mm/s), Y speed (mm/s))
+///Calculates the required xy speeds to achieve a desired trajectory based on a desired speed
+///Return format (time of speed (s), (X speed (mm/s), Y speed (mm/s))
 pub fn calc_xy_timing(
     traj: &mut Vec<(f64, f64, f64)>,
     des_lat_speed: f64,

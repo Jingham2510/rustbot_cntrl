@@ -1,23 +1,26 @@
+///TCP connection manager for the robot (base control)
 use anyhow::bail;
 use core::time::Duration;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{Shutdown, TcpStream};
 
-//TCP socket structure
+///TCP socket structure
 pub struct TcpSock {
+    ///IP of the socket
     ip: String,
+    ///Port of the socket
     port: u32,
-    //The TCP stream itself
+    ///The TCP stream itself
     stream: Option<TcpStream>,
-    //Details of last error that occurred - for debugging
+    ///Details of last error that occurred - for debugging
     last_error: Option<String>,
-    //Indicates whether the socket is connected
+    ///Indicates whether the socket is connected
     connected: bool,
 }
 
 //Methods for a TCP socket
 impl TcpSock {
-    //Connect to a socket
+    ///Connect to a socket
     pub fn connect(&mut self) -> bool {
         //Connect and return the TCP _stream
         if let Ok(stream) = TcpStream::connect(format!("{}:{}", self.ip, self.port)) {
@@ -40,8 +43,8 @@ impl TcpSock {
         }
     }
 
-    //Writes a message to the TCP connection buffer
-    //Returns a boolean true if successful
+    ///Writes a message to the TCP connection buffer
+    ///Returns a boolean true if successful
     fn write(&mut self, msg: &str) -> bool {
         //Check if the stream exists
         if let Some(mut writer) = self.stream.as_ref() {
@@ -60,7 +63,7 @@ impl TcpSock {
         }
     }
 
-    //Reads from the TCP input buffer - returns the info as a string
+    ///Reads from the TCP input buffer - returns the info as a string
     fn read(&mut self) -> Result<String, anyhow::Error> {
         //Create buffer for the message
         let mut recv = vec![];
@@ -83,7 +86,7 @@ impl TcpSock {
         }
     }
 
-    //Public interface for sending a request to the robot
+    ///Interface for sending a request to the robot, blocking until a response is recieved
     pub fn req(&mut self, msg: &str) -> Result<String, anyhow::Error> {
         //println!("{}", msg);
         self.write(msg);
@@ -101,7 +104,7 @@ impl TcpSock {
         }
     }
 
-    //Close the stream by shutting it down
+    ///Close the stream by shutting it down
     pub fn disconnect(&mut self) {
         self.stream
             .as_ref()
@@ -113,7 +116,7 @@ impl TcpSock {
     }
 }
 
-//Create a new socket and attempt to connect to it
+///Create a new socket and attempt to connect to it
 pub fn create_sock(ip: String, port: u32) -> TcpSock {
     //Create a socket
     TcpSock {

@@ -1,7 +1,6 @@
-//rustbot control!
-//A rust and headerless version of the robot controller designed to run tests in the soilbed
-//Author - Joe Ingham
-
+///rustbot control!
+///A rust and headerless version of the robot controller designed to run tests in the soilbed
+///Author(s) - Joe Ingham
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
@@ -29,6 +28,7 @@ const VER_NUM: &str = "V0.8";
 //Program title
 const TITLE: &str = "Rustbot Control";
 
+///Main command loop
 fn main() -> Result<(), anyhow::Error> {
     println!("RUSTBOT_CNTRL STARTUP....");
 
@@ -50,7 +50,7 @@ fn main() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-//Handles commands given by the user - without a robot
+///Handles commands given by the user - robot not required!
 fn core_cmd_handler(config: &mut Config) {
     //Array of implemented commands
     const VALID_CMDS: [&str; 7] = [
@@ -133,7 +133,7 @@ fn core_cmd_handler(config: &mut Config) {
     }
 }
 
-//Command line for logging into and controlling a robot
+///Command line for logging into and controlling a robot
 fn rob_connect(config: &mut Config) {
     //Not const because you cant make constant hashmaps
 
@@ -191,7 +191,7 @@ fn rob_connect(config: &mut Config) {
     }
 }
 
-//Iterates through a tests generated heightmaps and displays them one by one
+///Analyse a tests gathered terrain information (usually changes regularly!)
 fn analyse(config: &Config) -> Result<(), anyhow::Error> {
     //Print and number the list of tests in the DEPTH_TESTS folder (ignoring _archive)
     let depth_test_fp: String = config.test_fp();
@@ -268,7 +268,7 @@ fn analyse(config: &Config) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-//For testing coverage and variance of a realsense depth cam
+///Gather a specific number of heightmaps from a singular realsense camera
 fn save_n_heightmaps(config: &Config) -> Result<(), anyhow::Error> {
     //Create the filename
     println!("How many snapshots?");
@@ -351,9 +351,8 @@ fn save_n_heightmaps(config: &Config) -> Result<(), anyhow::Error> {
     }
 }
 
-//Take a pointcloud - mainly for testing so doesn't save config
+///Take a specified number of pointclouds from a singular realsense camera
 fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
-
     //Create the filename
     println!("How many snapshots?");
 
@@ -364,8 +363,6 @@ fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
         .expect("Failed to read line");
 
     if let Ok(n) = user_inp.trim().parse::<i32>() {
-
-
         let depth_test_fp: String = config.test_fp();
 
         //Ask the user for a dataset name
@@ -388,9 +385,8 @@ fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
         //Sleep for 3 seconds to let the camera warm up
         sleep(Duration::from_secs(5));
 
-        let mut curr_pcl : PointCloud = cam.get_depth_pnts()?;
+        let mut curr_pcl: PointCloud = cam.get_depth_pnts()?;
         let pcl_fp = format!("{}/pcl_{}", new_fp, user_inp.trim());
-
 
         if n > 1 {
             for _ in 1..n {
@@ -418,7 +414,6 @@ fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
 
                 //Allow time for another measurement to be taken
                 sleep(Duration::from_secs(2));
-
             }
         }
         curr_pcl.save_to_file(&*pcl_fp)?;
@@ -429,8 +424,6 @@ fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
         dat_file.write("NODATA - PURE PCL TEST".as_bytes())?;
 
         println!("PCL generated");
-
-
     }
     Ok(())
 }

@@ -1,23 +1,21 @@
-/*
-The experiment model, calculates/estimates the states of the experiment
-It is mainly used to generate the joint positions required to control the velocity of the end-effector.
-Used to control the XYZ speeds for an experiment with predetermined lateral speeds
- */
+///The experiment model, calculates/estimates the states of the experiment
 use crate::modelling::irb6400_model::IRB6400Model;
 use anyhow::bail;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::{Duration, SystemTime};
 
-//Agnostic model type so it could work with other robot DH models
+///Agnostic model type so it could work with other robot DH models
 pub struct ExpModel<T> {
-    //The robot model
+    ///The robot model
     rob_model: T,
-    //Robot trajectory defined as xyz coordinates in reference to the robot base frame
+    ///Robot trajectory defined as xyz coordinates in reference to the robot base frame
     trajectory: Vec<(f64, f64, f64)>,
+    ///The desired lateral speeds of the end-effector
     des_lat_speed: f64,
 }
 
 impl ExpModel<IRB6400Model> {
+    ///Create an experimental model
     pub fn create_exp_model(
         trajectory: Vec<(f64, f64, f64)>,
         des_lat_speed: f64,
@@ -40,7 +38,7 @@ impl ExpModel<IRB6400Model> {
         })
     }
 
-    //Updates the desired lateral speed of the end-effector - mm/s
+    ///Updates the desired lateral speed of the end-effector - mm/s
     pub fn update_des_lat_speed(&mut self, new_lat: f64) -> Result<(), anyhow::Error> {
         if new_lat <= 0.0 {
             bail!("Invalid lateral speed!")
@@ -50,8 +48,8 @@ impl ExpModel<IRB6400Model> {
         Ok(())
     }
 
-    //Calculates the required xy speeds to achieve a desired trajectory
-    //Return format (time of speed (s), (X speed (mm/s), Y speed (mm/s))
+    ///Calculates the required xy speeds to achieve a desired trajectory
+    ///Return format (time of speed (s), (X speed (mm/s), Y speed (mm/s))
     pub fn calc_xy_timing(&mut self) -> Vec<(f64, (f64, f64))> {
         let mut timing_instructions: Vec<(f64, (f64, f64))> = vec![];
 
@@ -99,8 +97,8 @@ impl ExpModel<IRB6400Model> {
         timing_instructions
     }
 
-    //Simulates the trajectory and joint angles required for it
-    //Takes three messengers - one that signals for a joint angle, one publishes joint angles, one that recieves desired z speeds
+    ///Simulates the trajectory and joint angles required for it
+    ///Takes three messengers - one that signals for a joint angle, one publishes joint angles, one that recieves desired z speeds
     pub fn run_model_traj(
         &mut self,
         initial_joint_cfg: [f64; 6],

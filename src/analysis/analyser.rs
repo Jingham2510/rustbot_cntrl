@@ -1,3 +1,4 @@
+///Analyses test results in the form of displaying heightmap results
 use crate::analysis::data_handler::DataHandler;
 use crate::config::{CamInfo, RobInfo};
 use crate::helper_funcs;
@@ -10,31 +11,30 @@ use std::fs;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 
+///The analyser structure which contains all the relevant test information
 pub struct Analyser {
-    //Filepath location of the test data
+    ///Filepath location of the test data
     filepath: String,
-    //Name of the test
+    ///Name of the test
     test_name: String,
-    //Folder location holding the test data
+    ///Folder location holding the test data
     test_fp: String,
-    //The struct containing all the raw pos/force info etc
+    ///The struct containing all the raw pos/force info etc
     data_handler: DataHandler,
-    //Number of pointclouds taken in this test
+    ///Number of pointclouds taken in this test
     no_of_pcl: i32,
-    //The camera information for the given test
+    ///The camera configuration information for the given test
     cam_info: Vec<CamInfo>,
-    //The robot information for the given test
+    ///The robot configuration information for the given test
     rob_info: RobInfo,
-
-    //Coordination pre-transform flag
-    ///True if trajectory already transformed
+    ///Coordination pre-transform flag - True if trajectory already transformed
     pre_trans: bool,
 }
 
 impl Analyser {
-    //Create a data analyser
+    ///Create an analyser structure based on the provided file
     pub fn init(filepath: String, test_name: String) -> Result<Self, anyhow::Error> {
-        //Check that the test exists
+        //Check that the filepath exists
         if !fs::read_dir(&filepath)?
             .any(|e| e.unwrap().file_name().into_string().unwrap() == test_name)
         {
@@ -73,12 +73,12 @@ impl Analyser {
         })
     }
 
-    //Get the rectangular bounds of the test (i.e. where the end-effector interacted with the soil)
+    ///Get the rectangular trajectory bound of the test
     pub fn get_traj_bounds(&mut self) -> Result<[f64; 4], anyhow::Error> {
         self.data_handler.get_traj_rect_bnds()
     }
 
-    //Display the height change from the first to the last heightmap
+    ///Compare the first and last heightmap from the test (i.e. the overall change)
     pub fn disp_overall_change(&mut self) -> Result<(), anyhow::Error> {
         let hmap_cnt = self.get_hmap_cnt()?;
 
@@ -119,9 +119,9 @@ impl Analyser {
         Ok(())
     }
 
-    //Displays all of heightmaps associated with a test
+    ///Display every heightmap for the test
     pub fn display_all(&mut self) -> Result<(), anyhow::Error> {
-        //Check if the hmaps have been generated
+        //Generate the heightmaps if required
         let heightmaps = if self.no_of_pcl > self.get_hmap_cnt()? {
             //If not generate them
             self.gen_all_hmaps(250, 250)?
@@ -138,7 +138,8 @@ impl Analyser {
         Ok(())
     }
 
-    //Calculates the total coverage of a measured area (i.e. how much unknown space there is)
+    ///Calculates the total coverage of a measured area (i.e. how much unmeasured space there is)
+    /// Unmeasured/unknown space is represented as a black pixel/NaN value
     pub fn calc_coverage(&mut self) -> Result<Vec<f32>, anyhow::Error> {
         //Check if the hmaps have been generated
         let hmaps = if self.no_of_pcl > self.get_hmap_cnt()? {
@@ -153,7 +154,6 @@ impl Analyser {
         //Check each map
         for mut map in hmaps {
             //Calculate coverage as the percentage of filled cells
-
             let mut filled_cells = 0;
             for cell in map.get_flattened_cells()? {
                 if !f64::is_nan(cell) {
@@ -166,7 +166,7 @@ impl Analyser {
         Ok(coverages)
     }
 
-    //Calculates and saves the coverage of a test to the test folder
+    ///Calculates and saves the coverage of each heightmap to a text file
     pub fn save_coverage(&mut self) -> Result<(), anyhow::Error> {
         //Get the coverages of the heightmaps
         let covs = self.calc_coverage()?;
@@ -187,7 +187,7 @@ impl Analyser {
         Ok(())
     }
 
-    //Counts the number of generated hmaps saved in the test dir
+    ///Counts the number of generated hmaps saved in the test dir
     fn get_hmap_cnt(&mut self) -> Result<i32, anyhow::Error> {
         //Count the number of heightmaps saved in the test
         let mut hmap_cnt = 0;
@@ -201,7 +201,7 @@ impl Analyser {
         Ok(hmap_cnt)
     }
 
-    //Generates all the heightmaps for each pcl in the test directory
+    ///Generates all the heightmaps for each pcl in the test directory
     fn gen_all_hmaps(&mut self, width: u32, height: u32) -> Result<Vec<Heightmap>, anyhow::Error> {
         println!("GENERATING HEIGHTMAPS ---------");
 
@@ -223,6 +223,7 @@ impl Analyser {
         Ok(heightmaps)
     }
 
+    ///Generate a heightmap from a specific point cloud
     fn gen_hmap_n(&mut self, width: u32, height: u32, n: i32) -> Result<Heightmap, anyhow::Error> {
         println!("GENERATING HEIGHTMAP {n} ---------");
 
@@ -246,7 +247,7 @@ impl Analyser {
         Ok(hmap)
     }
 
-    //Load all the hmaps saved to a test directory
+    ///Load all the hmaps saved from a test directory to a vector
     fn load_all_genned_hmaps(&mut self) -> Result<Vec<Heightmap>, anyhow::Error> {
         println!("LOADING HEIGHTMAPS ---------");
 
@@ -268,6 +269,7 @@ impl Analyser {
         Ok(heightmaps)
     }
 
+    ///Load all the pointclouds saved from a test directory to a vector
     fn load_all_pcl(&mut self) -> Result<Vec<PointCloud>, anyhow::Error> {
         println!("LOADING POINTCLOUDS ----------");
 
@@ -289,7 +291,8 @@ impl Analyser {
         Ok(pcls)
     }
 
-    //Generates the isolation rectangle to surround the trajectory
+    ///Generates a passband filter for test pointclouds based on the trajectory of the robot
+    ///iso_(x/y)_radius determine how far the filter extends from the trajectory
     fn gen_iso_rect(
         &mut self,
         iso_x_radius: f64,
@@ -319,8 +322,8 @@ impl Analyser {
         Ok(traj_bounds)
     }
 
-    //Isolates the region in each pointcloud that is potenitally affected by the trajectory
-    //Turns it into a heightmap and displays it
+    ///Isolates the trajectory path in a pointcloud and turns it into a heightmap
+    ///iso_(x/y)_radius determine how far the filter extends from the trajectory
     pub fn disp_iso_traj_path(
         &mut self,
         iso_x_radius: f64,
@@ -354,7 +357,9 @@ impl Analyser {
         Ok(())
     }
 
-    //Calculates the action map matrix based on the trajectory of the test being analysed
+    ///Calculates the action map of a test
+    /// The action map is a geometric representation of the trajectory
+    /// Height of the trajectory is represented using the same colour scale as the terrain maps
     fn calc_action_map(
         &mut self,
         width: usize,
@@ -374,7 +379,7 @@ impl Analyser {
 
         //Check if the trajectory has been transformed
         if !self.pre_trans {
-            traj = self.transform_traj(traj);
+            traj = self.translate_traj(traj);
         }
 
         //Transform the trajectory to the heightmap space
@@ -390,7 +395,7 @@ impl Analyser {
         )
     }
 
-    //Displays the action map of the test (i.e. graphically encoded trajectory) - height indicate by pixel intensity
+    ///Displays the action map of the test (i.e. graphically encoded trajectory) - height indicate by pixel intensity
     pub fn disp_action_map(&mut self, width: usize, height: usize) -> Result<(), anyhow::Error> {
         //Calculate the action map matrix
         if let Ok(ac_mat) = self.calc_action_map(width, height) {
@@ -402,8 +407,8 @@ impl Analyser {
         Ok(())
     }
 
-    //Calculate the force map (force data transformed to the heightmap space)
-    //Force calculation is based on average xyz force experienced
+    ///Calculate the force map (force data transformed to the heightmap space)
+    /// option determines the method for calculating the intensity of the pixels
     fn calc_force_map(
         &mut self,
         width: usize,
@@ -432,7 +437,7 @@ impl Analyser {
             }
 
             //Transform the trajectory
-            traj = self.transform_traj(traj);
+            traj = self.translate_traj(traj);
 
             //Rezip back into the trajectory pairs
             for (index, pnt) in traj.iter().enumerate() {
@@ -521,7 +526,7 @@ impl Analyser {
         )
     }
 
-    //Displays the force map of the test (i.e. graphically encoded force experience) - force indicated by pixel colour
+    ///Displays the force map of the test (i.e. graphically encoded force experience) - force indicated by pixel colour
     pub fn disp_force_map(
         &mut self,
         width: usize,
@@ -579,7 +584,8 @@ impl Analyser {
         Ok(())
     }
 
-    //Regenerate the heightmaps associated with a test
+    ///Regenerate the heightmaps associated with a test
+    /// width/height determine the number of pixels used to represent the pointcloud
     pub fn regen_hmaps(&mut self, width: u32, height: u32) -> Result<(), anyhow::Error> {
         let mut cnt = 0;
 
@@ -616,8 +622,8 @@ impl Analyser {
         Ok(())
     }
 
-    ///Transform the trajectory in xyz frame
-    fn transform_traj(&mut self, traj: Vec<[f64; 3]>) -> Vec<[f64; 3]> {
+    ///Translate the trajectory in xyz frame relative to the provided config information
+    fn translate_traj(&mut self, traj: Vec<[f64; 3]>) -> Vec<[f64; 3]> {
         let mut new_traj: Vec<[f64; 3]> = vec![];
         let transform = self.rob_info.pos_to_zero();
 
@@ -632,7 +638,7 @@ impl Analyser {
     }
 }
 
-//Enumerator to determine
+///Determines the method for force intensity calculation
 pub enum ForceSel {
     ForceAvg,
     MomAvg,
@@ -644,6 +650,7 @@ pub enum ForceSel {
     Zmom,
 }
 
+///Loads the stored test configuration
 fn get_config(
     filepath: &String,
     test_name: &String,

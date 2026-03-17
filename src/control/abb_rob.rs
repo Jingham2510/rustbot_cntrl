@@ -1,8 +1,9 @@
+///A set of functions used to communicate and control the ABB6400 robot
 use crate::config::Config;
 use crate::control::egm_control::abb_egm::{EgmRobot, EgmSensor};
 use crate::control::egm_control::egm_udp::EgmServer;
 use crate::control::force_control::force_control::{PHPIDController, PIDController};
-use crate::control::misc_tools::angle_tools::Quartenion;
+use crate::control::misc_tools::angle_tools::Quaternion;
 use crate::control::misc_tools::misc::wait_for_enter;
 use crate::control::misc_tools::string_tools;
 use crate::control::trajectory_planner;
@@ -20,31 +21,49 @@ use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 use std::{fs, thread};
 
+///The robot controller and state tracker
 pub struct AbbRob<'a> {
+    ///The TCP socket that the controller is connected to
     socket: tcp_sock::TcpSock,
+    ///Indicates if the robot is simulated on the local device
     local: bool,
+    ///The current xyz position of the TCP
     pos: (f64, f64, f64),
+    ///The current wxyz quaternion orientation of the TCP
     ori: (f64, f64, f64, f64),
+    ///The current joint angles
     jnt_angles: (f64, f64, f64, f64, f64, f64),
+    ///The currently measured force information
     force: (f64, f64, f64, f64, f64, f64),
+    ///State value that indicates if the robot has disconnected
     disconnected: bool,
+    ///State value that indicates if the robot is being controlled via force
     force_mode_flag: bool,
+    ///The target axis for the force control
     force_axis: String,
+    ///The target force
     force_target: f64,
-    //Programme setup config
-    config: &'a mut Config,
+    ///The current force error (current force - target force)
     force_err: f64,
+    ///Programme setup config
+    config: &'a mut Config,
 }
 
-//Stores all the relevant test data for when a test starts
+///Contains all the relevant test data for when a test starts
 struct TestData {
+    ///The trajectory of the test
     traj: Vec<(f64, f64, f64)>,
+    ///The name of the test
     test_name: String,
+    ///The filepath to store all test information
     filepath: String,
+    ///The file containing the test measured data
     data_filename: String,
+    ///The file contianing the test configuration information
     config_filename: String,
 }
 impl TestData {
+    ///Create a test data structure
     fn create_test_data(config_fp: String, forcemode: bool) -> TestData {
         let traj = Self::pick_trajectory(forcemode).unwrap();
 
@@ -69,6 +88,7 @@ impl TestData {
         t_data
     }
 
+    ///Lets the user pick a desired trajectory from a set of predetermined trajectories (or an earlier custom made one)
     fn pick_trajectory(forcemode: bool) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
         let mut traj;
         //Loop until command given
@@ -100,6 +120,7 @@ impl TestData {
         }
     }
 
+    ///Allows the user to determine the name of the test
     fn get_test_name() -> String {
         //Create the filename
         println!("Please provide a test name");
@@ -123,6 +144,8 @@ impl TestData {
         user_inp.trim().to_string()
     }
 
+    ///Create a text file that contains the desired trajectory for the test
+    ///Useful for comparing with performed trajectories generated via speed control
     fn store_desired_trajectory(&mut self, forcemode: bool) {
         //Store the desired trajectory in the filepath
         let traj_fp = format!("{}/des_traj_{}.txt", self.filepath, self.test_name);
@@ -159,6 +182,7 @@ impl TestData {
     }
 }
 
+///A list of implemented user commands
 pub const IMPL_COMMDS: [&str; 10] = [
     "info",
     "cmds",
@@ -172,9 +196,11 @@ pub const IMPL_COMMDS: [&str; 10] = [
     "req ori",
 ];
 
+///Determines whether to pretransform data before being saved
 const TRANSFORM_TO_WORK_SPACE: bool = false;
 
 impl AbbRob<'_> {
+    ///Connect to the ABB robot controller
     pub fn create_rob(
         ip: String,
         port: u32,
@@ -212,15 +238,16 @@ impl AbbRob<'_> {
         }
     }
 
-    //Disconnect from the robot - don't change any robot info, chances are the robot is going out of scope after this
+    ///Disconnect from the robot controller
     pub fn disconnect_rob(&mut self) {
         self.socket.req("CLOS").expect("FAILED TO CLOSE SOCKET");
         self.socket.disconnect();
         println!("Disconnected... Moving back to core command handler");
     }
 
+    ///A user command line to control the robot
     pub fn rob_cmd_handler(&mut self) {
-        //Loop until command given
+        //Loop until valid command given
         loop {
             //Get user input
             let mut user_inp = String::new();
@@ -249,15 +276,18 @@ impl AbbRob<'_> {
                     return;
                 }
 
+                //Update and print the robots TCP position
                 "req xyz" => {
                     self.req_xyz();
                     println!("X:{}, Y:{}, Z:{}", self.pos.0, self.pos.1, self.pos.2);
                 }
 
+                //Update the robots orientatoin
                 "req ori" => {
                     self.req_ori();
                 }
 
+                //Start a "geo test" - force controlled test
                 "geo test" => {
                     self.force_mode_flag = true;
 
@@ -278,10 +308,12 @@ impl AbbRob<'_> {
                     self.geo_test_regime();
                 }
 
+                //Placeholder for when testing new functions
                 "test" => {
                     self.verify_load_cell();
                 }
 
+                //Send the robot to the pre-defined home position above the sand bed
                 "home" => {
                     self.go_home_pos();
                 }
@@ -291,14 +323,14 @@ impl AbbRob<'_> {
         }
     }
 
-    //Ping the robot to check the connection
+    ///Ping the robot to check that the connection is valid
     pub fn ping(&mut self) {
         let s = self.socket.req("ECHO:PING");
 
         println!("Ping recieved - {}", s.unwrap());
     }
 
-    //Request the robot move to specific joint angles
+    ///Request the robot move to specific joint angles
     fn set_joints(&mut self, angs: (f64, f64, f64, f64, f64, f64)) {
         //Check to see if a response was returned
         if let Ok(_resp) = self.socket.req(&format!(
@@ -313,6 +345,7 @@ impl AbbRob<'_> {
         }
     }
 
+    ///Move the robot (quickly) to the predefined home position above the sandbed
     fn go_home_pos(&mut self) {
         self.set_speed(150.0);
 
@@ -325,10 +358,8 @@ impl AbbRob<'_> {
         println!("Home!");
     }
 
-    //Set the orientation of the robots tcp
-    //Currently assumes that the quartenion is valid
-    //q - the desired orientation
-    fn set_ori(&mut self, q: &Quartenion) {
+    ///Set the orientation of the robots tcp - error checking done by robot controller
+    fn set_ori(&mut self, q: &Quaternion) {
         if let Ok(_resp) = self
             .socket
             .req(&format!("STOR:[{}, {}, {}, {}]", q.w, q.x, q.y, q.z))
@@ -340,7 +371,7 @@ impl AbbRob<'_> {
         }
     }
 
-    //Set the speed of the robot TCP
+    ///Set the desired speed of the robot TCP
     fn set_speed(&mut self, speed: f64) {
         if let Ok(resp) = self.socket.req(&format!("STSP:{}", speed)) {
             //Do nothing - no user notification required
@@ -351,8 +382,8 @@ impl AbbRob<'_> {
         }
     }
 
-    //Move the tool relative to its own local coordinate system
-    //xyz - how far the tcp will move in each caridnal direction
+    ///Move the tool relative to its own local coordinate system
+    ///xyz - how far the tcp will move in each caridnal direction
     fn move_tool(&mut self, xyz: (f64, f64, f64)) {
         if let Ok(_resp) = self
             .socket
@@ -364,9 +395,8 @@ impl AbbRob<'_> {
         }
     }
 
-    //Set the TCP point within the global coordinate system
-    //xyz - desired position in cartesian coordinates
-    //block - indicates whether the move should block other transmission
+    ///Set the TCP point within the global coordinate system
+    ///xyz - desired position in cartesian coordinates
     fn set_pos(&mut self, xyz: (f64, f64, f64)) {
         if let Ok(_resp) = self
             .socket
@@ -379,6 +409,7 @@ impl AbbRob<'_> {
         }
     }
 
+    ///A geo test that consists of three phases and aims to impart a desired force in the sand
     fn geo_test_regime(&mut self) {
         if !self.force_mode_flag {
             println!("Force mode not set! Returning!");
@@ -390,7 +421,7 @@ impl AbbRob<'_> {
 
         //Create copys of the config for the threads
         let fp_copy = test_data.filepath.clone();
-        let test_name_copy=  test_data.test_name.clone();
+        let test_name_copy = test_data.test_name.clone();
 
         //Store the desired trajectory
         test_data.store_desired_trajectory(self.force_mode_flag);
@@ -429,7 +460,7 @@ impl AbbRob<'_> {
         let rel_ori_1 = self.config.cam_info1.rel_ori();
         let scale_1 = self.config.cam_info1.x_scale();
 
-        //Create the thread that handles the depth camera
+        //Create the thread that handles the second depth camera
         thread::spawn(move || {
             Self::depth_sensing(
                 rx1,
@@ -442,9 +473,6 @@ impl AbbRob<'_> {
                 1,
             )
         });
-
-
-
 
         //Setup the seperate PID controllers
         let mut phase2_cntrl =
@@ -460,7 +488,7 @@ impl AbbRob<'_> {
 
         //Give the camera turn on process time to warm up
         sleep(Duration::from_secs(2));
-        if tx.send(4).is_err()  || tx1.send(4).is_err(){
+        if tx.send(4).is_err() || tx1.send(4).is_err() {
             println!("Failed dummy cam trigger");
         }
 
@@ -468,7 +496,7 @@ impl AbbRob<'_> {
         self.go_home_pos();
 
         //Trigger before the test begins
-        if tx.send(2).is_err() || tx1.send(2).is_err(){
+        if tx.send(2).is_err() || tx1.send(2).is_err() {
             println!("Failed initial cam trigger");
         }
 
@@ -714,7 +742,7 @@ impl AbbRob<'_> {
 
                 //Trigger the camera
                 if cnt % DEPTH_FREQ == 0 || cnt == 0 {
-                    if tx.send(1).is_ok() || tx1.send(1).is_ok(){
+                    if tx.send(1).is_ok() || tx1.send(1).is_ok() {
                         //Do nothing here - normal operation
                     } else {
                         println!("Warning - Cam thread dead!");
@@ -761,7 +789,7 @@ impl AbbRob<'_> {
         self.write_marker(&test_data.data_filename, "TEST END");
     }
 
-    //A test regime for whether we can control the end effector linear speeds without EGM
+    ///A test regime for whether we can control the end effector linear speeds without EGM
     fn end_eff_speed_set_test(&mut self) {
         //Set up the test data
         //Creates the test data and the filepaths
@@ -821,7 +849,8 @@ impl AbbRob<'_> {
         self.go_home_pos();
     }
 
-    //Function which repeatedly takes depth measurements on trigger from another thread
+    ///Function which repeatedly takes depth measurements on trigger
+    ///Designed to be used in a parallel thread
     fn depth_sensing(
         rx: Receiver<u32>,
         filepath: &str,
@@ -916,7 +945,7 @@ impl AbbRob<'_> {
         }
     }
 
-    //Requests the xyz position of the TCP from the robot and stores it in the robot info
+    ///Requests the xyz position of the TCP from the robot and stores it in the robot info
     fn req_xyz(&mut self) {
         //Request the info
         if let Ok(recv) = self.socket.req("GTPS:0") {
@@ -941,7 +970,7 @@ impl AbbRob<'_> {
         }
     }
 
-    //Requests the orientation information
+    ///Requests the orientation information
     fn req_ori(&mut self) {
         //Request the info
         if let Ok(recv) = self.socket.req("GTOR:0") {
@@ -965,7 +994,7 @@ impl AbbRob<'_> {
         }
     }
 
-    //Requests joint angle information
+    ///Requests joint angle information
     fn req_jnt_angs(&mut self) {
         //Request the info
         if let Ok(recv) = self.socket.req("GTJA:0") {
@@ -996,7 +1025,7 @@ impl AbbRob<'_> {
         }
     }
 
-    //Requests 6-axis force information
+    ///Requests 6-axis force information
     fn req_force(&mut self) {
         //Request the info
         if let Ok(recv) = self.socket.req("GTFC:0") {
@@ -1022,7 +1051,7 @@ impl AbbRob<'_> {
         }
     }
 
-    //Requests the model name of the robot
+    ///Requests the model name of the robot
     fn req_model(&mut self) -> Result<String, anyhow::Error> {
         //Request the model name
         if let Ok(model) = self.socket.req("RMDL:0") {
@@ -1032,8 +1061,7 @@ impl AbbRob<'_> {
         }
     }
 
-    //Helper function that requests all the update information from the robot
-    //Returns early from the function if the robot has disconnected
+    ///Helper function that requests all the relevant information from the robot
     fn update_rob_info(&mut self) {
         self.req_xyz();
         if self.disconnected {
@@ -1055,7 +1083,7 @@ impl AbbRob<'_> {
         }
     }
 
-    //Appends relevant test information to the provided filename
+    ///Saves the robot state (i.e. the test data) in a given file
     fn store_state(&mut self, filename: &str, i: i32) {
         //Open the file (or create if it doesn't exist)
         let mut file = OpenOptions::new()
@@ -1097,7 +1125,7 @@ impl AbbRob<'_> {
         }
     }
 
-    //Write a marker to the given file with a timestamp (used for marking certain milestones in tests)
+    ///Write a marker to the given file with a timestamp (used for marking certain milestones in tests)
     fn write_marker(&mut self, filename: &str, comment: &str) {
         //Open the file (or create if it doesn't exist)
         let mut file = OpenOptions::new()
@@ -1121,6 +1149,7 @@ impl AbbRob<'_> {
         }
     }
 
+    ///Save the test configuration information
     fn log_config(&mut self, filepath: &str) {
         //println!("{filepath}");
 
@@ -1198,7 +1227,7 @@ impl AbbRob<'_> {
         }
     }
 
-    //Calculate the error between the
+    ///Calculate the error between the measured force and the target force
     fn calc_force_err(&mut self) -> Result<f64, anyhow::Error> {
         //Check that force mode is enabled (otherwise there's no point in calcing the error
         if self.force_mode_flag {
@@ -1224,7 +1253,7 @@ impl AbbRob<'_> {
     }
 
     //EGM commands---------------------------------------------------------------------------------
-    //Create a UDP EGM socket and ask the robot to connect
+    ///Create a UDP EGM socket and ask the robot to connect
     fn connect_egm_pose(&mut self) -> Result<EgmServer, anyhow::Error> {
         let serv = if self.local {
             EgmServer::local()
@@ -1238,7 +1267,7 @@ impl AbbRob<'_> {
         Ok(serv)
     }
 
-    //Request the robot to start the EGM stream
+    ///Start the EGM stream in speed mode
     fn start_egm_stream_speed(&mut self) -> Result<(), anyhow::Error> {
         println!("Requesting starting EGM");
 
@@ -1249,19 +1278,21 @@ impl AbbRob<'_> {
         Ok(())
     }
 
+    ///Start the EGM in pose mode
     fn start_egm_stream_pose(&mut self) -> Result<(), anyhow::Error> {
         self.socket.req("EGST:0")?;
 
         Ok(())
     }
 
-    //Request the robot to stop the EGM stream
+    ///Stop the EGM stream
     fn stop_egm_stream(&mut self) -> Result<(), anyhow::Error> {
         self.socket.req("EGSP:0")?;
 
         Ok(())
     }
 
+    ///Update the state of the robot using the EGM response from the robot
     fn egm_update_state(&mut self, msg: EgmRobot) -> Result<(), anyhow::Error> {
         //Update position
         if let Some(pos) = msg.get_pos_xyz() {
@@ -1292,7 +1323,7 @@ impl AbbRob<'_> {
         Ok(())
     }
 
-    //Checks whether the robot is within the specified allowed cartesian limits
+    ///Checks whether the robot is within the specified allowed cartesian limits
     fn limit_check(&mut self) -> bool {
         let min_x = -425.0;
         let min_y = 1350.0;
@@ -1315,17 +1346,17 @@ impl AbbRob<'_> {
     }
 
     ///The load cell verification script
-    /// Robot moves to three seperate poses and the force is measured for 100 ticks and stored
+    /// Robot moves to three seperate poses and the force is measured for 1000 ticks and stored
     fn verify_load_cell(&mut self) {
         //The two positions
         let rotate_joints = (81.0, 12.2, 34.0, 0.0, 54.80, -118.38);
         let tool_change_joints = (21.15, 42.0, 59.0, 0.0, -57.07, -114.51);
 
         //The four orientations
-        let ori_zero = Quartenion::from([0.0, 1.0, 0.0, 0.0]);
-        let ori_one = Quartenion::from([0.35218, -0.39616, -0.59986, -0.59933]);
-        let ori_two = Quartenion::from([0.187, -0.15665, 0.69299, 0.67843]);
-        let ori_three = Quartenion::from([0.16195, 0.43884, 0.83970, 0.27583]);
+        let ori_zero = Quaternion::from([0.0, 1.0, 0.0, 0.0]);
+        let ori_one = Quaternion::from([0.35218, -0.39616, -0.59986, -0.59933]);
+        let ori_two = Quaternion::from([0.187, -0.15665, 0.69299, 0.67843]);
+        let ori_three = Quaternion::from([0.16195, 0.43884, 0.83970, 0.27583]);
 
         let oris = [ori_zero, ori_one, ori_two, ori_three];
 
@@ -1371,7 +1402,7 @@ impl AbbRob<'_> {
         }
 
         //Go back to the original orientation
-        self.set_ori(&Quartenion::from([0.0, 1.0, 0.0, 0.0]));
+        self.set_ori(&Quaternion::from([0.0, 1.0, 0.0, 0.0]));
 
         //Return home
         self.go_home_pos();

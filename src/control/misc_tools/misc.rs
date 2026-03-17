@@ -1,13 +1,12 @@
+///A collection of miscellaneous tools used throughout the program
 use std::io::stdin;
 
-///A collection of miscellaneous tools used throughout the program
-
 ///Waits for a user input (i.e. an entry)
-/// Doesn't care what the input is
+///Used to manually pause the program
 pub fn wait_for_enter() {
     println!("Press enter to continue...");
 
-    //Get user input
+    //Block until a user presses enter
     let mut user_inp = String::new();
     stdin()
         .read_line(&mut user_inp)

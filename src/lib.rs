@@ -1,9 +1,9 @@
-mod analysis;
-mod config;
-mod control;
-mod helper_funcs;
-mod mapping;
+pub mod analysis;
+pub mod config;
+pub mod control;
+pub mod helper_funcs;
+pub mod mapping;
 
-mod modelling;
+pub mod modelling;
 
-mod networking;
+pub mod networking;

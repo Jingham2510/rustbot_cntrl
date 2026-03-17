@@ -1,4 +1,4 @@
-//Models the IRB 6400 robot
+///Models the IRB 6400 robot
 extern crate nalgebra as na;
 
 use na::Matrix4;
@@ -17,19 +17,20 @@ const LINK_OFFSETS: [f64; 7] = [800.0, 0.0, 0.0, 1520.0, 0.0, 200.0, 000.0];
 //7 LINKS - (6 joints = end effector)
 const NUM_OF_LINKS: i32 = 7;
 
-//Robot kinematic model
+///Robot kinematic model
 pub struct IRB6400Model {
-    //Theta (radians)
+    ///Theta (radians)
     joint_twists: [f64; 6],
-    //Theta offsets (radians) - stored dynamically because 3rd joint changes
+    ///Theta offsets (radians) - stored dynamically because 3rd joint changes
     joint_offsets: [f64; 6],
-
+    ///Transformation matrices from base to end-effector
     t_matrices: [Matrix4<f64>; 7],
-    //The final transformation matrix
+    ///The final transformation matrix
     dh_trans: Matrix4<f64>,
 }
 
 impl IRB6400Model {
+    ///Create the model
     pub fn create_model() -> IRB6400Model {
         //No joint twist yet so we can predefine this
         let joint_offsets = [0.0, -PI_2, 0.0, 0.0, 0.0, 0.0];
@@ -49,14 +50,14 @@ impl IRB6400Model {
         }
     }
 
-    //Calculate an updated transform
+    ///Calculate an updated transform
     fn calc_transform(&mut self) {
         self.t_matrices = calc_t_matrices(self.joint_twists);
 
         self.dh_trans = self.t_matrices[6];
     }
 
-    //Takes new joint angles (in radians)
+    ///Takes new joint angles (in radians)
     pub fn update_joints(&mut self, new_angles: [f64; 6]) {
         //Update the joints and the joint offsets
         for (jnt, angle) in new_angles.iter().enumerate() {
@@ -72,15 +73,15 @@ impl IRB6400Model {
         self.calc_transform();
     }
 
-    //Return the transform to the end effecto
+    ///Return the transform to the end effecto
     pub fn get_transform(&self) -> Matrix4<f64> {
         self.dh_trans
     }
 
-    //Calculate the jacobian of the transformation (i.e. the matrix that relates joint speed to end-effector speed)
-    //This simplified version assumes that the end effector is an extension of the end plate of the robot (i.e. jacobian is 6x6 as such is computationally easier to invert)
-    //Also assumes that the end effector is completely axially symmetrical (a sphere)
-    //I.e. This is the jacobian of the first 6 joints in the robot.
+    ///Calculate the jacobian of the transformation (i.e. the matrix that relates joint speed to end-effector speed)
+    ///This simplified version assumes that the end effector is an extension of the end plate of the robot (i.e. jacobian is 6x6 as such is computationally easier to invert)
+    ///Also assumes that the end effector is completely axially symmetrical (a sphere)
+    ///I.e. This is the jacobian of the first 6 joints in the robot.
     pub fn calc_simple_jacobian(&self) -> Matrix6<f64> {
         //The jacobian is constructed from the joint axis of rotation and the translated origin for the joint
         let mut jacobian: Matrix6<f64> = Matrix6::zeros();
@@ -139,14 +140,14 @@ impl IRB6400Model {
         jacobian
     }
 
-    //Attemps to inverts the simplified jacobian
+    ///Attemps to invert the simplified jacobian
     pub fn get_inv_simple_jacobian(&self) -> Option<Matrix6<f64>> {
         let jacobian = self.calc_simple_jacobian();
 
         jacobian.try_inverse()
     }
 
-    //Check if the robot is at a singularity (loss of motion possibilities)
+    ///Check if the robot is at a singularity (loss of motion possibilities)
     fn check_singularity(&self) -> bool {
         //Theory shows that if the determinant of jacobian is 0 - the robot is at a singularity
         let det_j = self.calc_simple_jacobian().determinant();
@@ -154,7 +155,7 @@ impl IRB6400Model {
         det_j == 0.0
     }
 
-    //Get the raw joint values (w/o offset rotation)
+    ///Get the raw joint values (w/o offset rotation)
     pub fn get_raw_joints(&self) -> [f64; 6] {
         [
             self.joint_twists[0],
@@ -166,7 +167,7 @@ impl IRB6400Model {
         ]
     }
 
-    //Return the raw joints in degrees
+    ///Return the raw joints in degrees
     pub fn get_raw_joints_as_degs(&self) -> [f64; 6] {
         [
             self.joint_twists[0].to_degrees(),
@@ -178,7 +179,7 @@ impl IRB6400Model {
         ]
     }
 
-    //Moves the current joints based on a joint speed and an amount of time passed (rad/s and seconds)
+    ///Moves the current joints based on a joint speed and an amount of time passed (rad/s and seconds)
     pub fn move_joints(&mut self, joint_speed: [f64; 6], time_secs: f64) {
         //Get the new joint positions - from raw joints (no offsets)
         let new_joints = [
@@ -193,7 +194,7 @@ impl IRB6400Model {
         self.update_joints(new_joints);
     }
 
-    //Calculates and returns the required joint speed (rad/s) for a given desired end effector linear speed (mm/s)
+    ///Calculates and returns the required joint speed (rad/s) for a given desired end effector linear speed (mm/s)
     pub fn get_joint_speed(&self, des_end_eff_speed: (f64, f64, f64)) -> [f64; 6] {
         //Assume no rotational speed required
         //Multiply the inverse jacobian by the desried end_effector speed
@@ -219,6 +220,7 @@ impl IRB6400Model {
     }
 }
 
+///Calculate the transformation matrices
 fn calc_t_matrices(joint_twists: [f64; 6]) -> [Matrix4<f64>; 7] {
     let mut t_matrices: [Matrix4<f64>; 7] = [
         Matrix4::zeros(),

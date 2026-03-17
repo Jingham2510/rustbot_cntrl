@@ -1,24 +1,30 @@
-//Quartenion structure
+///A set of tools to convert from Quaternions to ZYX Euler angles
+///Implementations/Calculations taken from
+///https://danceswithcode.net/engineeringnotes/quaternions/quaternions.html
 
-//Implementations/Calculations taken from
-//https://danceswithcode.net/engineeringnotes/quaternions/quaternions.html
-pub struct Quartenion {
+///The quaternion structure
+pub struct Quaternion {
+    ///Real value
     pub w: f64,
+    ///x
     pub x: f64,
+    ///y
     pub y: f64,
+    ///z
     pub z: f64,
 }
 
-impl Quartenion {
-    //Print out the quartenion in human-readable format
+impl Quaternion {
+    ///Print out the quaternion in human-readable format
     pub fn print(&self) {
         println!("X: {}, Y: {}, Z: {}, W: {}", self.x, self.y, self.z, self.w);
     }
 }
 
-impl From<[f64; 4]> for Quartenion {
+impl From<[f64; 4]> for Quaternion {
+    ///Create a quaternion from an array
     fn from(value: [f64; 4]) -> Self {
-        Quartenion {
+        Quaternion {
             w: value[0],
             x: value[1],
             y: value[2],
@@ -27,20 +33,22 @@ impl From<[f64; 4]> for Quartenion {
     }
 }
 
+///Euler angle
+///x - roll, y - pitch, z - yaw,
 struct Euler {
-    //x
+    ///x
     roll: f64,
-    //y
+    ///y
     pitch: f64,
-    //z
+    ///z
     yaw: f64,
 }
 
+///f64 Pi alias
 const PI: f64 = std::f64::consts::PI;
 
-//Euler structure
-// //x - roll, y - pitch, z - yaw,
-pub fn quart_to_euler(q: Quartenion) -> Euler {
+///Convert a quaternion to a Euler angle
+pub fn quart_to_euler(q: Quaternion) -> Euler {
     let pitch = (2.0 * ((q.w * q.y) - (q.x * q.z))).asin();
 
     //Check for gimbal lock
@@ -70,8 +78,8 @@ pub fn quart_to_euler(q: Quartenion) -> Euler {
     }
 }
 
-//Converts a ZYX euler angle to a quartenion
-pub fn euler_to_quart(e: Euler) -> Quartenion {
+///Converts a ZYX euler angle to a quaternion
+pub fn euler_to_quart(e: Euler) -> Quaternion {
     let w = ((e.roll / 2.0).cos() * (e.pitch / 2.0).cos() * ((e.yaw / 2.0).cos()))
         + ((e.roll / 2.0).sin() * (e.pitch / 2.0).sin() * (e.yaw / 2.0).sin());
 
@@ -84,15 +92,15 @@ pub fn euler_to_quart(e: Euler) -> Quartenion {
     let z = ((e.roll / 2.0).cos() * (e.pitch / 2.0).cos() * ((e.yaw / 2.0).sin()))
         + ((e.roll / 2.0).sin() * (e.pitch / 2.0).sin() * (e.yaw / 2.0).cos());
 
-    Quartenion { w, x, y, z }
+    Quaternion { w, x, y, z }
 }
 
-//Rotate q1 via  q2 another quartenion using hamiltonian multiplication
-pub fn quart_rotate(q1: Quartenion, q2: Quartenion) -> Quartenion {
+///Rotate q1 via  q2 another quaternion using hamiltonian multiplication
+pub fn quart_rotate(q1: Quaternion, q2: Quaternion) -> Quaternion {
     let w = (q1.w * q2.w) - (q1.x * q2.x) - (q1.y * q2.y) - (q1.z * q2.z);
     let x = (q1.w * q2.x) + (q1.x * q2.w) + (q1.y * q2.z) - (q1.z * q2.y);
     let y = (q1.w * q2.y) + (q1.y * q2.w) + (q1.z * q2.x) - (q1.x * q2.z);
     let z = (q1.w * q2.z) + (q1.z * q2.w) + (q1.x * q2.y) - (q1.y * q2.x);
 
-    Quartenion { w, x, y, z }
+    Quaternion { w, x, y, z }
 }

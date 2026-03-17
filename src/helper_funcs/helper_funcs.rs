@@ -1,5 +1,4 @@
-//A collection of helper functions based around calculating and displaying 2.5D maps
-
+///A collection of helper functions based around calculating and displaying 2.5D maps
 use anyhow::bail;
 use raylib::callbacks::TraceLogLevel;
 use raylib::color::Color;
@@ -7,6 +6,7 @@ use raylib::consts::MouseButton;
 use raylib::drawing::RaylibDraw;
 use raylib::math::{Rectangle, Vector2};
 
+///A selection of different intensity schemas for generating the map
 pub enum MapGenOpt {
     Mean,
     //Warning! Median will be a slow process - you have to sort the list of points in each section
@@ -15,7 +15,7 @@ pub enum MapGenOpt {
     Max,
 }
 
-//Transforms 3 point data into a 2.5d heightmap ( where the 3rd data point is the "height"/intensity)
+///Transforms 3 point data into a 2.5d heightmap ( where the 3rd data point is the "height"/intensity)
 pub fn trans_to_heightmap(
     data: Vec<[f64; 3]>,
     width: usize,
@@ -150,8 +150,7 @@ pub fn trans_to_heightmap(
     Ok(cells)
 }
 
-//Returns the median value of a matrix
-//Designed to be used with the 2.5D heightmaps
+///Returns the minimum, median and maximum values of a matrix
 pub fn get_min_med_max(data: &Vec<Vec<f64>>) -> (f64, f64, f64) {
     let mut max: f64 = -9999.0;
     let mut min: f64 = 9999.0;
@@ -169,6 +168,7 @@ pub fn get_min_med_max(data: &Vec<Vec<f64>>) -> (f64, f64, f64) {
     (min, max - (max - min / 2.0).abs(), max)
 }
 
+///A selection of options to determine the colouring scheme of the heightmap image
 pub enum ColOpt {
     Median,
     Intensity,
@@ -176,8 +176,7 @@ pub enum ColOpt {
     Uniform,
 }
 
-//Display a magnitude map (i.e. xy - posiitons, z - magnitude)
-//Options for different colour schemes
+///Display a magnitude map (i.e. xy - positions, z - magnitude)
 pub fn display_magnitude_map(
     wind_title: &str,
     mut data: Vec<Vec<f64>>,
@@ -341,7 +340,7 @@ pub fn display_magnitude_map(
     Ok(())
 }
 
-//Calculate the colour gradient based on +/- distance from median
+///Calculate the colour gradient based on +/- distance from median
 fn median_cell_col(val: f64, min: f64, med_val: f64, max: f64) -> Color {
     if val <= med_val {
         Color::new(
@@ -360,7 +359,7 @@ fn median_cell_col(val: f64, min: f64, med_val: f64, max: f64) -> Color {
     }
 }
 
-//Calculate the colour as a percentage of the distance from max value
+///Calculate the colour as a percentage of the distance from max value
 fn intensity_cell_col(val: f64, min: f64, max: f64) -> Color {
     Color::new(
         255.0 as u8,
@@ -370,7 +369,7 @@ fn intensity_cell_col(val: f64, min: f64, max: f64) -> Color {
     )
 }
 
-//Calculate the color as a percentage of the distance from the min value
+///Calculate the color as a percentage of the distance from the min value
 fn inv_intensity_cell_col(val: f64, min: f64, max: f64) -> Color {
     Color::new(
         255.0 as u8,
@@ -380,8 +379,8 @@ fn inv_intensity_cell_col(val: f64, min: f64, max: f64) -> Color {
     )
 }
 
-//Adds a value (that could possibly be NaN) to a variable
-//If the value is NaN just add 0
+///Adds a value (that could possibly be NaN) to a variable
 pub fn NaN_add(var: f64, val: f64) -> f64 {
+    //If the value is NaN just add nothing
     if val.is_nan() { var } else { var + val }
 }

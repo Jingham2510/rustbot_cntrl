@@ -1,4 +1,6 @@
-//Removes the first and last character from a string
+///Tools to manipulate strings
+
+///Removes the first and last character from a string
 pub fn rem_first_and_last(value: &str) -> &str {
     //Turn the string to characters - then manipulate
     let mut chars = value.chars();
@@ -7,6 +9,7 @@ pub fn rem_first_and_last(value: &str) -> &str {
     chars.as_str()
 }
 
+///Turn a string delimited by "," into a vector
 pub fn str_to_vector(inp: &str) -> Vec<f64> {
     //Create the vector delimited by ,
     let sep: Vec<_> = inp.split(",").collect();

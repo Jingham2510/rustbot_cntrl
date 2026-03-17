@@ -1,3 +1,4 @@
+///Low level processing for data from a realsense camera
 use realsense_rust::frame::{DepthFrame, FrameEx, PointsFrame};
 use realsense_rust::stream_profile::DataError;
 use realsense_sys::{
@@ -8,19 +9,19 @@ use realsense_sys::{
 use std::ptr::NonNull;
 use std::time::Duration;
 
-//Creates a pointcloud frame from a provided depth cloud frame
-//Architecture modelled from the example decimation block - https://gitlab.com/tangram-vision/oss/realsense-rust/-/merge_requests/55/diffs?commit_id=a145ce0262f79f667b00ed29e3b081e00e258444#4243a5602f85e44e06d290e709da9d0217c9a4ee
+///Point cloud processing block
+///Architecture modelled from the example decimation block - https://gitlab.com/tangram-vision/oss/realsense-rust/-/merge_requests/55/diffs?commit_id=a145ce0262f79f667b00ed29e3b081e00e258444#4243a5602f85e44e06d290e709da9d0217c9a4ee
 #[derive(Debug)]
 pub struct PointCloudProcBlock {
-    //The processing block for the "Pointcloud" method
+    ///The processing block for the "Pointcloud" method
     processing_block: NonNull<rs2_processing_block>,
 
-    //The queue where processed frames are deposited
+    ///The queue where processed frames are deposited
     processing_queue: NonNull<rs2_frame_queue>,
 }
 
 impl Drop for PointCloudProcBlock {
-    //Dro ('delete') the memory being used for the pointcloud block
+    ///Drop ('delete') the memory being used for the pointcloud block
     fn drop(&mut self) {
         unsafe {
             rs2_delete_frame_queue(self.processing_queue.as_ptr());
@@ -31,7 +32,7 @@ impl Drop for PointCloudProcBlock {
 
 //Note - no error checking as of yet!
 impl PointCloudProcBlock {
-    //Create a new pointcloud processing block
+    ///Create a new pointcloud processing block
     pub fn new(processing_queue_size: i32) -> Result<Self, DataError> {
         //Create the memory for the processing block and the queue
         let (processing_block, processing_queue) = unsafe {
@@ -53,7 +54,7 @@ impl PointCloudProcBlock {
         })
     }
 
-    //Process a given frame by adding it the queue (frame transfers ownership)
+    ///Process a given frame by adding it the queue (frame transfers ownership)
     pub fn queue(&mut self, frame: DepthFrame) -> Result<(), DataError> {
         unsafe {
             let mut err = std::ptr::null_mut::<rs2_error>();
@@ -68,7 +69,7 @@ impl PointCloudProcBlock {
         }
     }
 
-    //Wait until a frame is processed
+    ///Wait until a frame is processed and return the frame on completion
     pub fn wait(&mut self, timeout: Duration) -> Result<PointsFrame, DataError> {
         unsafe {
             let mut err = std::ptr::null_mut::<rs2_error>();
@@ -80,7 +81,7 @@ impl PointCloudProcBlock {
         }
     }
 
-    //Poll to see if the queue is ready to provide a processed frame
+    ///Poll to see if the queue is ready to provide a processed frame
     pub fn poll(&mut self) -> Result<PointsFrame, DataError> {
         unsafe {
             let mut err = std::ptr::null_mut::<rs2_error>();
