@@ -293,8 +293,8 @@ impl PointCloud {
     ///Applies a decimation filter to the pointcloud, removing every nth point
     pub fn decimation_filter(&mut self, n: i32) {
         //Go through every point
-        for (i, _) in self.points.iter_mut().enumerate() {
-            if i % n == 0 {
+        for i in 0..self.no_of_points {
+            if (i as i32) % n == 0 {
                 self.points.remove(i);
             }
         }
