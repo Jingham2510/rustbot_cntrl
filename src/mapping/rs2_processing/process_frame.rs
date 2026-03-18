@@ -1,5 +1,7 @@
+use anyhow::bail;
+use image::{Rgb, RgbImage};
 ///Low level processing for data from a realsense camera
-use realsense_rust::frame::{ColorFrame, DepthFrame, FrameEx, PointsFrame};
+use realsense_rust::frame::{ColorFrame, DepthFrame, FrameEx, PixelKind, PointsFrame};
 use realsense_rust::stream_profile::DataError;
 use realsense_sys::{
     rs2_create_frame_queue, rs2_create_pointcloud, rs2_delete_frame_queue,
@@ -19,11 +21,14 @@ pub struct FrameProcBlock<T> {
     ///The queue where processed frames are deposited
     processing_queue: NonNull<rs2_frame_queue>,
 
+    ///Placeholder
     output: Option<T>,
 }
 
 pub trait FrameProc<T> {
+    ///Wait for a frame to be processed
     fn wait(&mut self, timeout: Duration) -> Result<T, DataError>;
+    ///Check to see if a frame has been processed
     fn poll(&mut self) -> Result<T, DataError>;
 }
 
@@ -100,4 +105,32 @@ impl FrameProc<PointsFrame> for FrameProcBlock<PointsFrame> {
             Ok(PointsFrame::try_from(NonNull::new(*point_frame).unwrap()).unwrap())
         }
     }
+}
+
+///Creates an image from a given color frame
+pub fn create_color_image(frame: &ColorFrame) -> Result<RgbImage, anyhow::Error> {
+    let width = frame.width();
+    let height = frame.height();
+
+    //Create image
+    let mut image = RgbImage::new(width as u32, height as u32);
+
+    for i in 0..height {
+        for j in 0..width {
+            let mut pixel_rgb: [u8; 3] = [0u8, 0u8, 0u8];
+            let curr_pixel = frame.get(j, i).unwrap();
+
+            //Check the type of the pixel
+            match curr_pixel {
+                PixelKind::Bgr8 { b, g, r } => pixel_rgb = [*r, *g, *b],
+                _ => {
+                    bail!("Unexpected pixel type!")
+                }
+            }
+
+            image.put_pixel(j as u32, i as u32, Rgb(pixel_rgb));
+        }
+    }
+
+    Ok(image)
 }

@@ -111,21 +111,10 @@ fn core_cmd_handler(config: &mut Config) {
             }
 
             "test" => {
+                //Currently testing to generate images
                 let mut cam = RealsenseCam::initialise(0).unwrap();
-                let mut cam2 = RealsenseCam::initialise(1).unwrap();
 
-                let mut pcl_1 = cam.get_depth_pnts().unwrap();
-                let pcl_2 = cam2.get_depth_pnts().unwrap();
-
-                println!(
-                    "P1 Len : {} P2 Len: {}",
-                    pcl_1.points().len(),
-                    pcl_2.points().len()
-                );
-
-                pcl_1.combine(pcl_2);
-
-                println!("Combined len: {}", pcl_1.points().len());
+                cam.get_image("cam0");
             }
 
             //Catch all else

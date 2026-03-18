@@ -5,8 +5,9 @@
 /// speed, RealSense will return with an error. However, that error is non-descript and will
 /// not help identify the underlying problem, i.e. the bandwidth of the connection.
 use anyhow::{Result, bail, ensure};
+use image::ImageReader;
 use realsense_rust;
-use realsense_rust::frame::{FrameEx, PointsFrame};
+use realsense_rust::frame::{ColorFrame, FrameEx, PointsFrame};
 use realsense_rust::pipeline::ActivePipeline;
 use realsense_rust::{
     config::Config,
@@ -17,7 +18,9 @@ use realsense_rust::{
 };
 use std::{collections::HashSet, convert::TryFrom, time::Duration};
 
-use crate::mapping::rs2_processing::pointcloud::PointCloudProcBlock;
+use crate::mapping::rs2_processing::process_frame::{
+    FrameProc, FrameProcBlock, create_color_image,
+};
 use crate::mapping::terr_map_tools::PointCloud;
 
 use raylib;
@@ -29,7 +32,7 @@ use raylib::math::Vector3;
 ///The realsense camera
 pub struct RealsenseCam {
     pipeline: ActivePipeline,
-    pcl_block: PointCloudProcBlock,
+    pcl_block: FrameProcBlock<PointsFrame>,
 }
 
 impl RealsenseCam {
@@ -101,7 +104,7 @@ impl RealsenseCam {
             //Start the pipeline in the camera object
             //(This is done to get around the pipeline being consumed
             pipeline: pipeline.start(Some(config))?,
-            pcl_block: PointCloudProcBlock::new(100)?,
+            pcl_block: FrameProcBlock::make_points_block(100)?,
         })
     }
 
@@ -129,6 +132,28 @@ impl RealsenseCam {
             point_frame.vertices(),
             point_frame.timestamp(),
         ))
+    }
+
+    ///Get a colour image from the realsense camera
+    pub fn get_image(&mut self, filename: &str) -> Result<(), anyhow::Error> {
+        //Wait for a frame to arrive
+        let frame = self.pipeline.wait(None)?;
+        //Extract the first colour frame
+        let color_frame = frame.frames_of_type::<ColorFrame>();
+
+        //Check the depth frame isnt empty
+        if color_frame.is_empty() {
+            bail!("No color frame to read!");
+        }
+
+        //Process the image
+        let image = create_color_image(color_frame.get(0).unwrap())?;
+
+        //Save the image
+        let fp = format!("appdata\\{}.png", filename);
+        image.save(fp)?;
+
+        Ok(())
     }
 
     ///Visualise the pointcloud stream - FOR DEBUGGING
