@@ -1,6 +1,6 @@
 ///Tools used to visualise andanalyse the measured terrain
 ///Includes pointclouds and heightmaps
-use crate::helper_funcs;
+use crate::helper_funcs::helper_funcs;
 use crate::helper_funcs::helper_funcs::{ColOpt, add_nan};
 use anyhow::bail;
 use chrono::{DateTime, Utc};
@@ -391,7 +391,7 @@ impl Heightmap {
         let total_width = bounds[1] - bounds[0];
         let total_height = bounds[3] - bounds[2];
 
-        let cells = helper_funcs::helper_funcs::trans_to_heightmap(
+        let cells = helper_funcs::trans_to_heightmap(
             pcl.points,
             width as usize,
             height as usize,
@@ -399,7 +399,7 @@ impl Heightmap {
             total_height,
             bounds[0],
             bounds[2],
-            helper_funcs::helper_funcs::MapGenOpt::Mean,
+            helper_funcs::MapGenOpt::Mean,
         )
         .expect("Failed to convert PCL to heightmap");
 
@@ -653,7 +653,7 @@ impl Heightmap {
         }
 
         //Display the heightmap
-        helper_funcs::helper_funcs::display_magnitude_map(
+        helper_funcs::display_magnitude_map(
             "Heightmap",
             self.cells.clone(),
             self.width as usize,

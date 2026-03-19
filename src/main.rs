@@ -5,7 +5,8 @@
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
-use std::io::{Write, stdin};
+use std::io::{Write, stdin, stdout};
+use std::process::{Command, Stdio};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -115,6 +116,21 @@ fn core_cmd_handler(config: &mut Config) {
                 let mut cam = RealsenseCam::initialise(0).unwrap();
 
                 cam.get_image("cam0");
+
+                //Command to run the python script
+                let mut py_cmd = Command::new(
+                    //,
+                    "cmd",
+                )
+                .args([
+                    "/C",
+                    "py src\\aruco_detection\\detect_aruco_id.py appdata\\cam0.png",
+                ])
+                .stdout(Stdio::piped())
+                .output()
+                .unwrap();
+
+                println!("{:?}", py_cmd);
             }
 
             //Catch all else

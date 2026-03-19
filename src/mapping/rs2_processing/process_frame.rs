@@ -117,7 +117,7 @@ pub fn create_color_image(frame: &ColorFrame) -> Result<RgbImage, anyhow::Error>
 
     for i in 0..height {
         for j in 0..width {
-            let mut pixel_rgb: [u8; 3] = [0u8, 0u8, 0u8];
+            let pixel_rgb: [u8; 3];
             let curr_pixel = frame.get(j, i).unwrap();
 
             //Check the type of the pixel
