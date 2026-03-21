@@ -221,7 +221,7 @@ impl CamInfo {
     ///Create cmarea info from camera preset camera config
     fn read_cam_info_from_file(cam_no: usize) -> Result<Self, anyhow::Error> {
         //Construct the filepath
-        let cam_config_filename = format!("caminfo{}.txt", cam_no);
+        let cam_config_filename = format!("caminfo_{}.txt", cam_no);
         let fp = format!("{}/{}", CONFIG_FP, cam_config_filename);
 
         //Open the cam config file
