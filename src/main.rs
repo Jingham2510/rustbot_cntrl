@@ -141,17 +141,43 @@ fn core_cmd_handler(config: &mut Config) {
 
                 println!("Number of IDs detected: {}", no_of_ids);
 
-                let lines_per_id = 5;
+                let mut id_info: Vec<(usize, [(i32, i32); 4])> = vec![];
 
+                //Extract the id information
+                let lines_per_id = 5;
                 for i in 0..no_of_ids {
                     let start_line = i + 2 + (i * lines_per_id);
 
-                    println!("{}", line_split[start_line]);
-                    println!("{}", line_split[start_line + 1]);
-                    println!("{}", line_split[start_line + 2]);
-                    println!("{}", line_split[start_line + 3]);
-                    println!("{}", line_split[start_line + 4]);
+                    //Get the id number
+                    let id_no: usize = line_split[start_line]
+                        .trim()
+                        .replace("MARK:[[", "")
+                        .replace("]]", "")
+                        .parse()
+                        .unwrap();
+
+                    //Get the corner information
+                    let mut corners: [(i32, i32); 4] = [(0, 0), (0, 0), (0, 0), (0, 0)];
+                    for j in 1..=4 {
+                        let corner_str: &str = line_split[start_line + j];
+
+                        let corner_split = corner_str
+                            .trim()
+                            .replace("CORN:", "")
+                            .replace("[", "")
+                            .replace("]", "");
+
+                        let corner_split: Vec<&str> = corner_split.split(".").collect();
+
+                        corners[j - 1] = (
+                            corner_split[0].trim().parse().unwrap(),
+                            corner_split[1].trim().parse().unwrap(),
+                        );
+                    }
+                    id_info.push((id_no, corners));
                 }
+
+                println!("{:?}", id_info);
             }
 
             //Catch all else

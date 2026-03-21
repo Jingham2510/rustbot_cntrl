@@ -40,7 +40,7 @@ def main():
             id_count += 1
 
     else:
-        sys.stdout.write(":NONE")
+        sys.stdout.write("ID_COUNT:0")
 
 
 if __name__ == "__main__":
