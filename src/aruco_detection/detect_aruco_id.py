@@ -27,10 +27,20 @@ def main():
     detector = cv.aruco.ArucoDetector(aruco_dict, parameters)
     # Detect the markers
     corners, ids, rejected = detector.detectMarkers(gray)
-    # Print the detected markers
-    print("Detected markers:", ids)
+
     if ids is not None:
-        return (ids, corners)
+        sys.stdout.write(f"ID_COUNT:{len(ids)}\n")
+        # Pipe every ID visible
+        id_count = 0
+        for id in ids:
+            # Send the data to the program pipes
+            sys.stdout.write(f"MARK:[{str(ids[id_count])}]\n")
+            sys.stdout.write(f"CORN:[{str(corners[id_count])}]\n")
+            # Increase the ID count
+            id_count += 1
+
+    else:
+        sys.stdout.write(":NONE")
 
 
 if __name__ == "__main__":

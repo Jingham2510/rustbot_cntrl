@@ -113,12 +113,10 @@ fn core_cmd_handler(config: &mut Config) {
 
             "test" => {
                 //Currently testing to generate images
-                let mut cam = RealsenseCam::initialise(0).unwrap();
+                //let mut cam = RealsenseCam::initialise(0).unwrap();
 
-                cam.get_image("cam0");
-
-                //Command to run the python script
-                let mut py_cmd = Command::new(
+                //cam.get_image("cam0");
+                let py_cmd = Command::new(
                     //,
                     "cmd",
                 )
@@ -130,7 +128,30 @@ fn core_cmd_handler(config: &mut Config) {
                 .output()
                 .unwrap();
 
-                println!("{:?}", py_cmd);
+                //Get the output string from the python file and split it line by line
+                let out_string = String::from_utf8(py_cmd.stdout).unwrap();
+                let line_split: Vec<&str> = out_string.split("\n").collect();
+
+                //Get the number of IDs detected
+                let no_of_ids: usize = line_split[1]
+                    .trim()
+                    .replace("ID_COUNT:", "")
+                    .parse()
+                    .unwrap();
+
+                println!("Number of IDs detected: {}", no_of_ids);
+
+                let lines_per_id = 5;
+
+                for i in 0..no_of_ids {
+                    let start_line = i + 2 + (i * lines_per_id);
+
+                    println!("{}", line_split[start_line]);
+                    println!("{}", line_split[start_line + 1]);
+                    println!("{}", line_split[start_line + 2]);
+                    println!("{}", line_split[start_line + 3]);
+                    println!("{}", line_split[start_line + 4]);
+                }
             }
 
             //Catch all else

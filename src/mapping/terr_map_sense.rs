@@ -16,6 +16,7 @@ use realsense_rust::{
     kind::{Rs2CameraInfo, Rs2Format, Rs2ProductLine, Rs2StreamKind},
     pipeline::InactivePipeline,
 };
+use std::process::{Command, Stdio};
 use std::{collections::HashSet, convert::TryFrom, time::Duration};
 
 use crate::mapping::rs2_processing::process_frame::{
@@ -31,6 +32,7 @@ use raylib::math::Vector3;
 
 ///The realsense camera
 pub struct RealsenseCam {
+    cam_no: usize,
     pipeline: ActivePipeline,
     pcl_block: FrameProcBlock<PointsFrame>,
 }
@@ -101,6 +103,7 @@ impl RealsenseCam {
         */
 
         Ok(Self {
+            cam_no,
             //Start the pipeline in the camera object
             //(This is done to get around the pipeline being consumed
             pipeline: pipeline.start(Some(config))?,
@@ -152,6 +155,29 @@ impl RealsenseCam {
         //Save the image
         let fp = format!("appdata\\{}.png", filename);
         image.save(fp)?;
+
+        Ok(())
+    }
+
+    ///Return all aruco tags visible to the camera
+    pub fn get_aruco_tags(&mut self) -> Result<(), anyhow::Error> {
+        //Take an image and save it in the application data
+        //self.get_image(&format!("aruco_detect_{}", self.cam_no))?;
+
+        //Command to run the python script
+        let py_cmd = Command::new(
+            //,
+            "cmd",
+        )
+        .args([
+            "/C",
+            "py src\\aruco_detection\\detect_aruco_id.py appdata\\cam0.png",
+        ])
+        .stdout(Stdio::piped())
+        .output()
+        .unwrap();
+
+        println!("{:?}", String::from_utf8(py_cmd.stdout).unwrap());
 
         Ok(())
     }

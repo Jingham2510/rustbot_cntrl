@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
+//TODO: Fix config again...
 //Config structs and setup
 
 #[derive(Debug)]
