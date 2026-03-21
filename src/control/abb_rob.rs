@@ -8,7 +8,7 @@ use crate::control::misc_tools::misc::wait_for_enter;
 use crate::control::misc_tools::string_tools;
 use crate::control::trajectory_planner;
 use crate::control::trajectory_planner::calc_xy_timing;
-use crate::mapping::terr_map_sense;
+use crate::mapping::terr_map_sense::{self, RealsenseCam};
 use crate::mapping::terr_map_tools::Heightmap;
 use crate::modelling::experiment_model::ExpModel;
 use crate::networking::tcp_sock;
@@ -1408,5 +1408,58 @@ impl AbbRob<'_> {
         self.go_home_pos();
 
         self.write_marker(&test_data.data_filename, "Test end");
+    }
+
+    ///Calibrate the robot and camera setup
+    fn calib_setup(&mut self) -> Result<(), anyhow::Error> {
+        //Initialise the realsense cameras
+        let mut cam_list: [RealsenseCam; 2] =
+            [RealsenseCam::initialise(0)?, RealsenseCam::initialise(1)?];
+
+        //Move the robot to a predefined position (with the aruco tags being shown to the cams)
+        // let calib_pos = (0.0, 1.0, 2.0);
+        // self.set_pos();
+
+        //For each cam register what IDs are spotted
+        for i in 0..1 {
+            let config_fp = format!("aruco_detect_{}", cam_list[i].cam_no);
+            let aruco_info = cam_list[i].get_aruco_tags()?;
+
+            //Get the number of tags spotted
+            let no_of_tags_spotted = aruco_info.len();
+
+            //Check the IDs and update the relevant camera config
+            for j in 0..no_of_tags_spotted {
+                //Using the aruco tag corners it is possible to calculate the distance and orientation
+
+                //We know the actual length - so can use corner to corner pixel to calculate size - and therefore distance
+                //If the corners dont sit on the expected plane with eachother - we can get the rotation as well
+
+                //Calculate how off axis the aruco tag is
+
+                //Calculate the size of the aruco tag
+
+                
+                
+                match aruco_info[j].0 {
+                    //Right side
+                    0 => {
+                        let expected_pos = [1.0, 2.0, 3.0];
+                        let expected_ori = [1.0, 2.0, -1.5708];
+                    }
+                    //Left side
+                    1 => {
+                        let expected_pos = [1.0, 2.0, 3.0];
+                        let expected_ori = [1.0, 2.0, 1.5708];
+                    }
+
+                    _ => {
+                        bail!("Invalid tag!")
+                    }
+                };
+            }
+        }
+
+        Ok(())
     }
 }
