@@ -648,9 +648,9 @@ impl Heightmap {
 
     ///Display the map as a grid - colouring in cells based on the distance from the median
     pub fn disp_map(&mut self) -> Result<(), anyhow::Error> {
-        if true {
-            self.interpolate_nan();
-        }
+        //if true {
+        //    self.interpolate_nan();
+        //}
 
         //Display the heightmap
         helper_funcs::display_magnitude_map(
@@ -876,4 +876,26 @@ pub fn comp_maps(
     }
 
     Ok(diff_map)
+}
+
+///Takes a list of heightmaps that are the same size and averages them
+pub fn average_heightmaps(hmap_list: &Vec<Heightmap>) -> Heightmap {
+    //Get the number of heightmaps
+    let no_of_heightmaps = hmap_list.len();
+
+    //Create an empty heightmap the same size as the heightmaps in the list
+    let mut avg_hmap = Heightmap::new(hmap_list[0].width(), hmap_list[0].height());
+
+    //Go through each point in the empty heightmap and take the mean of the genned heightmaps
+    for (y, row) in avg_hmap.cells.iter_mut().enumerate() {
+        for (x, val) in row.iter_mut().enumerate() {
+            let mut avg_val = 0.0;
+            for i in 0..no_of_heightmaps {
+                avg_val = add_nan(avg_val, hmap_list[i].cells[y][x]);
+            }
+            *val = avg_val / no_of_heightmaps as f64;
+        }
+    }
+
+    avg_hmap
 }

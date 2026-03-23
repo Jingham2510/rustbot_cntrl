@@ -22,7 +22,7 @@ mod modelling;
 use crate::analysis::analyser::{Analyser, ForceSel};
 use crate::config::Config;
 use crate::mapping::terr_map_sense::RealsenseCam;
-use crate::mapping::terr_map_tools::{Heightmap, PointCloud};
+use crate::mapping::terr_map_tools::{Heightmap, PointCloud, average_heightmaps};
 
 use control::abb_rob;
 
@@ -112,72 +112,41 @@ fn core_cmd_handler(config: &mut Config) {
             }
 
             "test" => {
-                //Currently testing to generate images
-                //let mut cam = RealsenseCam::initialise(0).unwrap();
+                //Create a camera handler
+                let mut cam = RealsenseCam::initialise(0).unwrap();
 
-                //cam.get_image("cam0");
-                let py_cmd = Command::new(
-                    //,
-                    "cmd",
-                )
-                .args([
-                    "/C",
-                    "py src\\aruco_detection\\detect_aruco_id.py appdata\\cam0.png",
-                ])
-                .stdout(Stdio::piped())
-                .output()
-                .unwrap();
+                sleep(Duration::from_secs(5));
 
-                //Get the output string from the python file and split it line by line
-                let out_string = String::from_utf8(py_cmd.stdout).unwrap();
-                let line_split: Vec<&str> = out_string.split("\n").collect();
+                //Create the heightmap list
+                let mut hmap_list: Vec<Heightmap> = vec![];
+                let hmap_max = 10;
 
-                //Get the number of IDs detected
-                let no_of_ids: usize = line_split[1]
-                    .trim()
-                    .replace("ID_COUNT:", "")
-                    .parse()
-                    .unwrap();
+                let hmap_width = 100u32;
+                let hmap_height = 100u32;
 
-                println!("Number of IDs detected: {}", no_of_ids);
+                //Create a loop that captures heightmaps
+                loop {
+                    let mut pcl = cam.get_depth_pnts().unwrap();
 
-                let mut id_info: Vec<(usize, [(i32, i32); 4])> = vec![];
+                    pcl.passband_filter(-0.2, 0.2, -0.2, 0.2, 0.0, 0.5);
 
-                //Extract the id information
-                let lines_per_id = 5;
-                for i in 0..no_of_ids {
-                    let start_line = i + 2 + (i * lines_per_id);
+                    //Get the current heightmap
+                    let curr_hmap = Heightmap::create_from_pcl(pcl, hmap_width, hmap_height);
 
-                    //Get the id number
-                    let id_no: usize = line_split[start_line]
-                        .trim()
-                        .replace("MARK:[[", "")
-                        .replace("]]", "")
-                        .parse()
-                        .unwrap();
-
-                    //Get the corner information
-                    let mut corners: [(i32, i32); 4] = [(0, 0), (0, 0), (0, 0), (0, 0)];
-                    for j in 1..=4 {
-                        let corner_str: &str = line_split[start_line + j];
-
-                        let corner_split = corner_str
-                            .trim()
-                            .replace("CORN:", "")
-                            .replace("[", "")
-                            .replace("]", "");
-
-                        let corner_split: Vec<&str> = corner_split.split(".").collect();
-
-                        corners[j - 1] = (
-                            corner_split[0].trim().parse().unwrap(),
-                            corner_split[1].trim().parse().unwrap(),
-                        );
+                    //Add to the heightmap list
+                    if hmap_list.len() <= hmap_max {
+                        hmap_list.push(curr_hmap);
+                    } else {
+                        hmap_list.remove(0);
+                        hmap_list.push(curr_hmap);
                     }
-                    id_info.push((id_no, corners));
+
+                    let mut avg_hmap = average_heightmaps(&hmap_list);
+
+                    let _ = avg_hmap.disp_map();
                 }
 
-                println!("{:?}", id_info);
+                //Display the heightmap
             }
 
             //Catch all else
@@ -305,17 +274,27 @@ fn analyse(config: &Config) -> Result<(), anyhow::Error> {
 
     //analyser.display_all();
 
+    //analyser.disp_overall_change()?;
+
+    //analyser.disp_action_map(100, 100)?;
+
+    //analyser.disp_force_map(100, 100, ForceSel::ForceAvg)?;
+    //analyser.rotate_and_regen(0.0, 0.0, 0.0, 100, 100)?;
+    analyser.regen_hmaps(100, 100)?;
     analyser.disp_overall_change()?;
+    //analyser.display_all();
+
+    //analyser.regen_hmaps(1000, 1000)?;
+    //analyser.disp_overall_change()?;
+    //analyser.display_all();
 
     analyser.disp_action_map(100, 100)?;
 
     analyser.disp_force_map(100, 100, ForceSel::ForceAvg)?;
-    //analyser.rotate_and_regen(0.0, 0.0, 0.0, 100, 100)?;
-    //analyser.regen_hmaps(100, 100)?;
 
     //analyser.disp_overall_change()?;
 
-    analyser.disp_iso_traj_path(150.0, 150.0)?;
+    //analyser.disp_iso_traj_path(150.0, 150.0)?;
 
     Ok(())
 }
@@ -434,8 +413,10 @@ fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
         //Create a depth camera handler
         let mut cam = RealsenseCam::initialise(0)?;
 
-        //Sleep for 3 seconds to let the camera warm up
+        //Sleep for 3 seconds to let the cameras warm up
         sleep(Duration::from_secs(5));
+
+        println!("begin");
 
         let mut curr_pcl: PointCloud = cam.get_depth_pnts()?;
         let pcl_fp = format!("{}/pcl_{}", new_fp, user_inp.trim());
@@ -465,7 +446,7 @@ fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
                 */
 
                 //Allow time for another measurement to be taken
-                sleep(Duration::from_secs(2));
+                //sleep(Duration::from_secs(2));
             }
         }
         curr_pcl.save_to_file(&*pcl_fp)?;
@@ -477,5 +458,48 @@ fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
 
         println!("PCL generated");
     }
+    Ok(())
+}
+
+fn multi_cam_pcl(config: &Config) -> Result<(), anyhow::Error> {
+    //Create the filename
+    let depth_test_fp: String = config.test_fp();
+
+    //Ask the user for a dataset name
+    //Create the filename
+    println!("Please provide a test name");
+
+    //Get user input
+    let mut user_inp = String::new();
+    stdin()
+        .read_line(&mut user_inp)
+        .expect("Failed to read line");
+
+    //Create a folder to hold the test data
+    let new_fp = format!("{}/{}", depth_test_fp, user_inp.trim());
+    fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
+
+    //Create a depth camera handler
+    let mut cam = RealsenseCam::initialise(0)?;
+    let mut cam1 = RealsenseCam::initialise(1)?;
+
+    //Sleep for 3 seconds to let the cameras warm up
+    sleep(Duration::from_secs(5));
+
+    let mut pcl_0: PointCloud = cam.get_depth_pnts()?;
+    let mut pcl_1: PointCloud = cam1.get_depth_pnts()?;
+    let pcl_fp_0 = format!("{}/pcl_{}_0", new_fp, user_inp.trim());
+    let pcl_fp_1 = format!("{}/pcl_{}_1", new_fp, user_inp.trim());
+
+    pcl_0.save_to_file(&*pcl_fp_0)?;
+    pcl_1.save_to_file(&*pcl_fp_1)?;
+
+    //Create an empty data file so that the folder can be used with the analyser
+    let data_fp = format!("{}/data_{}.txt", new_fp, user_inp.trim());
+    let mut dat_file = File::create(data_fp)?;
+    dat_file.write("NODATA - PURE PCL TEST".as_bytes())?;
+
+    println!("PCL generated");
+
     Ok(())
 }

@@ -1439,8 +1439,6 @@ impl AbbRob<'_> {
 
                 //Calculate the size of the aruco tag
 
-                
-                
                 match aruco_info[j].0 {
                     //Right side
                     0 => {
@@ -1458,6 +1456,8 @@ impl AbbRob<'_> {
                     }
                 };
             }
+
+            //Update the camera config
         }
 
         Ok(())
