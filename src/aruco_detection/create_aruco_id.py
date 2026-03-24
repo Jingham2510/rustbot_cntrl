@@ -15,13 +15,27 @@ marker_savepath = "..\\..\\resources\\cam_calibration\\"
 mark_id = 0
 mark_size = 400
 genned_marker = cv.aruco.generateImageMarker(aruco_dict, mark_id, mark_size)
-cv.imwrite(marker_savepath + "left_marker.png", genned_marker)
+cv.imwrite(marker_savepath + "top_left_marker.png", genned_marker)
 plt.imshow(genned_marker, cmap="gray", interpolation="nearest")
 plt.show()
 
 mark_id = 1
 mark_size = 400
 genned_marker = cv.aruco.generateImageMarker(aruco_dict, mark_id, mark_size)
-cv.imwrite(marker_savepath + "right_marker.png", genned_marker)
+cv.imwrite(marker_savepath + "top_right_marker.png", genned_marker)
+plt.imshow(genned_marker, cmap="gray", interpolation="nearest")
+plt.show()
+
+mark_id = 2
+mark_size = 400
+genned_marker = cv.aruco.generateImageMarker(aruco_dict, mark_id, mark_size)
+cv.imwrite(marker_savepath + "bot_left_marker.png", genned_marker)
+plt.imshow(genned_marker, cmap="gray", interpolation="nearest")
+plt.show()
+
+mark_id = 3
+mark_size = 400
+genned_marker = cv.aruco.generateImageMarker(aruco_dict, mark_id, mark_size)
+cv.imwrite(marker_savepath + "bot_right_marker.png", genned_marker)
 plt.imshow(genned_marker, cmap="gray", interpolation="nearest")
 plt.show()

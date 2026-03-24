@@ -112,41 +112,48 @@ fn core_cmd_handler(config: &mut Config) {
             }
 
             "test" => {
+                let fp = format!("{}\\trans_check", config.test_fp());
+
+                let mut pcl = PointCloud::create_from_file(String::from(
+                    "C:\\Users\\User\\Documents\\Results\\DEPTH_TESTS\\trans_check\\pcl_trans_check_notranslate.txt",
+                )).unwrap();
+
+                pcl.rotate(
+                    config.cam_info0.rel_ori()[0],
+                    config.cam_info0.rel_ori()[1],
+                    config.cam_info0.rel_ori()[2],
+                );
+
+                pcl.translate(
+                    config.cam_info0.rel_pos()[0],
+                    config.cam_info0.rel_pos()[1],
+                    config.cam_info0.rel_pos()[2],
+                );
+
+                pcl.save_to_file("test.txt");
+            }
+
+            //Take a set of images on a timer for the charuco board claibration
+            "calibimg" => {
                 //Create a camera handler
+                let cam_no = 1;
                 let mut cam = RealsenseCam::initialise(0).unwrap();
 
                 sleep(Duration::from_secs(5));
 
-                //Create the heightmap list
-                let mut hmap_list: Vec<Heightmap> = vec![];
-                let hmap_max = 10;
-
-                let hmap_width = 100u32;
-                let hmap_height = 100u32;
-
-                //Create a loop that captures heightmaps
-                loop {
-                    let mut pcl = cam.get_depth_pnts().unwrap();
-
-                    pcl.passband_filter(-0.2, 0.2, -0.2, 0.2, 0.0, 0.5);
-
-                    //Get the current heightmap
-                    let curr_hmap = Heightmap::create_from_pcl(pcl, hmap_width, hmap_height);
-
-                    //Add to the heightmap list
-                    if hmap_list.len() <= hmap_max {
-                        hmap_list.push(curr_hmap);
-                    } else {
-                        hmap_list.remove(0);
-                        hmap_list.push(curr_hmap);
-                    }
-
-                    let mut avg_hmap = average_heightmaps(&hmap_list);
-
-                    let _ = avg_hmap.disp_map();
+                for i in 0..1 {
+                    let img_fp = format!("cam_{}_ext_calib_{}", cam_no, i);
+                    cam.get_image(&img_fp);
+                    sleep(Duration::from_secs(1));
                 }
 
-                //Display the heightmap
+                cam.get_aruco_tags();
+
+                println!("Images taken");
+            }
+
+            "multipcl" => {
+                multi_cam_pcl(&config);
             }
 
             //Catch all else
@@ -382,6 +389,45 @@ fn save_n_heightmaps(config: &Config) -> Result<(), anyhow::Error> {
     }
 }
 
+///Create a heightmap from multiple camera inputs
+fn multi_hmap(config: &Config) {
+    //Initialise both cameras
+    let mut cam0 = RealsenseCam::initialise(0).unwrap();
+    let mut cam1 = RealsenseCam::initialise(1).unwrap();
+
+    sleep(Duration::from_secs(5));
+
+    //Take pointclouds
+    let mut pcl0 = cam0.get_depth_pnts().unwrap();
+    let mut pcl1 = cam1.get_depth_pnts().unwrap();
+
+    //Transform pointclouds
+    pcl0.rotate(
+        config.cam_info0.rel_ori()[0],
+        config.cam_info0.rel_ori()[1],
+        config.cam_info0.rel_ori()[2],
+    );
+
+    pcl1.rotate(
+        config.cam_info1.rel_ori()[0],
+        config.cam_info1.rel_ori()[1],
+        config.cam_info1.rel_ori()[2],
+    );
+
+    //passband filter the points
+    //pcl0.passband_filter(min_x, max_x, min_y, max_y, min_z, max_z);
+    //pcl1.passband_filter(min_x, max_x, min_y, max_y, min_z, max_z);
+
+    //Combine
+    pcl0.combine(pcl1);
+
+    //Turn into heightmap
+    let mut combi_hmap = Heightmap::create_from_pcl(pcl0, 100, 100);
+
+    //Display
+    combi_hmap.disp_map().unwrap();
+}
+
 ///Take a specified number of pointclouds from a singular realsense camera
 fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
     //Create the filename
@@ -419,6 +465,22 @@ fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
         println!("begin");
 
         let mut curr_pcl: PointCloud = cam.get_depth_pnts()?;
+        let pcl_fp = format!("{}/pcl_{}_notranslate", new_fp, user_inp.trim());
+
+        curr_pcl.save_to_file(&pcl_fp);
+
+        curr_pcl.rotate(
+            config.cam_info0.rel_ori()[0],
+            config.cam_info0.rel_ori()[1],
+            config.cam_info0.rel_ori()[2],
+        );
+
+        curr_pcl.translate(
+            config.cam_info0.rel_pos()[0],
+            config.cam_info0.rel_pos()[1],
+            config.cam_info0.rel_pos()[2],
+        );
+
         let pcl_fp = format!("{}/pcl_{}", new_fp, user_inp.trim());
 
         if n > 1 {
@@ -486,8 +548,24 @@ fn multi_cam_pcl(config: &Config) -> Result<(), anyhow::Error> {
     //Sleep for 3 seconds to let the cameras warm up
     sleep(Duration::from_secs(5));
 
+    //Get the depth points
     let mut pcl_0: PointCloud = cam.get_depth_pnts()?;
     let mut pcl_1: PointCloud = cam1.get_depth_pnts()?;
+
+    //Translate and rotate appropriately
+    pcl_0.rotate(
+        config.cam_info0.rel_ori()[0],
+        config.cam_info0.rel_ori()[1],
+        config.cam_info0.rel_ori()[2],
+    );
+    //pcl_1.rotate(
+    //  config.cam_info1.rel_ori()[0],
+    // config.cam_info1.rel_ori()[1],
+    //config.cam_info1.rel_ori()[2],
+    // );
+
+    //Apply the passband filters
+
     let pcl_fp_0 = format!("{}/pcl_{}_0", new_fp, user_inp.trim());
     let pcl_fp_1 = format!("{}/pcl_{}_1", new_fp, user_inp.trim());
 

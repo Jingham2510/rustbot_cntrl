@@ -72,7 +72,7 @@ impl RealsenseCam {
             //.enable_all_streams()?;
             //Height of 0 indicates to realsense that it should select the most appropriate height itself
             .enable_stream(Rs2StreamKind::Depth, None, 1280, 0, Rs2Format::Z16, 30)?
-            .enable_stream(Rs2StreamKind::Color, None, 640, 0, Rs2Format::Rgb8, 30)?;
+            .enable_stream(Rs2StreamKind::Color, None, 1280, 0, Rs2Format::Rgb8, 30)?;
 
         // Check the USB speed of our connection - for now dont check because we only care about depth stream
         // CStr => str => f32
@@ -203,9 +203,10 @@ impl RealsenseCam {
         let mut id_info: Vec<(usize, [(i32, i32); 4])> = vec![];
 
         //Extract the id information
-        let lines_per_id = 5;
+        let lines_per_id = 4;
         for i in 0..no_of_ids {
             let start_line = i + 2 + (i * lines_per_id);
+            println!("{}", line_split[start_line]);
 
             //Get the id number
             let id_no: usize = line_split[start_line]

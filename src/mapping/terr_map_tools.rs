@@ -47,7 +47,7 @@ impl PointCloud {
             let pnt = vertex.xyz;
 
             //check if the point is valid - if not ignore it
-            if pnt == [0.0, 0.0, 0.0] {
+            if pnt == [0.0, 0.0, 0.0] || pnt[2] > 2.0 {
                 continue;
             }
 
@@ -208,6 +208,8 @@ impl PointCloud {
             pnt[2] *= scale_val;
         }
     }
+
+    pub fn trans_extr(&mut self) {}
 
     ///Filter a pointcloud by specifying the valid bounds
     ///Inclusive of points that lie on the boundary
