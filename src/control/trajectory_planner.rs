@@ -87,6 +87,31 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
             trajectory = vec![start_pos, end_pos];
         }
 
+        //Three straight lines with different depths
+        "depthcomp" => {
+            let start_x = 262.0;
+            let start_z = DEFAULT_Z;
+
+            let start_y = 1650.0;
+            let end_y = 2100.0;
+            let pnts_per_line = 100;
+            let step = (end_y - start_y) / pnts_per_line as f64;
+
+            let no_of_lines = 3;
+            let line_sep = 100.0;
+            let depth_sep = 25.0;
+
+            for i in 0..no_of_lines {
+                for j in 0..=pnts_per_line {
+                    trajectory.push((
+                        start_x + (i as f64 * line_sep),
+                        (start_y + (step * j as f64)),
+                        start_z + (i as f64 * depth_sep),
+                    ));
+                }
+            }
+        }
+
         //Small vibrational movements
         "wiggle" => {
             const WIGGLE_MOVE: f64 = 0.25;
