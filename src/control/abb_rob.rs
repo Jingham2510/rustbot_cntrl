@@ -308,6 +308,8 @@ impl AbbRob<'_> {
                     self.geo_test_regime();
                 }
 
+                "dumbtraj" => {}
+
                 //Placeholder for when testing new functions
                 "test" => {
                     self.verify_load_cell();
@@ -407,6 +409,28 @@ impl AbbRob<'_> {
         } else {
             println!("Warning - no response - robot may not move");
         }
+    }
+
+    ///A trajectory run that stores no information other than the desired trajectory
+    fn dumb_trajectory(&mut self) {
+        //Create the test data and the filepaths
+        let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
+        //Store the desired trajectory
+        test_data.store_desired_trajectory(self.force_mode_flag);
+
+        //Star tin the home position
+        self.go_home_pos();
+
+        //For each trajectory point
+        for pnt in test_data.traj {
+            //Tell the robot to move to the trajectory points
+            self.set_pos(pnt);
+        }
+
+        //Go back home and announce completion
+        self.go_home_pos();
+
+        println!("Test complete");
     }
 
     ///A geo test that consists of three phases and aims to impart a desired force in the sand
