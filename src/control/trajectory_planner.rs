@@ -108,7 +108,10 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
                         (start_y + (step * j as f64)),
                         start_z + (i as f64 * depth_sep),
                     ));
-                }
+                }                
+
+                //Go home to not disturb the other lines
+                trajectory.push((262.0, start_y, DEFAULT_Z - 150.0))
             }
         }
 

@@ -308,7 +308,9 @@ impl AbbRob<'_> {
                     self.geo_test_regime();
                 }
 
-                "dumbtraj" => {}
+                "dumbtraj" => {
+                    self.dumb_trajectory();
+                }
 
                 //Placeholder for when testing new functions
                 "test" => {
