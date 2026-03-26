@@ -5,17 +5,23 @@
 /// speed, RealSense will return with an error. However, that error is non-descript and will
 /// not help identify the underlying problem, i.e. the bandwidth of the connection.
 use anyhow::{Result, bail, ensure};
-use image::ImageReader;
 use realsense_rust;
 use realsense_rust::frame::{ColorFrame, FrameEx, PointsFrame};
 use realsense_rust::pipeline::ActivePipeline;
 use realsense_rust::{
     config::Config,
     context::Context,
+    device::Device,
     frame::DepthFrame,
     kind::{Rs2CameraInfo, Rs2Format, Rs2ProductLine, Rs2StreamKind},
     pipeline::InactivePipeline,
 };
+use realsense_sys::{rs2_device, rs2_error, rs2_load_json};
+
+use std::ffi::CStr;
+use std::ffi::c_void;
+use std::fs::File;
+use std::io::Read;
 use std::process::{Command, Stdio};
 use std::{collections::HashSet, convert::TryFrom, time::Duration};
 
@@ -300,4 +306,46 @@ impl RealsenseCam {
             rl.wait_time(0.0);
         }
     }
+
+    /*
+    ///Load a json file into the device
+    fn load_json(device: &Device, json_fp: String) -> Result<(), anyhow::Error> {
+        //Check that the device is in advanced mode
+        println!("{:?}", device.info(Rs2CameraInfo::AdvancedMode));
+
+        if device.info(Rs2CameraInfo::AdvancedMode).unwrap()
+            != CStr::from_bytes_until_nul("true".as_bytes()).unwrap()
+        {
+            bail!("Not in advanced mode");
+        };
+
+        //Load the json file into raw bytes
+        let json = File::open(json_fp)?;
+
+        let file_bytes = json.bytes();
+        let mut bytes_vec: Vec<u8> = vec![];
+        for byte in file_bytes {
+            if byte.is_ok() {
+                bytes_vec.push(byte.unwrap())
+            }
+        }
+
+        //Turn the bytes into a c_void reference
+        let json_void: *const c_void = bytes_vec.as_ref() as *const Vec<u8> as *const c_void;
+        //Error pointer
+        let mut err = std::ptr::null_mut::<rs2_error>();
+
+        //Load the json to the file
+        unsafe {
+            rs2_load_json(
+                device.get_raw().as_mut(),
+                json_void,
+                bytes_vec.len() as u32,
+                &mut err,
+            );
+        }
+
+        Ok(())
+    }
+    */
 }
