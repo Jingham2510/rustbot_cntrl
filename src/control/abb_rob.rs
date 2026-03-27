@@ -1448,42 +1448,19 @@ impl AbbRob<'_> {
 
         //For each cam register what IDs are spotted
         for i in 0..1 {
-            let config_fp = format!("aruco_detect_{}", cam_list[i].cam_no);
             let aruco_info = cam_list[i].get_aruco_tags()?;
 
             //Get the number of tags spotted
-            let no_of_tags_spotted = aruco_info.len();
-
-            //Check the IDs and update the relevant camera config
-            for j in 0..no_of_tags_spotted {
-                //Using the aruco tag corners it is possible to calculate the distance and orientation
-
-                //We know the actual length - so can use corner to corner pixel to calculate size - and therefore distance
-                //If the corners dont sit on the expected plane with eachother - we can get the rotation as well
-
-                //Calculate how off axis the aruco tag is
-
-                //Calculate the size of the aruco tag
-
-                match aruco_info[j].0 {
-                    //Right side
-                    0 => {
-                        let expected_pos = [1.0, 2.0, 3.0];
-                        let expected_ori = [1.0, 2.0, -1.5708];
-                    }
-                    //Left side
-                    1 => {
-                        let expected_pos = [1.0, 2.0, 3.0];
-                        let expected_ori = [1.0, 2.0, 1.5708];
-                    }
-
-                    _ => {
-                        bail!("Invalid tag!")
-                    }
-                };
+            if aruco_info.len() > 1 {
+                bail!("Invalid aruco setup - too many tags spotted");
             }
 
-            //Update the camera config
+            //Determine the side of the camera
+            let side = if (aruco_info[0].0 == 0) {
+                "left"
+            } else {
+                "right"
+            };
         }
 
         Ok(())

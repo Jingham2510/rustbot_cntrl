@@ -36,12 +36,19 @@ fn main() -> Result<(), anyhow::Error> {
 
     //Load the program config
     let mut config: Config;
-    if let Ok(conf) = Config::setup_config() {
-        config = conf;
-        println!("Set config loaded");
-    } else {
-        println!("Error loading config - Loading default!");
-        config = Config::default();
+    let conf = Config::setup_config();
+
+    match conf {
+        Ok(conf) => {
+            config = conf;
+            println!("Set config loaded");
+        }
+
+        Err(conf) => {
+            println!("Error loading config - {}", conf);
+            println!("Loading default!");
+            config = Config::default();
+        }
     }
 
     //Run the command handler
@@ -123,14 +130,15 @@ fn core_cmd_handler(config: &mut Config) {
                     config.cam_info0.rel_ori()[1],
                     config.cam_info0.rel_ori()[2],
                 );
-
+                /*
                 pcl.translate(
                     config.cam_info0.rel_pos()[0],
                     config.cam_info0.rel_pos()[1],
                     config.cam_info0.rel_pos()[2],
                 );
+                */
 
-                pcl.save_to_file("test.txt");
+                pcl.save_to_file("test");
             }
 
             //Take a set of images on a timer for the charuco board claibration
@@ -466,6 +474,8 @@ fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
 
         let mut curr_pcl: PointCloud = cam.get_depth_pnts()?;
         let pcl_fp = format!("{}/pcl_{}_notranslate", new_fp, user_inp.trim());
+
+        println!("Number of points: {}", curr_pcl.size());
 
         curr_pcl.save_to_file(&pcl_fp);
 

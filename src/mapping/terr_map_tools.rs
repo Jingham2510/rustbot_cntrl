@@ -112,6 +112,11 @@ impl PointCloud {
         self.points.clone()
     }
 
+    ///Get the number of points in the cloud
+    pub fn size(&self) -> usize {
+        self.no_of_points
+    }
+
     ///Print all points in the point cloud
     pub fn print_points(&mut self) {
         for pnt in self.points.iter() {
@@ -152,26 +157,33 @@ impl PointCloud {
 
     ///Rotate a pointcloud
     ///Can cheat with the mat multiplication here, we know the predefined sizes already
-    ///Yaw - X
+    ///Yaw - Z
     ///Pitch - Y
-    ///Roll - Z
+    ///Roll - X
     pub fn rotate(&mut self, yaw: f64, pitch: f64, roll: f64) {
+        //Precalc the sin and cos
+        let yaw_c = yaw.cos();
+        let yaw_s = yaw.sin();
+
+        let pitch_c = pitch.cos();
+        let pitch_s = pitch.sin();
+
+        let roll_c = roll.cos();
+        let roll_s = roll.sin();
+
         //Create the transform matrix rows
         let x_rot = [
-            roll.cos() * pitch.cos(),
-            -((roll.sin() * yaw.cos()) + (roll.cos() * pitch.sin() * yaw.sin())),
-            (roll.sin() * yaw.sin()) + (roll.cos() * pitch.sin() * yaw.cos()),
+            yaw_c * pitch_c,
+            ((yaw_c * pitch_s * roll_s) - (yaw_s * roll_c)),
+            ((yaw_c * pitch_s * roll_c) + (yaw_s * roll_s)),
         ];
+
         let y_rot = [
-            roll.sin() * pitch.cos(),
-            (roll.cos() * yaw.cos()) + (roll.sin() * pitch.sin() * yaw.sin()),
-            -(roll.cos() * yaw.sin()) + (roll.sin() * pitch.sin() * yaw.cos()),
+            yaw_s * pitch_c,
+            (yaw_s * pitch_s * roll_s) + (yaw_c * roll_c),
+            (yaw_s * pitch_s * roll_c) - (yaw_c * roll_s),
         ];
-        let z_rot = [
-            -pitch.sin(),
-            pitch.cos() * yaw.sin(),
-            pitch.cos() * yaw.cos(),
-        ];
+        let z_rot = [-pitch_s, pitch_c * roll_s, pitch_c * roll_c];
 
         //Iterate through every point in the pointcloud
         for pnt in self.points.iter_mut() {
@@ -181,9 +193,9 @@ impl PointCloud {
             let og_z = pnt[2];
 
             //Rotate by multiplying the vector by the transform matrix
-            pnt[0] = x_rot[0] * og_x + x_rot[1] * og_y + x_rot[2] * og_z;
-            pnt[1] = y_rot[0] * og_x + y_rot[1] * og_y + y_rot[2] * og_z;
-            pnt[2] = z_rot[0] * og_x + z_rot[1] * og_y + z_rot[2] * og_z;
+            pnt[0] = (x_rot[0] * og_x) + (x_rot[1] * og_y) + (x_rot[2] * og_z);
+            pnt[1] = (y_rot[0] * og_x) + (y_rot[1] * og_y) + (y_rot[2] * og_z);
+            pnt[2] = (z_rot[0] * og_x) + (z_rot[1] * og_y) + (z_rot[2] * og_z);
         }
     }
 
