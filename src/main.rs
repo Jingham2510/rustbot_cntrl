@@ -5,8 +5,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
-use std::io::{Write, stdin, stdout};
-use std::process::{Command, Stdio};
+use std::io::{Write, stdin};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -22,7 +21,7 @@ mod modelling;
 use crate::analysis::analyser::{Analyser, ForceSel};
 use crate::config::Config;
 use crate::mapping::terr_map_sense::RealsenseCam;
-use crate::mapping::terr_map_tools::{Heightmap, PointCloud, average_heightmaps};
+use crate::mapping::terr_map_tools::{Heightmap, PointCloud};
 
 use control::abb_rob;
 
@@ -119,7 +118,7 @@ fn core_cmd_handler(config: &mut Config) {
             }
 
             "test" => {
-                let fp = format!("{}\\trans_check", config.test_fp());
+                let _fp = format!("{}\\trans_check", config.test_fp());
 
                 let mut pcl = PointCloud::create_from_file(String::from(
                     "C:\\Users\\User\\Documents\\Results\\DEPTH_TESTS\\trans_check\\pcl_trans_check_notranslate.txt",
@@ -138,7 +137,7 @@ fn core_cmd_handler(config: &mut Config) {
                 );
                 */
 
-                pcl.save_to_file("test");
+                let _ = pcl.save_to_file("test");
             }
 
             //Take a set of images on a timer for the charuco board claibration
@@ -151,17 +150,17 @@ fn core_cmd_handler(config: &mut Config) {
 
                 for i in 0..1 {
                     let img_fp = format!("cam_{}_ext_calib_{}", cam_no, i);
-                    cam.get_image(&img_fp);
+                    let _ = cam.get_image(&img_fp);
                     sleep(Duration::from_secs(1));
                 }
 
-                cam.get_aruco_tags();
+                let _ = cam.get_aruco_tags();
 
                 println!("Images taken");
             }
 
             "multipcl" => {
-                multi_cam_pcl(&config);
+                let _ = multi_cam_pcl(&config);
             }
 
             //Catch all else
@@ -477,7 +476,7 @@ fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
 
         println!("Number of points: {}", curr_pcl.size());
 
-        curr_pcl.save_to_file(&pcl_fp);
+        let _ = curr_pcl.save_to_file(&pcl_fp);
 
         curr_pcl.rotate(
             config.cam_info0.rel_ori()[0],

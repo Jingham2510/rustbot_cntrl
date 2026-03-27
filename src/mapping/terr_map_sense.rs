@@ -168,7 +168,7 @@ impl RealsenseCam {
     }
 
     ///Return all aruco tags visible to the camera
-    pub fn get_aruco_tags(&mut self) -> Result<(Vec<(usize, [(i32, i32); 4])>), anyhow::Error> {
+    pub fn get_aruco_tags(&mut self) -> Result<Vec<(usize, [(i32, i32); 4])>, anyhow::Error> {
         //Take an image and save it in the application data
         let tag_img_fp = format!("aruco_detect_{}", self.cam_no);
         self.get_image(&tag_img_fp)?;

@@ -34,6 +34,7 @@ pub struct CamInfo {
     ///The position relative to the zero position
     rel_pos: [f64; 3],
     ///The position relative to the zero orientation
+    ///Yaw (Z), Pitch(Y), Roll(X)
     rel_ori: [f64; 3],
     ///The x scale relative to the real-world
     x_scale: f64,
