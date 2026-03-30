@@ -4,6 +4,7 @@ use crate::helper_funcs::helper_funcs;
 use crate::helper_funcs::helper_funcs::{ColOpt, add_nan};
 use anyhow::bail;
 use chrono::{DateTime, Utc};
+use nalgebra::{Matrix4, Vector4};
 use rand::RngExt;
 use realsense_sys::rs2_vertex;
 use std::fs::File;
@@ -210,6 +211,22 @@ impl PointCloud {
         }
     }
 
+    ///Transform a pointcloud by a homogenous matrix
+    pub fn transform_with(&mut self, tmat: Matrix4<f64>) {
+        //Transform each point
+        for pnt in self.points.iter_mut() {
+            //Pad a 0 for vlaid matrix multiplication
+            let temp_pnt = Vector4::new(pnt[0], pnt[1], pnt[2], 0.0);
+
+            //Multiple the matrix and the temp point
+            let temp_pnt = tmat * temp_pnt;
+
+            pnt[0] = temp_pnt[0];
+            pnt[1] = temp_pnt[1];
+            pnt[2] = temp_pnt[2];
+        }
+    }
+
     ///Scale every point by the same value
     pub fn scale_even(&mut self, scale_val: f64) {
         //Iterate through every point
@@ -220,8 +237,6 @@ impl PointCloud {
             pnt[2] *= scale_val;
         }
     }
-
-    pub fn trans_extr(&mut self) {}
 
     ///Filter a pointcloud by specifying the valid bounds
     ///Inclusive of points that lie on the boundary
