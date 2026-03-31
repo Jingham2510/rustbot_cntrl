@@ -216,7 +216,7 @@ impl PointCloud {
         //Transform each point
         for pnt in self.points.iter_mut() {
             //Pad a 0 for vlaid matrix multiplication
-            let temp_pnt = Vector4::new(pnt[0], pnt[1], pnt[2], 0.0);
+            let temp_pnt = Vector4::new(pnt[0], pnt[1], pnt[2], 1.0);
 
             //Multiple the matrix and the temp point
             let temp_pnt = tmat * temp_pnt;

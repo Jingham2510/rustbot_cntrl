@@ -61,8 +61,8 @@ caml_int = np.asarray(
 
 caml_int = np.asarray(
     [
-        [967.445, 0.0, 955.357],
-        [0.0, 967.445, 529.405],
+        [913.9335, 0.0, 642.0047],
+        [0.0, 914.10986, 359.1379],
         [0.0, 0.0, 1.0],
     ]
 )  # Lefthand camera intrinsic matrix. - from calibration
@@ -84,7 +84,7 @@ def estimate_pose(image, K, dist):
     detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
     corners, ids, _ = detector.detectMarkers(gray)
 
-    # aruco_image = cv2.aruco.drawDetectedMarkers(image, corners, ids)
+    ##aruco_image = cv2.aruco.drawDetectedMarkers(image, corners, ids)
     # plt.imshow(aruco_image)
     # plt.show()
 
@@ -101,6 +101,8 @@ def estimate_pose(image, K, dist):
 
     for i, marker_id in enumerate(ids):
         if marker_id in marker_coords:
+            print(f"{marker_id} : ", f"{marker_coords[marker_id]}")
+
             # Use marker center as correspondence
             object_points.append(marker_coords[marker_id])
 
@@ -177,7 +179,7 @@ def process_camera(image_path, K, dist):
 
 
 caml = process_camera(
-    "C:\\Users\\User\\Documents\\Programming\\Projects\\rusbtot_cntrl\\rustbot_cntrl\\appdata\\large_aruco_not_ext.png",
+    "C:\\Users\\User\\Documents\\Programming\\Projects\\rusbtot_cntrl\\rustbot_cntrl\\appdata\\cam_l_aruco_not_joes.png",
     caml_int,
     caml_dist,
 )

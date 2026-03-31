@@ -9,6 +9,8 @@ use std::io::{Write, stdin};
 use std::thread::sleep;
 use std::time::Duration;
 
+use nalgebra::matrix;
+
 mod analysis;
 mod config;
 mod control;
@@ -118,26 +120,16 @@ fn core_cmd_handler(config: &mut Config) {
             }
 
             "test" => {
-                let _fp = format!("{}\\trans_check", config.test_fp());
-
                 let mut pcl = PointCloud::create_from_file(String::from(
-                    "C:\\Users\\User\\Documents\\Results\\DEPTH_TESTS\\trans_check\\pcl_trans_check_notranslate.txt",
-                )).unwrap();
+                    "C:\\Users\\User\\Documents\\Results\\DEPTH_TESTS\\right_ext_check\\pcl_right_ext_check_notranslate.txt",
+                ))
+                .unwrap();
 
-                pcl.rotate(
-                    config.cam_info0.rel_ori()[0],
-                    config.cam_info0.rel_ori()[1],
-                    config.cam_info0.rel_ori()[2],
-                );
-                /*
-                pcl.translate(
-                    config.cam_info0.rel_pos()[0],
-                    config.cam_info0.rel_pos()[1],
-                    config.cam_info0.rel_pos()[2],
-                );
-                */
+                println!("{}", config.cam_infor.tmat());
 
-                let _ = pcl.save_to_file("test");
+                pcl.transform_with(config.cam_infor.tmat());
+
+                let _ = pcl.save_to_file("r_test");
             }
 
             //Take a set of images on a timer for the charuco board claibration
@@ -354,7 +346,7 @@ fn save_n_heightmaps(config: &Config) -> Result<(), anyhow::Error> {
             let pcl_fp = format!("{}/pcl_{}_{}", new_fp, user_inp.trim(), i);
 
             curr_pcl.save_to_file(&*pcl_fp)?;
-
+            /*
             //Rotate the PCL to orient it correctly
             curr_pcl.scale_even(config.cam_info0.x_scale());
             curr_pcl.rotate(
@@ -375,6 +367,7 @@ fn save_n_heightmaps(config: &Config) -> Result<(), anyhow::Error> {
             let hmap_fp = format!("{}/hmap_{}_{}", new_fp, user_inp.trim(), i);
 
             curr_heightmap.save_to_file(&*hmap_fp)?;
+            */
         }
 
         //Create an empty data file so that the folder can be used with the analyser
@@ -407,6 +400,7 @@ fn multi_hmap(config: &Config) {
     //Take pointclouds
     let mut pcl0 = cam0.get_depth_pnts().unwrap();
     let mut pcl1 = cam1.get_depth_pnts().unwrap();
+    /*
 
     //Transform pointclouds
     pcl0.rotate(
@@ -433,6 +427,7 @@ fn multi_hmap(config: &Config) {
 
     //Display
     combi_hmap.disp_map().unwrap();
+    */
 }
 
 ///Take a specified number of pointclouds from a singular realsense camera
@@ -472,11 +467,13 @@ fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
         println!("begin");
 
         let mut curr_pcl: PointCloud = cam.get_depth_pnts()?;
+
         let pcl_fp = format!("{}/pcl_{}_notranslate", new_fp, user_inp.trim());
 
         println!("Number of points: {}", curr_pcl.size());
 
         let _ = curr_pcl.save_to_file(&pcl_fp);
+        /*
 
         curr_pcl.rotate(
             config.cam_info0.rel_ori()[0],
@@ -520,6 +517,7 @@ fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
                 //sleep(Duration::from_secs(2));
             }
         }
+        */
         curr_pcl.save_to_file(&*pcl_fp)?;
 
         //Create an empty data file so that the folder can be used with the analyser
@@ -561,12 +559,14 @@ fn multi_cam_pcl(config: &Config) -> Result<(), anyhow::Error> {
     let mut pcl_0: PointCloud = cam.get_depth_pnts()?;
     let mut pcl_1: PointCloud = cam1.get_depth_pnts()?;
 
+    /*
     //Translate and rotate appropriately
     pcl_0.rotate(
         config.cam_info0.rel_ori()[0],
         config.cam_info0.rel_ori()[1],
         config.cam_info0.rel_ori()[2],
     );
+    */
     //pcl_1.rotate(
     //  config.cam_info1.rel_ori()[0],
     // config.cam_info1.rel_ori()[1],

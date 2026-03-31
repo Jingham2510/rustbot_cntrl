@@ -6,6 +6,7 @@
 /// not help identify the underlying problem, i.e. the bandwidth of the connection.
 use anyhow::{Result, bail, ensure};
 use realsense_rust;
+use realsense_rust::base::Rs2Intrinsics;
 use realsense_rust::frame::{ColorFrame, FrameEx, PointsFrame};
 use realsense_rust::pipeline::ActivePipeline;
 use realsense_rust::{
@@ -107,6 +108,18 @@ impl RealsenseCam {
                 .enable_stream(Rs2StreamKind::Gyro, None, 0, 0, Rs2Format::Any, 0)?;
         }
         */
+
+        println!(
+            "cam int:{:?}",
+            pipeline.resolve(&config).unwrap().streams()[1]
+        );
+
+        println!(
+            "cam int:{:?}",
+            pipeline.resolve(&config).unwrap().streams()[1]
+                .intrinsics()
+                .unwrap()
+        );
 
         Ok(Self {
             cam_no,

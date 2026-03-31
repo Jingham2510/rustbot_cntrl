@@ -1,9 +1,11 @@
 #![allow(dead_code)]
 ///Configuraiton setup for the program
 use anyhow::bail;
+use nalgebra::Matrix4;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
+use std::process::exit;
 
 //TODO: Fix config again...
 //Config structs and setup
@@ -14,9 +16,9 @@ pub struct Config {
     ///The filepath of a given test
     test_fp: String,
     ///The first camera config info
-    pub cam_info0: CamInfo,
+    pub cam_infor: CamInfo,
     ///The second camerca config info
-    pub cam_info1: CamInfo,
+    pub cam_infol: CamInfo,
     ///The robot information
     pub rob_info: RobInfo,
     ///Geo-test phase 2 controller settings
@@ -31,11 +33,8 @@ pub struct Config {
 #[derive(Debug)]
 ///Camera config info
 pub struct CamInfo {
-    ///The position relative to the zero position
-    rel_pos: [f64; 3],
-    ///The position relative to the zero orientation
-    ///Yaw (Z), Pitch(Y), Roll(X)
-    rel_ori: [f64; 3],
+    ///Homogeneous transform to world 0,0,0 with z as vertical depth
+    tmat: Matrix4<f64>,
     ///The x scale relative to the real-world
     x_scale: f64,
     ///The y scale relative to the real world
@@ -65,8 +64,8 @@ impl Default for Config {
             test_fp: "C:/Users/User/Documents/Results/DEPTH_TESTS"
                 .parse()
                 .unwrap(),
-            cam_info0: CamInfo::default(),
-            cam_info1: CamInfo::default(),
+            cam_infor: CamInfo::default(),
+            cam_infol: CamInfo::default(),
             rob_info: RobInfo::default(),
             phase2_cntrl_settings: "NONE".parse().unwrap(),
             phase3_cntrl_settings: "NONE".parse().unwrap(),
@@ -79,9 +78,7 @@ impl Default for CamInfo {
     ///Create a default camera configuartion
     fn default() -> CamInfo {
         CamInfo {
-            rel_pos: [250.0, 250.0, 250.0],
-            //around 45 degrees facing downward
-            rel_ori: [0.785, std::f64::consts::PI, 0.0],
+            tmat: Matrix4::identity(),
             //Scale from mm to m
             x_scale: 0.001,
             y_scale: 0.001,
@@ -110,8 +107,8 @@ impl Config {
         //Get the Caminfo (from the file)
         Ok(Self {
             test_fp,
-            cam_info0: CamInfo::read_cam_info_from_file(0)?,
-            cam_info1: CamInfo::read_cam_info_from_file(1)?,
+            cam_infor: CamInfo::read_cam_info_from_file(0)?,
+            cam_infol: CamInfo::read_cam_info_from_file(1)?,
             rob_info: RobInfo::read_rob_info_from_file()?,
             phase2_cntrl_settings: "NONE".parse()?,
             phase3_cntrl_settings: "NONE".parse()?,
@@ -160,15 +157,9 @@ impl Config {
 
 impl CamInfo {
     ///Create the camera info
-    pub fn create_cam_info(
-        rel_pos: [f64; 3],
-        rel_ori: [f64; 3],
-        x_scale: f64,
-        y_scale: f64,
-    ) -> Self {
+    pub fn create_cam_info(tmat: Matrix4<f64>, x_scale: f64, y_scale: f64) -> Self {
         Self {
-            rel_pos,
-            rel_ori,
+            tmat,
             x_scale,
             y_scale,
         }
@@ -180,8 +171,7 @@ impl CamInfo {
         let cam_inf_split = cam_info_line.split("[");
         let mut ind_cnt = 0;
 
-        let mut rel_pos = [f64::NAN, f64::NAN, f64::NAN];
-        let mut rel_ori = [f64::NAN, f64::NAN, f64::NAN];
+        let mut tmat = Matrix4::identity();
         let mut x_scale = f64::NAN;
         let mut y_scale = f64::NAN;
 
@@ -191,12 +181,12 @@ impl CamInfo {
                 match ind_cnt {
                     1 => {
                         for (val_cnt, val) in token.split(",").enumerate() {
-                            rel_pos[val_cnt] = val.trim().parse()?;
+                            //rel_pos[val_cnt] = val.trim().parse()?;
                         }
                     }
                     3 => {
                         for (val_cnt, val) in token.split(",").enumerate() {
-                            rel_ori[val_cnt] = val.trim().parse()?;
+                            //rel_ori[val_cnt] = val.trim().parse()?;
                         }
                     }
                     5 => {
@@ -214,34 +204,46 @@ impl CamInfo {
                 ind_cnt += 1;
             }
         }
-        let cam_info = CamInfo::create_cam_info(rel_pos, rel_ori, x_scale, y_scale);
+        let cam_info = CamInfo::create_cam_info(tmat, x_scale, y_scale);
 
         Ok(cam_info)
     }
 
     ///Create cmarea info from camera preset camera config
     fn read_cam_info_from_file(cam_no: usize) -> Result<Self, anyhow::Error> {
+        let cam_side = if cam_no == 0 { "r" } else { "l" };
+
         //Construct the filepath
-        let cam_config_filename = format!("caminfo_{}.txt", cam_no);
+        let cam_config_filename = format!("caminfo_{}.txt", cam_side);
         let fp = format!("{}/{}", CONFIG_FP, cam_config_filename);
 
         //Open the cam config file
         let cam_config_file = File::open(fp)?;
 
         //Have the default values initialised - incase they aren't overwritten
-        let mut rel_pos: [f64; 3] = [250.0, 250.0, 250.0];
-        let mut rel_ori: [f64; 3] = [0.785, std::f64::consts::PI, 0.0];
+        let mut tmat: Matrix4<f64> = Matrix4::identity();
         let mut x_scale: f64 = 0.001;
         let mut y_scale: f64 = 0.001;
 
         //Go through each line and parse the info
         for line in BufReader::new(cam_config_file).lines() {
-            let curr_line = line?;
+            let mut curr_line = line?;
 
-            if curr_line.starts_with("REL_POS") {
-                rel_pos = pos_ori_parser(curr_line)?;
-            } else if curr_line.starts_with("REL_ORI") {
-                rel_ori = pos_ori_parser(curr_line)?;
+            if curr_line.starts_with("EXT_MAT") {
+                //Get rid of all blank space
+                curr_line = curr_line.replace(" ", "");
+                //Remove opening and ending brackets
+                curr_line = curr_line.replace("EXT_MAT=[", "");
+                curr_line = curr_line.replace("]", "");
+
+                //Split into lines
+                let row_split = curr_line.split(";");
+                for (i, token) in row_split.into_iter().enumerate() {
+                    let val_split = token.split(",");
+                    for (j, val) in val_split.into_iter().enumerate() {
+                        tmat[(i, j)] = val.parse()?;
+                    }
+                }
             } else if curr_line.starts_with("X_SCALE") {
                 x_scale = Self::extract_scale(curr_line)?;
             } else if curr_line.starts_with("Y_SCALE") {
@@ -252,8 +254,7 @@ impl CamInfo {
         }
 
         Ok(Self {
-            rel_pos,
-            rel_ori,
+            tmat,
             x_scale,
             y_scale,
         })
@@ -270,13 +271,8 @@ impl CamInfo {
     }
 
     ///Get the relative position
-    pub fn rel_pos(&self) -> [f64; 3] {
-        self.rel_pos
-    }
-
-    ///Get the relative orientation
-    pub fn rel_ori(&self) -> [f64; 3] {
-        self.rel_ori
+    pub fn tmat(&self) -> Matrix4<f64> {
+        self.tmat
     }
 
     ///Get the x axis scaling factor

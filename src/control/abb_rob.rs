@@ -460,11 +460,12 @@ impl AbbRob<'_> {
         let (tx, rx) = mpsc::channel();
 
         //Clone the cam configs to avoid handing ownership to the thread
-        let rel_pos_0 = self.config.cam_info0.rel_pos();
-        let rel_ori_0 = self.config.cam_info0.rel_ori();
-        let scale_0 = self.config.cam_info0.x_scale();
+        //let rel_pos_0 = self.config.cam_info0.rel_pos();
+        //let rel_ori_0 = self.config.cam_info0.rel_ori();
+        //let scale_0 = self.config.cam_info0.x_scale();
 
         //Create the thread that handles the depth camera
+        /*
         thread::spawn(move || {
             Self::depth_sensing(
                 rx,
@@ -477,14 +478,16 @@ impl AbbRob<'_> {
                 0,
             )
         });
+        */
 
         //Create the threading channels to trigger the camera
         let (tx1, rx1) = mpsc::channel();
 
+        /*
         //Clone the cam configs to avoid handing ownership to the thread
-        let rel_pos_1 = self.config.cam_info1.rel_pos();
-        let rel_ori_1 = self.config.cam_info1.rel_ori();
-        let scale_1 = self.config.cam_info1.x_scale();
+        //let rel_pos_1 = self.config.cam_info1.rel_pos();
+        //let rel_ori_1 = self.config.cam_info1.rel_ori();
+        //let scale_1 = self.config.cam_info1.x_scale();
 
         //Create the thread that handles the second depth camera
         thread::spawn(move || {
@@ -499,6 +502,7 @@ impl AbbRob<'_> {
                 1,
             )
         });
+        */
 
         //Setup the seperate PID controllers
         let mut phase2_cntrl =
@@ -1188,32 +1192,22 @@ impl AbbRob<'_> {
 
         //Save the cam info
         let line = format!(
-            "CAM0: POS:[{},{},{}] ORI:[{},{},{}] X_SC:[{}] Y_SC:[{}]",
-            self.config.cam_info0.rel_pos()[0],
-            self.config.cam_info0.rel_pos()[1],
-            self.config.cam_info0.rel_pos()[2],
-            self.config.cam_info0.rel_ori()[0],
-            self.config.cam_info0.rel_ori()[1],
-            self.config.cam_info0.rel_ori()[2],
-            self.config.cam_info0.x_scale(),
-            self.config.cam_info0.y_scale()
+            "CAMR: EXT_MAT:[{}] X_SC:[{}] Y_SC:[{}]",
+            self.config.cam_infor.tmat(),
+            self.config.cam_infor.x_scale(),
+            self.config.cam_infor.y_scale()
         );
 
         writeln!(file, "{}", line).expect("FAILED TO WRITE CAM TO CONFIG - CLOSING");
 
         let line = format!(
-            "CAM1: POS:[{},{},{}] ORI:[{},{},{}] X_SC:[{}] Y_SC:[{}]",
-            self.config.cam_info1.rel_pos()[0],
-            self.config.cam_info1.rel_pos()[1],
-            self.config.cam_info1.rel_pos()[2],
-            self.config.cam_info1.rel_ori()[0],
-            self.config.cam_info1.rel_ori()[1],
-            self.config.cam_info1.rel_ori()[2],
-            self.config.cam_info1.x_scale(),
-            self.config.cam_info1.y_scale()
+            "CAML: EXT_MAT:[{}] X_SC:[{}] Y_SC:[{}]",
+            self.config.cam_infol.tmat(),
+            self.config.cam_infol.x_scale(),
+            self.config.cam_infol.y_scale()
         );
 
-        writeln!(file, "{}", line).expect("FAILED TO WRITE CAM TO CONFIG - CLOSING");
+        //writeln!(file, "{}", line).expect("FAILED TO WRITE CAM TO CONFIG - CLOSING");
 
         //Save another line with the robot pos/ori config data
         let line = format!(
