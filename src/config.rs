@@ -5,7 +5,6 @@ use nalgebra::Matrix4;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::process::exit;
 
 //TODO: Fix config again...
 //Config structs and setup
@@ -167,45 +166,46 @@ impl CamInfo {
 
     ///Create a caminfo struct from a line with format CAM: POS:[X,Y,Z] ORI:[X,Y,Z] X_SC:[X] Y_SC[Y]
     pub fn create_cam_info_from_line(cam_info_line: String) -> Result<Self, anyhow::Error> {
-        //Split the line up
-        let cam_inf_split = cam_info_line.split("[");
-        let mut ind_cnt = 0;
+        let split = cam_info_line.replace(" ", "");
+        let split = split.split("SC");
 
-        let mut tmat = Matrix4::identity();
-        let mut x_scale = f64::NAN;
-        let mut y_scale = f64::NAN;
+        let mut tmat: Matrix4<f64> = Matrix4::identity();
+        let mut x_scale: f64 = 1.0;
+        let mut y_scale: f64 = 1.0;
 
-        for split in cam_inf_split {
-            //Split again to isolate the data
-            for token in split.split("]") {
-                match ind_cnt {
-                    1 => {
-                        for (val_cnt, val) in token.split(",").enumerate() {
-                            //rel_pos[val_cnt] = val.trim().parse()?;
+        for (i, token) in split.into_iter().enumerate() {
+            match i {
+                //The extrinsic matrix is saved as columns due to nalgebra debug setup
+                0 => {
+                    //Cover both camera cases
+                    let mut tmat_token = token.replace("CAMR:EXT_MAT:", "").replace("X_", "");
+                    tmat_token = tmat_token.replace("CAML:EXT_MAT:", "").replace("X_", "");
+
+                    let tmat_split = tmat_token.split("],");
+
+                    for (i, token) in tmat_split.into_iter().enumerate() {
+                        let token = token.replace("[", "").replace("]", "");
+
+                        for (j, val) in token.split(",").into_iter().enumerate() {
+                            tmat[(j, i)] = val.parse()?;
                         }
-                    }
-                    3 => {
-                        for (val_cnt, val) in token.split(",").enumerate() {
-                            //rel_ori[val_cnt] = val.trim().parse()?;
-                        }
-                    }
-                    5 => {
-                        x_scale = token.parse()?;
-                    }
-
-                    7 => {
-                        y_scale = token.parse()?;
-                    }
-
-                    _ => {
-                        //Do nothing
                     }
                 }
-                ind_cnt += 1;
+                1 => {
+                    let x_sc_str = token.replace(":[", "").replace("]Y_", "");
+                    x_scale = x_sc_str.parse()?;
+                }
+                2 => {
+                    let y_sc_str = token.replace(":[", "").replace("]\n", "");
+                    y_scale = y_sc_str.parse()?;
+                }
+                _ => {
+                    bail!("Cam line too long!");
+                }
             }
         }
-        let cam_info = CamInfo::create_cam_info(tmat, x_scale, y_scale);
 
+        let cam_info = CamInfo::create_cam_info(tmat, x_scale, y_scale);
         Ok(cam_info)
     }
 

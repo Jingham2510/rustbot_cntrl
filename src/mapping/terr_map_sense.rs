@@ -6,23 +6,16 @@
 /// not help identify the underlying problem, i.e. the bandwidth of the connection.
 use anyhow::{Result, bail, ensure};
 use realsense_rust;
-use realsense_rust::base::Rs2Intrinsics;
 use realsense_rust::frame::{ColorFrame, FrameEx, PointsFrame};
 use realsense_rust::pipeline::ActivePipeline;
 use realsense_rust::{
     config::Config,
     context::Context,
-    device::Device,
     frame::DepthFrame,
     kind::{Rs2CameraInfo, Rs2Format, Rs2ProductLine, Rs2StreamKind},
     pipeline::InactivePipeline,
 };
-use realsense_sys::{rs2_device, rs2_error, rs2_load_json};
 
-use std::ffi::CStr;
-use std::ffi::c_void;
-use std::fs::File;
-use std::io::Read;
 use std::process::{Command, Stdio};
 use std::{collections::HashSet, convert::TryFrom, time::Duration};
 

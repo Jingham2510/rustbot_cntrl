@@ -8,11 +8,12 @@ use crate::control::misc_tools::misc::wait_for_enter;
 use crate::control::misc_tools::string_tools;
 use crate::control::trajectory_planner;
 use crate::control::trajectory_planner::calc_xy_timing;
-use crate::mapping::terr_map_sense::{self, RealsenseCam};
+use crate::mapping::terr_map_sense::{self};
 use crate::mapping::terr_map_tools::Heightmap;
 use crate::modelling::experiment_model::ExpModel;
 use crate::networking::tcp_sock;
 use anyhow::bail;
+use nalgebra::Matrix4;
 use std::fs::OpenOptions;
 use std::io::{prelude::*, stdin};
 use std::sync::mpsc;
@@ -460,34 +461,21 @@ impl AbbRob<'_> {
         let (tx, rx) = mpsc::channel();
 
         //Clone the cam configs to avoid handing ownership to the thread
-        //let rel_pos_0 = self.config.cam_info0.rel_pos();
-        //let rel_ori_0 = self.config.cam_info0.rel_ori();
-        //let scale_0 = self.config.cam_info0.x_scale();
+        let tmat_0 = self.config.cam_infor.tmat();
+        let scale_0 = self.config.cam_infor.x_scale();
 
         //Create the thread that handles the depth camera
-        /*
+
         thread::spawn(move || {
-            Self::depth_sensing(
-                rx,
-                &*fp_copy,
-                &*test_name_copy,
-                true,
-                rel_pos_0,
-                rel_ori_0,
-                scale_0,
-                0,
-            )
+            Self::depth_sensing(rx, &*fp_copy, &*test_name_copy, true, tmat_0, scale_0, 0)
         });
-        */
 
         //Create the threading channels to trigger the camera
         let (tx1, rx1) = mpsc::channel();
 
-        /*
         //Clone the cam configs to avoid handing ownership to the thread
-        //let rel_pos_1 = self.config.cam_info1.rel_pos();
-        //let rel_ori_1 = self.config.cam_info1.rel_ori();
-        //let scale_1 = self.config.cam_info1.x_scale();
+        let tmat_1 = self.config.cam_infol.tmat();
+        let scale_1 = self.config.cam_infol.x_scale();
 
         //Create the thread that handles the second depth camera
         thread::spawn(move || {
@@ -496,13 +484,11 @@ impl AbbRob<'_> {
                 &*test_data.filepath.clone(),
                 &test_data.test_name.clone(),
                 true,
-                rel_pos_1,
-                rel_ori_1,
+                tmat_1,
                 scale_1,
                 1,
             )
         });
-        */
 
         //Setup the seperate PID controllers
         let mut phase2_cntrl =
@@ -886,8 +872,7 @@ impl AbbRob<'_> {
         filepath: &str,
         test_name: &str,
         hmap: bool,
-        rel_pos: [f64; 3],
-        rel_ori: [f64; 3],
+        tmat: Matrix4<f64>,
         scale: f64,
         cam_no: usize,
     ) {
@@ -910,8 +895,7 @@ impl AbbRob<'_> {
 
                 //Scale/rotate/transform the depth data so it is useable
                 curr_pcl.scale_even(scale);
-                curr_pcl.rotate(rel_ori[0], rel_ori[1], rel_ori[2]);
-                curr_pcl.translate(rel_pos[0], rel_pos[1], rel_pos[2]);
+                curr_pcl.transform_with(tmat);
 
                 //Pass band filter the transformed data to keep interest in the box only.
                 curr_pcl.passband_filter(-10.0, 2000.0, -10.0, 2000.0, -150.0, 200.0);
@@ -1192,7 +1176,7 @@ impl AbbRob<'_> {
 
         //Save the cam info
         let line = format!(
-            "CAMR: EXT_MAT:[{}] X_SC:[{}] Y_SC:[{}]",
+            "CAMR: EXT_MAT:[{:?}] X_SC:[{}] Y_SC:[{}]",
             self.config.cam_infor.tmat(),
             self.config.cam_infor.x_scale(),
             self.config.cam_infor.y_scale()
@@ -1201,13 +1185,13 @@ impl AbbRob<'_> {
         writeln!(file, "{}", line).expect("FAILED TO WRITE CAM TO CONFIG - CLOSING");
 
         let line = format!(
-            "CAML: EXT_MAT:[{}] X_SC:[{}] Y_SC:[{}]",
+            "CAML: EXT_MAT:[{:?}] X_SC:[{}] Y_SC:[{}]",
             self.config.cam_infol.tmat(),
             self.config.cam_infol.x_scale(),
             self.config.cam_infol.y_scale()
         );
 
-        //writeln!(file, "{}", line).expect("FAILED TO WRITE CAM TO CONFIG - CLOSING");
+        writeln!(file, "{}", line).expect("FAILED TO WRITE CAM TO CONFIG - CLOSING");
 
         //Save another line with the robot pos/ori config data
         let line = format!(
@@ -1428,35 +1412,5 @@ impl AbbRob<'_> {
         self.go_home_pos();
 
         self.write_marker(&test_data.data_filename, "Test end");
-    }
-
-    ///Calibrate the robot and camera setup
-    fn calib_setup(&mut self) -> Result<(), anyhow::Error> {
-        //Initialise the realsense cameras
-        let mut cam_list: [RealsenseCam; 2] =
-            [RealsenseCam::initialise(0)?, RealsenseCam::initialise(1)?];
-
-        //Move the robot to a predefined position (with the aruco tags being shown to the cams)
-        // let calib_pos = (0.0, 1.0, 2.0);
-        // self.set_pos();
-
-        //For each cam register what IDs are spotted
-        for i in 0..1 {
-            let aruco_info = cam_list[i].get_aruco_tags()?;
-
-            //Get the number of tags spotted
-            if aruco_info.len() > 1 {
-                bail!("Invalid aruco setup - too many tags spotted");
-            }
-
-            //Determine the side of the camera
-            let side = if (aruco_info[0].0 == 0) {
-                "left"
-            } else {
-                "right"
-            };
-        }
-
-        Ok(())
     }
 }

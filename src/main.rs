@@ -9,8 +9,6 @@ use std::io::{Write, stdin};
 use std::thread::sleep;
 use std::time::Duration;
 
-use nalgebra::matrix;
-
 mod analysis;
 mod config;
 mod control;
@@ -346,19 +344,7 @@ fn save_n_heightmaps(config: &Config) -> Result<(), anyhow::Error> {
             let pcl_fp = format!("{}/pcl_{}_{}", new_fp, user_inp.trim(), i);
 
             curr_pcl.save_to_file(&*pcl_fp)?;
-            /*
-            //Rotate the PCL to orient it correctly
-            curr_pcl.scale_even(config.cam_info0.x_scale());
-            curr_pcl.rotate(
-                config.cam_info0.rel_ori()[0],
-                config.cam_info0.rel_ori()[1],
-                config.cam_info0.rel_ori()[2],
-            );
-            curr_pcl.translate(
-                config.cam_info0.rel_pos()[0],
-                config.cam_info0.rel_pos()[1],
-                config.cam_info0.rel_pos()[2],
-            );
+
             //Empirically calculated passband to isolate terrain bed
             curr_pcl.passband_filter(-10.0, 2000.0, -10.0, 2000.0, -150.0, 200.0);
 
@@ -367,7 +353,6 @@ fn save_n_heightmaps(config: &Config) -> Result<(), anyhow::Error> {
             let hmap_fp = format!("{}/hmap_{}_{}", new_fp, user_inp.trim(), i);
 
             curr_heightmap.save_to_file(&*hmap_fp)?;
-            */
         }
 
         //Create an empty data file so that the folder can be used with the analyser
@@ -400,20 +385,10 @@ fn multi_hmap(config: &Config) {
     //Take pointclouds
     let mut pcl0 = cam0.get_depth_pnts().unwrap();
     let mut pcl1 = cam1.get_depth_pnts().unwrap();
-    /*
 
     //Transform pointclouds
-    pcl0.rotate(
-        config.cam_info0.rel_ori()[0],
-        config.cam_info0.rel_ori()[1],
-        config.cam_info0.rel_ori()[2],
-    );
-
-    pcl1.rotate(
-        config.cam_info1.rel_ori()[0],
-        config.cam_info1.rel_ori()[1],
-        config.cam_info1.rel_ori()[2],
-    );
+    pcl0.transform_with(config.cam_infor.tmat());
+    pcl1.transform_with(config.cam_infol.tmat());
 
     //passband filter the points
     //pcl0.passband_filter(min_x, max_x, min_y, max_y, min_z, max_z);
@@ -427,7 +402,6 @@ fn multi_hmap(config: &Config) {
 
     //Display
     combi_hmap.disp_map().unwrap();
-    */
 }
 
 ///Take a specified number of pointclouds from a singular realsense camera
@@ -473,19 +447,6 @@ fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
         println!("Number of points: {}", curr_pcl.size());
 
         let _ = curr_pcl.save_to_file(&pcl_fp);
-        /*
-
-        curr_pcl.rotate(
-            config.cam_info0.rel_ori()[0],
-            config.cam_info0.rel_ori()[1],
-            config.cam_info0.rel_ori()[2],
-        );
-
-        curr_pcl.translate(
-            config.cam_info0.rel_pos()[0],
-            config.cam_info0.rel_pos()[1],
-            config.cam_info0.rel_pos()[2],
-        );
 
         let pcl_fp = format!("{}/pcl_{}", new_fp, user_inp.trim());
 
@@ -493,31 +454,11 @@ fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
             for _ in 1..n {
                 curr_pcl.combine(cam.get_depth_pnts()?);
 
-                //Rotate the PCL to orient it correctly
-
-                /*
-
-                    curr_pcl.scale_even(config.cam_info.x_scale());
-                    curr_pcl.rotate(
-                        config.cam_info.rel_ori()[0],
-                        config.cam_info.rel_ori()[1],
-                        config.cam_info.rel_ori()[2],
-                    );
-                    curr_pcl.translate(
-                        config.cam_info.rel_pos()[0],
-                        config.cam_info.rel_pos()[1],
-                        config.cam_info.rel_pos()[2],
-                    );
-                    //Empirically calculated passband to isolate terrain bed
-                    curr_pcl.passband_filter(-10.0, 2000.0, -10.0, 2000.0, -150.0, 200.0);
-
-                */
-
                 //Allow time for another measurement to be taken
-                //sleep(Duration::from_secs(2));
+                sleep(Duration::from_secs(2));
             }
         }
-        */
+
         curr_pcl.save_to_file(&*pcl_fp)?;
 
         //Create an empty data file so that the folder can be used with the analyser
@@ -558,22 +499,6 @@ fn multi_cam_pcl(config: &Config) -> Result<(), anyhow::Error> {
     //Get the depth points
     let mut pcl_0: PointCloud = cam.get_depth_pnts()?;
     let mut pcl_1: PointCloud = cam1.get_depth_pnts()?;
-
-    /*
-    //Translate and rotate appropriately
-    pcl_0.rotate(
-        config.cam_info0.rel_ori()[0],
-        config.cam_info0.rel_ori()[1],
-        config.cam_info0.rel_ori()[2],
-    );
-    */
-    //pcl_1.rotate(
-    //  config.cam_info1.rel_ori()[0],
-    // config.cam_info1.rel_ori()[1],
-    //config.cam_info1.rel_ori()[2],
-    // );
-
-    //Apply the passband filters
 
     let pcl_fp_0 = format!("{}/pcl_{}_0", new_fp, user_inp.trim());
     let pcl_fp_1 = format!("{}/pcl_{}_1", new_fp, user_inp.trim());
