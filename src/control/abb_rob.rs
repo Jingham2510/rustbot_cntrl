@@ -895,7 +895,7 @@ impl AbbRob<'_> {
 
                 //Scale/rotate/transform the depth data so it is useable
                 curr_pcl.scale_even(scale);
-                curr_pcl.transform_with(tmat);
+                curr_pcl.transform_with(&tmat);
 
                 //Pass band filter the transformed data to keep interest in the box only.
                 curr_pcl.passband_filter(-10.0, 2000.0, -10.0, 2000.0, -150.0, 200.0);

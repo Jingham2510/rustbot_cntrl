@@ -21,9 +21,10 @@ mod modelling;
 use crate::analysis::analyser::{Analyser, ForceSel};
 use crate::config::Config;
 use crate::mapping::terr_map_sense::RealsenseCam;
-use crate::mapping::terr_map_tools::{Heightmap, PointCloud};
+use crate::mapping::terr_map_tools::{Heightmap, PointCloud, average_heightmaps};
 
 use control::abb_rob;
+use raylib::file;
 
 const VER_NUM: &str = "V0.8";
 //Program title
@@ -125,7 +126,7 @@ fn core_cmd_handler(config: &mut Config) {
 
                 println!("{}", config.cam_infor.tmat());
 
-                pcl.transform_with(config.cam_infor.tmat());
+                pcl.transform_with(&config.cam_infor.tmat());
 
                 let _ = pcl.save_to_file("r_test");
             }
@@ -151,6 +152,10 @@ fn core_cmd_handler(config: &mut Config) {
 
             "multipcl" => {
                 let _ = multi_cam_pcl(&config);
+            }
+
+            "realsense_param" => {
+                let _ = res_vs_avg_parametric_sweep(&config);
             }
 
             //Catch all else
@@ -387,8 +392,8 @@ fn multi_hmap(config: &Config) {
     let mut pcl1 = cam1.get_depth_pnts().unwrap();
 
     //Transform pointclouds
-    pcl0.transform_with(config.cam_infor.tmat());
-    pcl1.transform_with(config.cam_infol.tmat());
+    pcl0.transform_with(&config.cam_infor.tmat());
+    pcl1.transform_with(&config.cam_infol.tmat());
 
     //passband filter the points
     //pcl0.passband_filter(min_x, max_x, min_y, max_y, min_z, max_z);
@@ -513,5 +518,101 @@ fn multi_cam_pcl(config: &Config) -> Result<(), anyhow::Error> {
 
     println!("PCL generated");
 
+    Ok(())
+}
+
+///Realsense parametric study when measuring a known flat surface
+fn res_vs_avg_parametric_sweep(config: &Config) -> Result<(), anyhow::Error> {
+    //Parameters for the sweep
+
+    //1x1m space
+    //5 = 20cm resolution, 10 = 10cm resolution etc...
+    let resolutions: [u32; 8] = [5, 10, 20, 25, 50, 100, 200, 500];
+
+    let n_averages: [u32; 8] = [1, 2, 5, 10, 15, 20, 50, 100];
+
+    //Create the dataset filepath
+    let depth_test_fp: String = config.test_fp();
+    println!("Please provide a test name");
+
+    //Get user input
+    let mut user_inp = String::new();
+    stdin()
+        .read_line(&mut user_inp)
+        .expect("Failed to read line");
+    //Create a folder to hold the test data
+    let new_fp = format!("{}/{}", depth_test_fp, user_inp.trim());
+    fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
+
+    //Create two cameras
+    let mut cam_r = RealsenseCam::initialise(0)?;
+    let mut cam_l = RealsenseCam::initialise(1)?;
+
+    //Preload the transformation matrices
+    let trans_r = config.cam_infor.tmat();
+    let trans_l = config.cam_infol.tmat();
+
+    sleep(Duration::from_secs(5));
+
+    //Create empty heightmap matrix (with same number of lists as resolutions)
+    let mut hmap_mat: [Vec<Heightmap>; 8] = [
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+        vec![],
+    ];
+    //Initialise the count
+    let mut cnt: u32 = 0;
+
+    //Infinite loop
+    loop {
+        //Take pointclouds
+        let mut pcl_r = cam_r.get_depth_pnts()?;
+        let mut pcl_l = cam_l.get_depth_pnts()?;
+
+        //Transform the pointclouds
+        pcl_r.transform_with(&trans_r);
+        pcl_l.transform_with(&trans_l);
+
+        //Trim the pointclouds
+        pcl_r.passband_filter(0.0, 1.0, 0.0, 1.0, -100.0, 100.0);
+        pcl_l.passband_filter(0.0, 1.0, 0.0, 1.0, -100.0, 100.0);
+
+        //Combine into the right pcl
+        pcl_r.combine(pcl_l);
+
+        //Create heightmaps of each resolution required
+        for (i, res) in resolutions.as_ref().iter().enumerate() {
+            hmap_mat[i].push(Heightmap::create_using_pcl_ref(&pcl_r, *res, *res))
+        }
+
+        //Check if at one of the averaging parameters
+        if n_averages.contains(&cnt) {
+            //For each resolution
+            for (i, res) in resolutions.as_ref().iter().enumerate() {
+                //Create filename
+                let filename = format!("hmap_avg{}_res{}", cnt, res);
+
+                //Create the average heightmap
+                let mut avg_hmap = average_heightmaps(&hmap_mat[i]);
+
+                //Save average of heightmap (at each resolution)
+                avg_hmap.save_to_file(&format!("{}\\{}", depth_test_fp, filename))?;
+            }
+            println!("Finished {} averaging...", cnt);
+        }
+
+        //If over largest value exit the loop
+        if cnt >= 500 {
+            break;
+        }
+
+        //increase the count
+        cnt += 1;
+    }
     Ok(())
 }

@@ -127,7 +127,7 @@ impl PointCloud {
 
     ///Calculate the xy bounds of the pointcloud (rectangular)
     ///Assumes z is the height
-    pub fn get_bounds(&mut self) -> [f64; 4] {
+    pub fn get_bounds(&self) -> [f64; 4] {
         //Predefine the values we are interested in
         let mut x_min: f64 = 9999.0;
         let mut y_min: f64 = 9999.0;
@@ -212,7 +212,7 @@ impl PointCloud {
     }
 
     ///Transform a pointcloud by a homogenous matrix
-    pub fn transform_with(&mut self, tmat: Matrix4<f64>) {
+    pub fn transform_with(&mut self, tmat: &Matrix4<f64>) {
         //Transform each point
         for pnt in self.points.iter_mut() {
             //Pad a 0 for vlaid matrix multiplication
@@ -422,6 +422,51 @@ impl Heightmap {
 
         let cells = helper_funcs::trans_to_heightmap(
             pcl.points,
+            width as usize,
+            height as usize,
+            total_width,
+            total_height,
+            bounds[0],
+            bounds[2],
+            helper_funcs::MapGenOpt::Mean,
+        )
+        .expect("Failed to convert PCL to heightmap");
+
+        //check if the heightmap is square
+        let square = height == width;
+
+        //create the filename from the relative timestamp
+        let filename = format!("created from pcl- {}", pcl.rel_timestamp);
+
+        Self {
+            height,
+            width,
+            square,
+            no_of_cells: height * width,
+            min: 999.0,
+            max: -999.0,
+            min_updated: false,
+            max_updated: false,
+            min_pos: (0, 0),
+            max_pos: (0, 0),
+            cells,
+            lower_coord_bounds: [bounds[0], bounds[2]],
+            upper_coord_bounds: [bounds[1], bounds[3]],
+            filename,
+        }
+    }
+
+    ///Create a heightmap from a pointcloud without consuming it
+    pub fn create_using_pcl_ref(mut pcl: &PointCloud, width: u32, height: u32) -> Self {
+        //Get the bounds
+        let bounds = pcl.get_bounds();
+
+        //Calculate the real distance and height of the heightmap
+        let total_width = bounds[1] - bounds[0];
+        let total_height = bounds[3] - bounds[2];
+
+        let cells = helper_funcs::trans_to_heightmap(
+            pcl.points.clone(),
             width as usize,
             height as usize,
             total_width,
