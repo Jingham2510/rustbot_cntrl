@@ -100,7 +100,8 @@ impl RealsenseCam {
                 .enable_stream(Rs2StreamKind::Infrared, Some(1), 640, 0, Rs2Format::Y8, 30)?
                 .enable_stream(Rs2StreamKind::Gyro, None, 0, 0, Rs2Format::Any, 0)?;
         }
-        */
+
+
 
         println!(
             "cam int:{:?}",
@@ -113,6 +114,7 @@ impl RealsenseCam {
                 .intrinsics()
                 .unwrap()
         );
+         */
 
         Ok(Self {
             cam_no,

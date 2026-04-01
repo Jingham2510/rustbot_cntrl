@@ -7,6 +7,8 @@ use chrono::{DateTime, Utc};
 use nalgebra::{Matrix4, Vector4};
 use rand::RngExt;
 use realsense_sys::rs2_vertex;
+use scirs2::signal::FilterType::Lowpass;
+use scirs2::signal::filter::{butter, lfilter};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 
@@ -334,6 +336,7 @@ impl PointCloud {
 }
 
 ///Heightmap structure - contains the size and height information for each cell
+#[derive(Clone)]
 pub struct Heightmap {
     ///Number of pixel rows
     height: u32,
@@ -412,7 +415,7 @@ impl Heightmap {
     }
 
     ///Create a heightmap from a pointcloud (takes ownership of pcl object)
-    pub fn create_from_pcl(mut pcl: PointCloud, width: u32, height: u32) -> Self {
+    pub fn create_from_pcl(pcl: PointCloud, width: u32, height: u32) -> Self {
         //Get the bounds
         let bounds = pcl.get_bounds();
 
@@ -457,7 +460,7 @@ impl Heightmap {
     }
 
     ///Create a heightmap from a pointcloud without consuming it
-    pub fn create_using_pcl_ref(mut pcl: &PointCloud, width: u32, height: u32) -> Self {
+    pub fn create_using_pcl_ref(pcl: &PointCloud, width: u32, height: u32) -> Self {
         //Get the bounds
         let bounds = pcl.get_bounds();
 
@@ -952,6 +955,8 @@ pub fn comp_maps(
     Ok(diff_map)
 }
 
+//General heightmap statistical functions
+
 ///Takes a list of heightmaps that are the same size and averages them
 pub fn average_heightmaps(hmap_list: &Vec<Heightmap>) -> Heightmap {
     //Get the number of heightmaps
@@ -972,4 +977,48 @@ pub fn average_heightmaps(hmap_list: &Vec<Heightmap>) -> Heightmap {
     }
 
     avg_hmap
+}
+
+///Takes a list of heightmaps and applies a low pass filter to each bin
+pub fn low_pass_heightmaps(
+    hmap_list: &Vec<Heightmap>,
+    sample_rate: f64,
+    cutoff: f64,
+) -> Vec<Heightmap> {
+    //Calculate and create the filter
+    let nyquist = sample_rate / 2.0;
+    let normalised_cutoff = cutoff / nyquist;
+    let (b, a) = butter(4, normalised_cutoff, Lowpass).expect("Failed to create filter");
+
+    //Get the number of heightmaps
+    let no_of_heightmaps = hmap_list.len();
+
+    let width = hmap_list[0].width();
+    let height = hmap_list[0].height();
+
+    //Create a list of heightmaps the same size as the heightmaps in the list
+    let mut filtered_heightmaps: Vec<Heightmap> =
+        vec![Heightmap::new(width, height); no_of_heightmaps];
+
+    //Go through each point in the list
+    for y in 0..width {
+        for x in 0..height {
+            //Store the bin values in a sequential list
+            let mut curr_bin_sig: Vec<f64> = vec![];
+            for i in 0..no_of_heightmaps {
+                curr_bin_sig.push(hmap_list[i].cells[y as usize][x as usize])
+            }
+
+            //Apply the low pass filter to the values
+            let filtered_bin = lfilter(&b, &a, &curr_bin_sig).expect("Failed to filter the data");
+
+            //Go through each heightmap in the new list and place the new bin values in the heightmap
+            for i in 0..no_of_heightmaps {
+                filtered_heightmaps[i].cells[y as usize][x as usize] = filtered_bin[i as usize];
+            }
+        }
+    }
+
+    //Return the list of heightmaps
+    filtered_heightmaps
 }
