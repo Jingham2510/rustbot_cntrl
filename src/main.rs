@@ -7,7 +7,7 @@ use std::fs;
 use std::fs::File;
 use std::io::{Write, stdin};
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 mod analysis;
 mod config;
@@ -21,7 +21,9 @@ mod modelling;
 use crate::analysis::analyser::{Analyser, ForceSel};
 use crate::config::Config;
 use crate::mapping::terr_map_sense::RealsenseCam;
-use crate::mapping::terr_map_tools::{Heightmap, PointCloud, average_heightmaps};
+use crate::mapping::terr_map_tools::{
+    Heightmap, PointCloud, average_heightmaps, low_pass_heightmaps,
+};
 
 use control::abb_rob;
 
@@ -118,16 +120,17 @@ fn core_cmd_handler(config: &mut Config) {
             }
 
             "test" => {
-                let mut pcl = PointCloud::create_from_file(String::from(
-                    "C:\\Users\\User\\Documents\\Results\\DEPTH_TESTS\\right_ext_check\\pcl_right_ext_check_notranslate.txt",
-                ))
-                .unwrap();
+                //Load the heightmaps of interest and display them
+                let hmap_1 = Heightmap::create_from_file(String::from(
+                    "C:\\Users\\User\\Documents\\Results\\DEPTH_TESTS\\realsense_param_sweep_2\\hmap_avg100_res100.txt",
+                ));
 
-                println!("{}", config.cam_infor.tmat());
+                let hmap_2 = Heightmap::create_from_file(String::from(
+                    "C:\\Users\\User\\Documents\\Results\\DEPTH_TESTS\\half_hz_realsense_param_sweep\\hmap_avg100_res100.txt",
+                ));
 
-                pcl.transform_with(&config.cam_infor.tmat());
-
-                let _ = pcl.save_to_file("r_test");
+                hmap_1.unwrap().disp_map();
+                hmap_2.unwrap().disp_map();
             }
 
             //Take a set of images on a timer for the charuco board claibration
@@ -155,6 +158,10 @@ fn core_cmd_handler(config: &mut Config) {
 
             "realsense_param" => {
                 let _ = res_vs_avg_parametric_sweep(&config);
+            }
+
+            "param_timing" => {
+                let _ = res_vs_avg_parametric_timing(config);
             }
 
             //Catch all else
@@ -567,9 +574,13 @@ fn res_vs_avg_parametric_sweep(config: &Config) -> Result<(), anyhow::Error> {
     ];
     //Initialise the count
     let mut cnt: u32 = 0;
+    let mut sample_rate = 1.0;
 
     //Infinite loop
     loop {
+        //Start the timer
+        let start = SystemTime::now();
+
         //Take pointclouds
         let mut pcl_r = cam_r.get_depth_pnts()?;
         let mut pcl_l = cam_l.get_depth_pnts()?;
@@ -590,6 +601,9 @@ fn res_vs_avg_parametric_sweep(config: &Config) -> Result<(), anyhow::Error> {
             hmap_mat[i].push(Heightmap::create_using_pcl_ref(&pcl_r, *res, *res))
         }
 
+        //increase the count
+        cnt += 1;
+
         //Check if at one of the averaging parameters
         if n_averages.contains(&cnt) {
             //For each resolution
@@ -597,8 +611,10 @@ fn res_vs_avg_parametric_sweep(config: &Config) -> Result<(), anyhow::Error> {
                 //Create filename
                 let filename = format!("hmap_avg{}_res{}", cnt, res);
 
+                let filtered_heightmaps = low_pass_heightmaps(&hmap_mat[i], sample_rate, 0.5);
+
                 //Create the average heightmap
-                let mut avg_hmap = average_heightmaps(&hmap_mat[i]);
+                let mut avg_hmap = average_heightmaps(&filtered_heightmaps);
 
                 //Save average of heightmap (at each resolution)
                 avg_hmap.save_to_file(&format!("{}\\{}", new_fp, filename))?;
@@ -611,8 +627,119 @@ fn res_vs_avg_parametric_sweep(config: &Config) -> Result<(), anyhow::Error> {
             break;
         }
 
-        //increase the count
-        cnt += 1;
+        //Calc the average sample rate
+        sample_rate = (sample_rate + start.elapsed().unwrap().as_secs_f64()) / 2.0;
     }
+    Ok(())
+}
+
+///Realsense parametric study when for timing how long it takes to create measurements depending on res and averaging
+fn res_vs_avg_parametric_timing(config: &Config) -> Result<(), anyhow::Error> {
+    //Parameters for the sweep
+    //1x1m space
+    //5 = 20cm resolution, 10 = 10cm resolution etc...
+    let resolutions: [u32; 10] = [5, 10, 20, 25, 50, 100, 200, 300, 400, 500];
+
+    let n_averages: [u32; 10] = [1, 2, 5, 10, 15, 20, 25, 50, 75, 100];
+
+    //Create the dataset filepath
+    let depth_test_fp: String = config.test_fp();
+    println!("Please provide a test name");
+
+    //Get user input
+    let mut user_inp = String::new();
+    stdin()
+        .read_line(&mut user_inp)
+        .expect("Failed to read line");
+    //Create a folder to hold the test data
+    let new_fp = format!("{}/{}", depth_test_fp, user_inp.trim());
+    fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
+
+    //Create two cameras
+    let mut cam_r = RealsenseCam::initialise(0)?;
+    let mut cam_l = RealsenseCam::initialise(1)?;
+
+    //Preload the transformation matrices
+    let trans_r = config.cam_infor.tmat();
+    let trans_l = config.cam_infol.tmat();
+
+    sleep(Duration::from_secs(5));
+
+    //Create empty heightmap matrix (with same number of lists as resolutions)
+    let mut heightmap_list: Vec<Heightmap> = vec![];
+    let mut timing_mat: [[u128; 10]; 10] = [[0; 10]; 10];
+
+    //Initialise the count
+    let mut cnt: u32 = 0;
+    let mut sample_rate = 2.0;
+
+    let mut start: SystemTime = SystemTime::now();
+    let mut j: usize = 0;
+
+    //Infinite loop
+    for (i, res) in resolutions.iter().enumerate() {
+        cnt = 0;
+        heightmap_list.clear();
+        j = 0;
+        start = SystemTime::now();
+
+        while cnt <= 100 {
+            //Take pointclouds
+            let mut pcl_r = cam_r.get_depth_pnts()?;
+            let mut pcl_l = cam_l.get_depth_pnts()?;
+
+            //Transform the pointclouds
+            pcl_r.transform_with(&trans_r);
+            pcl_l.transform_with(&trans_l);
+
+            //Trim the pointclouds
+            pcl_r.passband_filter(0.0, 1.0, 0.0, 1.0, -100.0, 100.0);
+            pcl_l.passband_filter(0.0, 1.0, 0.0, 1.0, -10.0, 10.0);
+
+            //Combine into the right pcl
+            pcl_r.combine(pcl_l);
+
+            heightmap_list.push(Heightmap::create_from_pcl(pcl_r, *res, *res));
+            //increase the count
+            cnt += 1;
+
+            //Check if at one of the averaging parameters
+            if n_averages.contains(&cnt) {
+                //Create filename
+                let filename = format!("hmap_avg{}_res{}", cnt, res);
+
+                let filtered_heightmaps = low_pass_heightmaps(&heightmap_list, sample_rate, 0.5);
+
+                //Create the average heightmap
+                let mut avg_hmap = average_heightmaps(&filtered_heightmaps);
+
+                //Save average of heightmap (at each resolution)
+                avg_hmap.save_to_file(&format!("{}\\{}", new_fp, filename))?;
+                timing_mat[i][j] = start.elapsed().unwrap().as_millis();
+                j += 1;
+                println!("Finished {} averaging for res {}...", cnt, res);
+            }
+
+            //Calc the average sample rate
+            sample_rate = (sample_rate + start.elapsed().unwrap().as_secs_f64()) / 2.0;
+        }
+    }
+
+    //Save the timing matrix
+    let time_mat_filename = "timing_matrix";
+
+    //Create a file
+    let mut file = File::create(format!("{}\\{}.txt", new_fp, time_mat_filename))?;
+
+    //Iterate thorugh each row
+    for row in timing_mat.iter() {
+        for val in row {
+            let str_val = format!("{:?},", val);
+            file.write_all(str_val.as_bytes())?
+        }
+        file.write_all("\n".as_ref())?;
+    }
+
+    println!("Done!");
     Ok(())
 }

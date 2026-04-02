@@ -6,7 +6,15 @@ use std::io::{BufRead, stdin};
 use std::{fs, io};
 
 ///The trajectories that have been implemented
-const IMPL_TRAJS: [&str; 6] = ["line", "circle", "slidedown", "dline", "wiggle", "custom"];
+const IMPL_TRAJS: [&str; 7] = [
+    "line",
+    "circle",
+    "slidedown",
+    "dline",
+    "wiggle",
+    "depthcomp",
+    "custom",
+];
 
 //120
 const DEFAULT_Z: f64 = 161.0;
@@ -108,7 +116,7 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
                         (start_y + (step * j as f64)),
                         start_z + (i as f64 * depth_sep),
                     ));
-                }                
+                }
 
                 //Go home to not disturb the other lines
                 trajectory.push((262.0, start_y, DEFAULT_Z - 150.0))
