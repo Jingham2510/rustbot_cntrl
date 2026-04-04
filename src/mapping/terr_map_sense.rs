@@ -40,7 +40,33 @@ pub struct RealsenseCam {
 impl RealsenseCam {
     ///Connect and Initialise a camera
     /// When using multiple cameras, cam_no is used to specify which one to connect to
-    pub fn initialise(cam_no: usize) -> Result<Self> {
+    pub fn initialise_raw(cam_no: usize) -> Result<Self> {
+        let (pipeline, config) = Self::setup(cam_no)?;
+
+        Ok(Self {
+            cam_no,
+            //Start the pipeline in the camera object
+            //(This is done to get around the pipeline being consumed
+            pipeline: pipeline.start(Some(config))?,
+            pcl_block: FrameProcBlock::make_raw_points_block(100)?,
+        })
+    }
+
+    ///Connect and Initialise a camera
+    /// When using multiple cameras, cam_no is used to specify which one to connect to
+    pub fn initialise_with_temp_filt(cam_no: usize) -> Result<Self> {
+        let (pipeline, config) = Self::setup(cam_no)?;
+
+        Ok(Self {
+            cam_no,
+            //Start the pipeline in the camera object
+            //(This is done to get around the pipeline being consumed
+            pipeline: pipeline.start(Some(config))?,
+            pcl_block: FrameProcBlock::make_tempflt_points_block(100)?,
+        })
+    }
+
+    fn setup(cam_no: usize) -> Result<(InactivePipeline, Config), anyhow::Error> {
         // Check for depth or color-compatible devices.
         let mut queried_devices = HashSet::new();
         queried_devices.insert(Rs2ProductLine::D400);
@@ -74,55 +100,7 @@ impl RealsenseCam {
             .enable_stream(Rs2StreamKind::Depth, None, 1280, 0, Rs2Format::Z16, 30)?
             .enable_stream(Rs2StreamKind::Color, None, 1280, 0, Rs2Format::Rgb8, 30)?;
 
-        // Check the USB speed of our connection - for now dont check because we only care about depth stream
-        // CStr => str => f32
-        /*
-        let usb_cstr = devices[0].info(Rs2CameraInfo::UsbTypeDescriptor).unwrap();
-        let usb_val: f32 = usb_cstr.to_str()?.parse()?;
-        if usb_val >= 3.0 {
-            config
-                .enable_device_from_serial(devices[0].info(Rs2CameraInfo::SerialNumber).unwrap())?
-                .disable_all_streams()?
-                .enable_stream(Rs2StreamKind::Depth, None, 640, 0, Rs2Format::Z16, 30)?
-                .enable_stream(Rs2StreamKind::Color, None, 640, 0, Rs2Format::Rgb8, 30)?
-                // RealSense doesn't seem to like index zero for the IR cameras on D435i
-                //
-                // Really not sure why? This seems like an implementation issue, but in practice most
-                // won't be after the IR image directly.
-                .enable_stream(Rs2StreamKind::Infrared, Some(1), 640, 0, Rs2Format::Y8, 30)?
-                .enable_stream(Rs2StreamKind::Infrared, Some(2), 640, 0, Rs2Format::Y8, 30)?
-                .enable_stream(Rs2StreamKind::Gyro, None, 0, 0, Rs2Format::Any, 0)?;
-        } else {
-            config
-                .enable_device_from_serial(devices[0].info(Rs2CameraInfo::SerialNumber).unwrap())?
-                .disable_all_streams()?
-                .enable_stream(Rs2StreamKind::Depth, None, 640, 0, Rs2Format::Z16, 30)?
-                .enable_stream(Rs2StreamKind::Infrared, Some(1), 640, 0, Rs2Format::Y8, 30)?
-                .enable_stream(Rs2StreamKind::Gyro, None, 0, 0, Rs2Format::Any, 0)?;
-        }
-
-
-
-        println!(
-            "cam int:{:?}",
-            pipeline.resolve(&config).unwrap().streams()[1]
-        );
-
-        println!(
-            "cam int:{:?}",
-            pipeline.resolve(&config).unwrap().streams()[1]
-                .intrinsics()
-                .unwrap()
-        );
-         */
-
-        Ok(Self {
-            cam_no,
-            //Start the pipeline in the camera object
-            //(This is done to get around the pipeline being consumed
-            pipeline: pipeline.start(Some(config))?,
-            pcl_block: FrameProcBlock::make_raw_points_block(100)?,
-        })
+        Ok((pipeline, config))
     }
 
     ///Return a raw xyz pointcloud from the camera
