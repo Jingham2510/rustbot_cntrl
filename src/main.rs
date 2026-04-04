@@ -122,11 +122,11 @@ fn core_cmd_handler(config: &mut Config) {
             "test" => {
                 //Load the heightmaps of interest and display them
                 let hmap_1 = Heightmap::create_from_file(String::from(
-                    "C:\\Users\\User\\Documents\\Results\\DEPTH_TESTS\\realsense_param_sweep_2\\hmap_avg100_res100.txt",
+                    "C:\\Users\\User\\Documents\\Results\\DEPTH_TESTS\\tenth_hz_param_sweep_feature\\hmap_avg100_res100.txt",
                 ));
 
                 let hmap_2 = Heightmap::create_from_file(String::from(
-                    "C:\\Users\\User\\Documents\\Results\\DEPTH_TESTS\\half_hz_realsense_param_sweep\\hmap_avg100_res100.txt",
+                    "C:\\Users\\User\\Documents\\Results\\DEPTH_TESTS\\nofilter_param_sweep_feature\\hmap_avg100_res50.txt",
                 ));
 
                 hmap_1.unwrap().disp_map();
@@ -154,6 +154,10 @@ fn core_cmd_handler(config: &mut Config) {
 
             "multipcl" => {
                 let _ = multi_cam_pcl(&config);
+            }
+
+            "multihmap" => {
+                let _ = multi_hmap(&config);
             }
 
             "realsense_param" => {
@@ -387,32 +391,53 @@ fn save_n_heightmaps(config: &Config) -> Result<(), anyhow::Error> {
 
 ///Create a heightmap from multiple camera inputs
 fn multi_hmap(config: &Config) {
+    //Create the dataset filepath
+    let depth_test_fp: String = config.test_fp();
+    println!("Please provide a test name");
+
+    //Get user input
+    let mut user_inp = String::new();
+    stdin()
+        .read_line(&mut user_inp)
+        .expect("Failed to read line");
+    //Create a folder to hold the test data
+    let new_fp = format!("{}/{}", depth_test_fp, user_inp.trim());
+    fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
+
     //Initialise both cameras
     let mut cam0 = RealsenseCam::initialise(0).unwrap();
     let mut cam1 = RealsenseCam::initialise(1).unwrap();
 
     sleep(Duration::from_secs(5));
 
-    //Take pointclouds
-    let mut pcl0 = cam0.get_depth_pnts().unwrap();
-    let mut pcl1 = cam1.get_depth_pnts().unwrap();
+    for i in 0..1000 {
+        //Take pointclouds
+        let pcl_0 = cam0.get_depth_pnts().unwrap();
+        let pcl_1 = cam1.get_depth_pnts().unwrap();
 
-    //Transform pointclouds
-    pcl0.transform_with(&config.cam_infor.tmat());
-    pcl1.transform_with(&config.cam_infol.tmat());
+        //Transform pointclouds
+        //Get the depth points
+        let mut pcl_0: PointCloud = cam0.get_depth_pnts().unwrap();
+        let mut pcl_1: PointCloud = cam1.get_depth_pnts().unwrap();
 
-    //passband filter the points
-    //pcl0.passband_filter(min_x, max_x, min_y, max_y, min_z, max_z);
-    //pcl1.passband_filter(min_x, max_x, min_y, max_y, min_z, max_z);
+        pcl_0.transform_with(&config.cam_infor.tmat());
+        pcl_1.transform_with(&config.cam_infol.tmat());
 
-    //Combine
-    pcl0.combine(pcl1);
+        pcl_0.passband_filter(0.0, 1.0, 0.0, 1.0, -10.0, 10.0);
+        pcl_1.passband_filter(0.0, 1.0, 0.0, 1.0, -10.0, 10.0);
 
-    //Turn into heightmap
-    let mut combi_hmap = Heightmap::create_from_pcl(pcl0, 100, 100);
+        pcl_0.combine(pcl_1);
 
-    //Display
-    combi_hmap.disp_map().unwrap();
+        //Turn into heightmap
+        let mut combi_hmap = Heightmap::create_from_pcl(pcl_0, 100, 100);
+        //Create filename
+        let filename = format!("hmap_{}", i);
+
+        //Save average of heightmap (at each resolution)
+        let _ = combi_hmap.save_to_file(&format!("{}\\{}", new_fp, filename));
+    }
+
+    println!("Done");
 }
 
 ///Take a specified number of pointclouds from a singular realsense camera
@@ -511,11 +536,17 @@ fn multi_cam_pcl(config: &Config) -> Result<(), anyhow::Error> {
     let mut pcl_0: PointCloud = cam.get_depth_pnts()?;
     let mut pcl_1: PointCloud = cam1.get_depth_pnts()?;
 
+    pcl_0.transform_with(&config.cam_infor.tmat());
+    pcl_1.transform_with(&config.cam_infol.tmat());
+
+    pcl_0.passband_filter(0.0, 1.0, 0.0, 1.0, -10.0, 10.0);
+    pcl_1.passband_filter(0.0, 1.0, 0.0, 1.0, -10.0, 10.0);
+
+    pcl_0.combine(pcl_1);
+
     let pcl_fp_0 = format!("{}/pcl_{}_0", new_fp, user_inp.trim());
-    let pcl_fp_1 = format!("{}/pcl_{}_1", new_fp, user_inp.trim());
 
     pcl_0.save_to_file(&*pcl_fp_0)?;
-    pcl_1.save_to_file(&*pcl_fp_1)?;
 
     //Create an empty data file so that the folder can be used with the analyser
     let data_fp = format!("{}/data_{}.txt", new_fp, user_inp.trim());
@@ -574,7 +605,7 @@ fn res_vs_avg_parametric_sweep(config: &Config) -> Result<(), anyhow::Error> {
     ];
     //Initialise the count
     let mut cnt: u32 = 0;
-    let mut sample_rate = 1.0;
+    let mut sample_rate = 5.0;
 
     //Infinite loop
     loop {
@@ -611,7 +642,7 @@ fn res_vs_avg_parametric_sweep(config: &Config) -> Result<(), anyhow::Error> {
                 //Create filename
                 let filename = format!("hmap_avg{}_res{}", cnt, res);
 
-                let filtered_heightmaps = low_pass_heightmaps(&hmap_mat[i], sample_rate, 0.5);
+                let filtered_heightmaps = low_pass_heightmaps(&hmap_mat[i], sample_rate, 0.1);
 
                 //Create the average heightmap
                 let mut avg_hmap = average_heightmaps(&filtered_heightmaps);
@@ -670,11 +701,11 @@ fn res_vs_avg_parametric_timing(config: &Config) -> Result<(), anyhow::Error> {
     let mut timing_mat: [[u128; 10]; 10] = [[0; 10]; 10];
 
     //Initialise the count
-    let mut cnt: u32 = 0;
+    let mut cnt: u32;
     let mut sample_rate = 2.0;
 
-    let mut start: SystemTime = SystemTime::now();
-    let mut j: usize = 0;
+    let mut start: SystemTime;
+    let mut j: usize;
 
     //Infinite loop
     for (i, res) in resolutions.iter().enumerate() {
@@ -708,7 +739,7 @@ fn res_vs_avg_parametric_timing(config: &Config) -> Result<(), anyhow::Error> {
                 //Create filename
                 let filename = format!("hmap_avg{}_res{}", cnt, res);
 
-                let filtered_heightmaps = low_pass_heightmaps(&heightmap_list, sample_rate, 0.5);
+                let filtered_heightmaps = low_pass_heightmaps(&heightmap_list, sample_rate, 0.1);
 
                 //Create the average heightmap
                 let mut avg_hmap = average_heightmaps(&filtered_heightmaps);

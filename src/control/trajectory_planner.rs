@@ -17,7 +17,7 @@ const IMPL_TRAJS: [&str; 7] = [
 ];
 
 //120
-const DEFAULT_Z: f64 = 161.0;
+const DEFAULT_Z: f64 = 262.0;
 
 ///Generates a trajectory bsaed on string input from user
 pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
@@ -97,16 +97,16 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
 
         //Three straight lines with different depths
         "depthcomp" => {
-            let start_x = 262.0;
-            let start_z = DEFAULT_Z;
+            let start_x = 150.0;
+            let start_z = DEFAULT_Z - 5.00;
 
-            let start_y = 1650.0;
-            let end_y = 2100.0;
-            let pnts_per_line = 100;
+            let start_y = 1780.0;
+            let end_y = 2310.0;
+            let pnts_per_line = 5;
             let step = (end_y - start_y) / pnts_per_line as f64;
 
             let no_of_lines = 3;
-            let line_sep = 100.0;
+            let line_sep = 200.0;
             let depth_sep = 25.0;
 
             for i in 0..no_of_lines {
@@ -114,12 +114,12 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
                     trajectory.push((
                         start_x + (i as f64 * line_sep),
                         (start_y + (step * j as f64)),
-                        start_z + (i as f64 * depth_sep),
+                        start_z - (i as f64 * depth_sep),
                     ));
                 }
 
                 //Go home to not disturb the other lines
-                trajectory.push((262.0, start_y, DEFAULT_Z - 150.0))
+                trajectory.push((start_x + (i as f64 * line_sep), start_y, DEFAULT_Z + 50.0))
             }
         }
 

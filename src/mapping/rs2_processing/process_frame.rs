@@ -4,9 +4,10 @@ use image::{Rgb, RgbImage};
 use realsense_rust::frame::{ColorFrame, DepthFrame, FrameEx, PixelKind, PointsFrame};
 use realsense_rust::stream_profile::DataError;
 use realsense_sys::{
-    rs2_create_frame_queue, rs2_create_pointcloud, rs2_delete_frame_queue,
-    rs2_delete_processing_block, rs2_error, rs2_frame, rs2_frame_queue, rs2_poll_for_frame,
-    rs2_process_frame, rs2_processing_block, rs2_start_processing_queue, rs2_wait_for_frame,
+    rs2_create_frame_queue, rs2_create_pointcloud, rs2_create_temporal_filter_block,
+    rs2_delete_frame_queue, rs2_delete_processing_block, rs2_error, rs2_frame, rs2_frame_queue,
+    rs2_poll_for_frame, rs2_process_frame, rs2_processing_block, rs2_start_processing_queue,
+    rs2_wait_for_frame,
 };
 use std::ptr::NonNull;
 use std::time::Duration;
@@ -44,13 +45,35 @@ impl<T> Drop for FrameProcBlock<T> {
 
 impl FrameProcBlock<PointsFrame> {
     ///Create a new frame processing block
-    pub fn make_points_block(processing_queue_size: i32) -> Result<Self, DataError> {
+    pub fn make_raw_points_block(processing_queue_size: i32) -> Result<Self, DataError> {
         //Create the memory for the processing block and the queue
         let (processing_block, processing_queue) = unsafe {
             //Error pointer
             let mut err = std::ptr::null_mut::<rs2_error>();
 
             let ptr = rs2_create_pointcloud(&mut err);
+
+            let queue_ptr = rs2_create_frame_queue(processing_queue_size, &mut err);
+
+            rs2_start_processing_queue(ptr, queue_ptr, &mut err);
+
+            (NonNull::new(ptr).unwrap(), NonNull::new(queue_ptr).unwrap())
+        };
+
+        Ok(Self {
+            processing_block,
+            processing_queue,
+            output: None,
+        })
+    }
+
+    pub fn make_tempflt_points_block(processing_queue_size: i32) -> Result<Self, DataError> {
+        //Create the memory for the processing block and the queue
+        let (processing_block, processing_queue) = unsafe {
+            //Error pointer
+            let mut err = std::ptr::null_mut::<rs2_error>();
+
+            let ptr = rs2_create_temporal_filter_block(&mut err);
 
             let queue_ptr = rs2_create_frame_queue(processing_queue_size, &mut err);
 

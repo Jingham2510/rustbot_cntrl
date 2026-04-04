@@ -121,7 +121,7 @@ impl RealsenseCam {
             //Start the pipeline in the camera object
             //(This is done to get around the pipeline being consumed
             pipeline: pipeline.start(Some(config))?,
-            pcl_block: FrameProcBlock::make_points_block(100)?,
+            pcl_block: FrameProcBlock::make_raw_points_block(100)?,
         })
     }
 
