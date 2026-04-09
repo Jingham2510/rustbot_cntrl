@@ -315,12 +315,31 @@ impl AbbRob<'_> {
 
                 //Placeholder for when testing new functions
                 "test" => {
-                    self.verify_load_cell();
+                    //CURRENTLY TESTING - feature size depth measurements
+                    let xy_pos = [417.0, 2115.0];
+                    let small_indent = 252.0;
+                    let medium_indent = 237.0;
+                    let big_indent = 212.0;
+                    //Move to above
+                    self.set_pos((xy_pos[0], xy_pos[1], 275.0));
+
+                    //Move to indent
+                    self.set_pos((xy_pos[0], xy_pos[1], small_indent));
+
+                    //Move out
+                    self.set_pos((xy_pos[0], xy_pos[1], 275.0));
+
+                    //To home
+                    self.go_home_pos();
                 }
 
                 //Send the robot to the pre-defined home position above the sand bed
                 "home" => {
                     self.go_home_pos();
+                }
+
+                "camscan" => {
+                    self.feature_scan();
                 }
 
                 _ => println!("Unknown command - see CMDs for list of commands"),
@@ -370,7 +389,7 @@ impl AbbRob<'_> {
             .req(&format!("STOR:[{}, {}, {}, {}]", q.w, q.x, q.y, q.z))
         {
             println!("Response!");
-            self.update_rob_info();
+            //self.update_rob_info();
         } else {
             println!("Warning - no robot response! - Robot might not reorient!");
         }
@@ -408,7 +427,7 @@ impl AbbRob<'_> {
             .req(&format!("MVTO:[{},{},{}]", xyz.0, xyz.1, xyz.2))
         {
             println!("Response!");
-            self.update_rob_info();
+            //self.update_rob_info();
         } else {
             println!("Warning - no response - robot may not move");
         }
@@ -878,7 +897,7 @@ impl AbbRob<'_> {
     ) {
         //Create a camera
         let mut cam =
-            terr_map_sense::RealsenseCam::initialise(cam_no).expect("Failed to create camera");
+            terr_map_sense::RealsenseCam::initialise_raw(cam_no).expect("Failed to create camera");
 
         let mut cnt = 0;
 
@@ -1412,5 +1431,62 @@ impl AbbRob<'_> {
         self.go_home_pos();
 
         self.write_marker(&test_data.data_filename, "Test end");
+    }
+
+    ///An experiment that moves the robot vertically in a straight line and saves pointclouds at specific heights
+    fn feature_scan(&mut self) -> Result<(), anyhow::Error> {
+        //Predetermined XY position
+        let xy_pos = [417.0, 2115.0];
+
+        //Predetermined heights
+        let heights = [250.0, 350.0, 450.0, 550.0, 650.0, 750.0, 850.0, 950.0];
+
+        //Number of pointclouds to take
+        let number_of_pcls = 25;
+
+        //Create the test data and the filepaths
+        let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
+
+        //Move to cable attach position
+        self.set_pos((940.0, 2139.0, 275.0));
+        self.set_ori(&Quaternion::from([0.0, 0.39616, 0.91817, -0.00312]));
+
+        println!("Please attach cable!");
+        wait_for_enter();
+        //Turn on the camera
+        let mut cam = terr_map_sense::RealsenseCam::initialise_raw(0)?;
+
+        //Move to the first position and rotate to correct orientation
+        self.set_pos((xy_pos[0], xy_pos[1], heights[0]));
+        self.set_ori(&Quaternion::from([0.0, 0.39616, 0.91817, -0.00312]));
+
+        //For each height
+        for height in heights.iter() {
+            //Setup the current robot config
+            let mut pcl_cnt = 0;
+            let fp = format!(
+                "{}/pcl_{}_{}mm",
+                test_data.filepath, test_data.test_name, height
+            );
+
+            //Move the robot to the desired height
+            self.set_pos((xy_pos[0], xy_pos[1], *height));
+
+            //Take the pointclouds
+            for i in 0..number_of_pcls {
+                //Capture the depth points
+                let mut curr_pcl = cam.get_depth_pnts()?;
+
+                //Trim the pointcloud to the point of interest
+                //curr_pcl.passband_filter(min_x, max_x, min_y, max_y, min_z, max_z);
+
+                curr_pcl.save_to_file(&format!("{}_{}", fp, i))?;
+            }
+        }
+
+        println!("Please disconnect cable!");
+        wait_for_enter();
+
+        Ok(())
     }
 }

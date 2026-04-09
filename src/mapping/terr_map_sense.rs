@@ -40,7 +40,7 @@ pub struct RealsenseCam {
 impl RealsenseCam {
     ///Connect and Initialise a camera
     /// When using multiple cameras, cam_no is used to specify which one to connect to
-    pub fn initialise_raw(cam_no: usize) -> Result<Self> {
+    pub fn initialise_raw(cam_no: usize) -> Result<Self, anyhow::Error> {
         let (pipeline, config) = Self::setup(cam_no)?;
 
         Ok(Self {
@@ -48,22 +48,17 @@ impl RealsenseCam {
             //Start the pipeline in the camera object
             //(This is done to get around the pipeline being consumed
             pipeline: pipeline.start(Some(config))?,
-            pcl_block: FrameProcBlock::make_raw_points_block(100)?,
+            pcl_block: FrameProcBlock::make_raw_points_block(1)?,
         })
     }
 
-    ///Connect and Initialise a camera
-    /// When using multiple cameras, cam_no is used to specify which one to connect to
-    pub fn initialise_with_temp_filt(cam_no: usize) -> Result<Self> {
-        let (pipeline, config) = Self::setup(cam_no)?;
+    //Gets a temporally filtered pointcloud
+    pub fn get_temp_filt(&mut self) -> Result<PointCloud> {
+        let points = self.get_depth_pnts()?;
 
-        Ok(Self {
-            cam_no,
-            //Start the pipeline in the camera object
-            //(This is done to get around the pipeline being consumed
-            pipeline: pipeline.start(Some(config))?,
-            pcl_block: FrameProcBlock::make_tempflt_points_block(100)?,
-        })
+        let temp_filt_frame = FrameProcBlock::make_tempflt_points_block(100)?;
+
+        todo!();
     }
 
     fn setup(cam_no: usize) -> Result<(InactivePipeline, Config), anyhow::Error> {
@@ -159,7 +154,7 @@ impl RealsenseCam {
         let tag_img_fp = format!("aruco_detect_{}", self.cam_no);
         self.get_image(&tag_img_fp)?;
 
-        //Run the python script
+        //Run the python script - only works on windows machines
         let py_cmd = Command::new(
             //,
             "cmd",

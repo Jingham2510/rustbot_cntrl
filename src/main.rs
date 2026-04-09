@@ -137,7 +137,7 @@ fn core_cmd_handler(config: &mut Config) {
             "calibimg" => {
                 //Create a camera handler
                 let cam_no = 1;
-                let mut cam = RealsenseCam::initialise(0).unwrap();
+                let mut cam = RealsenseCam::initialise_raw(0).unwrap();
 
                 sleep(Duration::from_secs(5));
 
@@ -347,7 +347,7 @@ fn save_n_heightmaps(config: &Config) -> Result<(), anyhow::Error> {
         fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
 
         //Create a depth camera handler
-        let mut cam = RealsenseCam::initialise(0)?;
+        let mut cam = RealsenseCam::initialise_raw(0)?;
 
         //Sleep for 3 seconds to let the camera warm up
         sleep(Duration::from_secs(3));
@@ -405,8 +405,8 @@ fn multi_hmap(config: &Config) {
     fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
 
     //Initialise both cameras
-    let mut cam0 = RealsenseCam::initialise(0).unwrap();
-    let mut cam1 = RealsenseCam::initialise(1).unwrap();
+    let mut cam0 = RealsenseCam::initialise_raw(0).unwrap();
+    let mut cam1 = RealsenseCam::initialise_raw(1).unwrap();
 
     sleep(Duration::from_secs(5));
 
@@ -469,7 +469,7 @@ fn take_pointcloud(config: &Config) -> Result<(), anyhow::Error> {
         fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
 
         //Create a depth camera handler
-        let mut cam = RealsenseCam::initialise(0)?;
+        let mut cam = RealsenseCam::initialise_raw(0)?;
 
         //Sleep for 3 seconds to let the cameras warm up
         sleep(Duration::from_secs(5));
@@ -526,8 +526,8 @@ fn multi_cam_pcl(config: &Config) -> Result<(), anyhow::Error> {
     fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
 
     //Create a depth camera handler
-    let mut cam = RealsenseCam::initialise(0)?;
-    let mut cam1 = RealsenseCam::initialise(1)?;
+    let mut cam = RealsenseCam::initialise_raw(0)?;
+    let mut cam1 = RealsenseCam::initialise_raw(1)?;
 
     //Sleep for 3 seconds to let the cameras warm up
     sleep(Duration::from_secs(5));
@@ -581,8 +581,8 @@ fn res_vs_avg_parametric_sweep(config: &Config) -> Result<(), anyhow::Error> {
     fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
 
     //Create two cameras
-    let mut cam_r = RealsenseCam::initialise(0)?;
-    let mut cam_l = RealsenseCam::initialise(1)?;
+    let mut cam_r = RealsenseCam::initialise_raw(0)?;
+    let mut cam_l = RealsenseCam::initialise_raw(1)?;
 
     //Preload the transformation matrices
     let trans_r = config.cam_infor.tmat();
@@ -687,8 +687,8 @@ fn res_vs_avg_parametric_timing(config: &Config) -> Result<(), anyhow::Error> {
     fs::create_dir(&new_fp).expect("FAILED TO CREATE NEW DIRECTORY");
 
     //Create two cameras
-    let mut cam_r = RealsenseCam::initialise(0)?;
-    let mut cam_l = RealsenseCam::initialise(1)?;
+    let mut cam_r = RealsenseCam::initialise_raw(0)?;
+    let mut cam_l = RealsenseCam::initialise_raw(1)?;
 
     //Preload the transformation matrices
     let trans_r = config.cam_infor.tmat();
