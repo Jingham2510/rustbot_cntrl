@@ -324,7 +324,7 @@ impl AbbRob<'_> {
                     self.set_pos((xy_pos[0], xy_pos[1], 275.0));
 
                     //Move to indent
-                    self.set_pos((xy_pos[0], xy_pos[1], small_indent));
+                    self.set_pos((xy_pos[0], xy_pos[1], big_indent));
 
                     //Move out
                     self.set_pos((xy_pos[0], xy_pos[1], 275.0));
@@ -349,9 +349,9 @@ impl AbbRob<'_> {
 
     ///Ping the robot to check that the connection is valid
     pub fn ping(&mut self) {
-        let s = self.socket.req("ECHO:PING");
+        let _resp = self.socket.req("ECHO:PING");
 
-        println!("Ping recieved - {}", s.unwrap());
+        //println!("Ping recieved - {}", s.unwrap());
     }
 
     ///Request the robot move to specific joint angles
@@ -1477,12 +1477,16 @@ impl AbbRob<'_> {
                 //Capture the depth points
                 let mut curr_pcl = cam.get_depth_pnts()?;
 
-                //Trim the pointcloud to the point of interest
-                //curr_pcl.passband_filter(min_x, max_x, min_y, max_y, min_z, max_z);
-
                 curr_pcl.save_to_file(&format!("{}_{}", fp, i))?;
+
+                //Ping to keep the connection alive
+                self.ping();
             }
         }
+
+        //Move to cable detach position
+        self.set_pos((940.0, 2139.0, 275.0));
+        self.set_ori(&Quaternion::from([0.0, 0.39616, 0.91817, -0.00312]));
 
         println!("Please disconnect cable!");
         wait_for_enter();

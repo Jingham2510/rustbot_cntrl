@@ -1,1 +1,1 @@
-TEST_DUMP_FP = "C:/Users/User/Documents/Results/DEPTH_TESTS"
+TEST_DUMP_FP = "C:/Users/User/Documents/Results/test_dump"
