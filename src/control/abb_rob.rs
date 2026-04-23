@@ -323,6 +323,9 @@ impl AbbRob<'_> {
                         println!("Failed to start the egm stream")
                     }
 
+                    //Virtual recieves 518 bytes
+                    //Remote recieves 469 bytes why less?
+
                     println!(
                         "{:?}",
                         egm_client
@@ -342,7 +345,7 @@ impl AbbRob<'_> {
 
                         //Log the robot information gathered by the EGM using
                         let _ = self.egm_update_state(recv_msg);
-                        println!("{:?}", self.pos);
+                        //println!("{:?}", self.pos);
 
                         if self.limit_check() {
                             println!("Out of bounds");

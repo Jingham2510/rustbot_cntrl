@@ -57,17 +57,21 @@ impl EgmServer {
         //Recieve the data
         let bytes_recieved = self.socket.recv(&mut buffer)?;
         //Decode the bytes
-        Ok(EgmRobot::decode(&buffer[..bytes_recieved])?)
+        Ok(EgmRobot::decode_length_delimited(
+            &buffer[..bytes_recieved],
+        )?)
     }
 
     ///Recieves a message from any UDP socket and then attempts to return the connection for sending messages
     pub fn recv_and_connect(&self) -> Result<EgmRobot, anyhow::Error> {
-        println!("Trying to get EGM connect");
+        println!("Getting controller port...");
 
         //Allocate a MB for recieving the data
         let mut buffer = vec![0u8; 1024];
         //Recieve the data
         let (bytes_recieved, addr) = self.socket.recv_from(&mut buffer)?;
+
+        println!("No of bytes recieved: {}", bytes_recieved);
 
         //Attempt to connect to the socket address
         if self.socket.connect(addr).is_ok() {
@@ -76,8 +80,12 @@ impl EgmServer {
             bail!("Failed to connect to EGM client");
         }
 
+        //println!("{:?}", &buffer[..=bytes_recieved]);
+
         //Decode the bytes
-        Ok(EgmRobot::decode(&buffer[..bytes_recieved])?)
+        Ok(EgmRobot::decode_length_delimited(
+            &buffer[..bytes_recieved],
+        )?)
     }
 
     ///Ends the EGM stream
