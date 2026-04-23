@@ -32,7 +32,7 @@ impl EgmServer {
 
     ///Creates a remote EGM UDP socket
     pub fn remote() -> Self {
-        Self::create_egm_socket(UdpSocket::bind("192.168.10.20:6510").unwrap())
+        Self::create_egm_socket(UdpSocket::bind("192.168.125.206:6510").unwrap())
     }
 
     ///Send an EGM sensor message to the socket
@@ -62,6 +62,8 @@ impl EgmServer {
 
     ///Recieves a message from any UDP socket and then attempts to return the connection for sending messages
     pub fn recv_and_connect(&self) -> Result<EgmRobot, anyhow::Error> {
+        println!("Trying to get EGM connect");
+
         //Allocate a MB for recieving the data
         let mut buffer = vec![0u8; 1024];
         //Recieve the data

@@ -74,11 +74,13 @@ impl RealsenseCam {
             bail!("Invalid camera selection");
         }
 
+        /*
         println!("devs: {:?}", devices);
         println!(
             "Selected: {:?}",
             devices[cam_no].info(Rs2CameraInfo::SerialNumber)
         );
+        */
 
         //Try and create the inactive pipeline
         let pipeline = InactivePipeline::try_from(&Context::new()?)?;

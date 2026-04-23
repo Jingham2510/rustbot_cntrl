@@ -316,21 +316,56 @@ impl AbbRob<'_> {
                 //Placeholder for when testing new functions
                 "test" => {
                     //CURRENTLY TESTING - feature size depth measurements
-                    let xy_pos = [417.0, 2115.0];
-                    let small_indent = 252.0;
-                    let medium_indent = 237.0;
-                    let big_indent = 212.0;
-                    //Move to above
-                    self.set_pos((xy_pos[0], xy_pos[1], 275.0));
+                    //Setup and connect EGM
+                    let egm_client = self.connect_egm_pose().expect("Failed to connect to EGM");
 
-                    //Move to indent
-                    self.set_pos((xy_pos[0], xy_pos[1], big_indent));
+                    if self.start_egm_stream_speed().is_err() {
+                        println!("Failed to start the egm stream")
+                    }
 
-                    //Move out
-                    self.set_pos((xy_pos[0], xy_pos[1], 275.0));
+                    println!(
+                        "{:?}",
+                        egm_client
+                            .recv_and_connect()
+                            .expect("Failed to return connection")
+                    );
 
-                    //To home
-                    self.go_home_pos();
+                    //Set desired z-speed
+                    let desired_speed = [0.0, 0.0, 1.0];
+
+                    let mut seqno = 0;
+
+                    //Move down until target z-force reached
+                    for i in 0..100 {
+                        let recv_msg = egm_client.recv_egm().unwrap();
+                        let time = recv_msg.get_time().unwrap();
+
+                        //Log the robot information gathered by the EGM using
+                        let _ = self.egm_update_state(recv_msg);
+                        println!("{:?}", self.pos);
+
+                        if self.limit_check() {
+                            println!("Out of bounds");
+                            egm_client.egm_end();
+                            self.go_home_pos();
+                            return;
+                        }
+
+                        //Update the robot EGM requirements
+                        egm_client
+                            .send_egm(EgmSensor::set_pose_set_speed(
+                                seqno,
+                                time,
+                                [0.0, 0.0, 0.0],
+                                self.ori.into(),
+                                desired_speed,
+                            ))
+                            .unwrap();
+
+                        seqno += 1;
+                    }
+
+                    println!("EGM DONE?");
                 }
 
                 //Send the robot to the pre-defined home position above the sand bed
@@ -1456,6 +1491,8 @@ impl AbbRob<'_> {
         //Turn on the camera
         let mut cam = terr_map_sense::RealsenseCam::initialise_raw(0)?;
 
+        println!("Cam initialised.... Moving to feature scan position");
+
         //Move to the first position and rotate to correct orientation
         self.set_pos((xy_pos[0], xy_pos[1], heights[0]));
         self.set_ori(&Quaternion::from([0.0, 0.39616, 0.91817, -0.00312]));
@@ -1482,6 +1519,8 @@ impl AbbRob<'_> {
                 //Ping to keep the connection alive
                 self.ping();
             }
+
+            println!("Height completed - {}", height);
         }
 
         //Move to cable detach position
