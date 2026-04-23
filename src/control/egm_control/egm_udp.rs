@@ -80,7 +80,7 @@ impl EgmServer {
             bail!("Failed to connect to EGM client");
         }
 
-        //println!("{:?}", &buffer[..=bytes_recieved]);
+        println!("{:?}", &buffer[..=bytes_recieved]);
 
         //Decode the bytes
         Ok(EgmRobot::decode_length_delimited(

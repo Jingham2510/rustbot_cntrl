@@ -123,16 +123,6 @@ impl From<(u64, u64)> for EgmClock {
     }
 }
 
-impl EgmTimestamp {
-    ///Create an EGM timestamp
-    pub fn create_egm_timestamp(sec: u64, nsec: u64) -> Self {
-        EgmTimestamp {
-            sec: Some(sec),
-            nsec: Some(nsec),
-        }
-    }
-}
-
 impl EgmPose {
     ///Create an EGMPose from xyz cartesian and wxyz quarternion
     pub fn create_egm_pose(xyz: [f64; 3], wxyz: [f64; 4]) -> Self {
@@ -170,7 +160,6 @@ impl EgmPlanned {
             time: Some(time.into()),
             cartesian: None,
             external_joints: None,
-            time_stamp: None,
         }
     }
 
@@ -181,7 +170,6 @@ impl EgmPlanned {
             time: Some(time.into()),
             joints: None,
             external_joints: None,
-            time_stamp: None,
         }
     }
 }
