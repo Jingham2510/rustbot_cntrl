@@ -74,7 +74,7 @@ impl DataHandler {
     }
 
     ///Function which gets the rectangular bounds of a trajectory bsaed on the min and max reported positions
-    pub fn get_traj_rect_bnds(&mut self) -> Result<[f64; 4], anyhow::Error> {
+    pub fn get_traj_rect_bnds(&self) -> Result<[f64; 4], anyhow::Error> {
         let mut min_x = 9999.0;
         let mut max_x = -9999.0;
         let mut min_y = 9999.0;

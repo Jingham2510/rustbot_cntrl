@@ -57,9 +57,7 @@ impl EgmServer {
         //Recieve the data
         let bytes_recieved = self.socket.recv(&mut buffer)?;
         //Decode the bytes
-        Ok(EgmRobot::decode_length_delimited(
-            &buffer[..bytes_recieved],
-        )?)
+        Ok(EgmRobot::decode(&buffer[..bytes_recieved])?)
     }
 
     ///Recieves a message from any UDP socket and then attempts to return the connection for sending messages
@@ -80,12 +78,10 @@ impl EgmServer {
             bail!("Failed to connect to EGM client");
         }
 
-        println!("{:?}", &buffer[..=bytes_recieved]);
+        //println!("{:?}", &buffer[..=bytes_recieved]);
 
         //Decode the bytes
-        Ok(EgmRobot::decode_length_delimited(
-            &buffer[..bytes_recieved],
-        )?)
+        Ok(EgmRobot::decode(&buffer[..bytes_recieved])?)
     }
 
     ///Ends the EGM stream

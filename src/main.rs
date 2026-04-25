@@ -136,7 +136,7 @@ fn core_cmd_handler(config: &mut Config) {
             //Take a set of images on a timer for the charuco board claibration
             "calibimg" => {
                 //Create a camera handler
-                let cam_no = 1;
+                let cam_no = 0;
                 let mut cam = RealsenseCam::initialise_raw(0).unwrap();
 
                 sleep(Duration::from_secs(5));
@@ -149,7 +149,13 @@ fn core_cmd_handler(config: &mut Config) {
 
                 let _ = cam.get_aruco_tags();
 
-                println!("Images taken");
+                println!("Calibration image taken");
+
+                //Take a pointcloud
+                let mut pcl = cam.get_depth_pnts();
+
+                pcl.unwrap()
+                    .save_to_file(&format!("pcl_{}_ext_calib_0", cam_no));
             }
 
             "multipcl" => {
@@ -291,29 +297,27 @@ fn analyse(config: &Config) -> Result<(), anyhow::Error> {
 
     println!("Analyser created");
 
-    //analyser.display_all();
+    //CURRENTLY ---------------------- RGDB vs FARO Scanner test analyses
 
-    //analyser.disp_overall_change()?;
+    /*
+    //Trim all the pointclouds down
 
-    //analyser.disp_action_map(100, 100)?;
+    let min_x = -0.532;
+    let max_x = 0.49;
+    let min_y = -0.42;
+    let max_y = 0.43;
+    let min_z = -999.0;
+    let max_z = 999.0;
 
-    //analyser.disp_force_map(100, 100, ForceSel::ForceAvg)?;
-    //analyser.rotate_and_regen(0.0, 0.0, 0.0, 100, 100)?;
-    analyser.regen_hmaps(100, 100)?;
-    analyser.disp_overall_change()?;
-    //analyser.display_all();
+    analyser.apply_passband(min_x, max_x, min_y, max_y, min_z, max_z);
+    */
 
-    //analyser.regen_hmaps(1000, 1000)?;
-    //analyser.disp_overall_change()?;
-    //analyser.display_all();
-
-    analyser.disp_action_map(100, 100)?;
-
-    analyser.disp_force_map(100, 100, ForceSel::ForceAvg)?;
-
-    //analyser.disp_overall_change()?;
-
-    //analyser.disp_iso_traj_path(150.0, 150.0)?;
+    //Turn the pointcloud set into heightmaps
+    analyser.create_parametric_hmaps(
+        vec![5, 10, 25, 50, 75, 100, 200, 250, 500],
+        vec![1, 2, 5, 10, 15, 20, 25],
+        vec!["450mm", "550mm", "650mm", "750mm", "850mm", "950mm"],
+    );
 
     Ok(())
 }

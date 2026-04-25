@@ -120,6 +120,10 @@ impl PointCloud {
         self.no_of_points
     }
 
+    pub fn filename(&self) -> Option<&String> {
+        self.filename.as_ref()
+    }
+
     ///Print all points in the point cloud
     pub fn print_points(&mut self) {
         for pnt in self.points.iter() {

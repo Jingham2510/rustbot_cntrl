@@ -1,6 +1,6 @@
 ///Analyses test results in the form of displaying heightmap results
 use crate::analysis::data_handler::DataHandler;
-use crate::config::{CamInfo, RobInfo};
+use crate::config::{CamInfo, Config, RobInfo};
 use crate::helper_funcs;
 use crate::helper_funcs::helper_funcs::ColOpt;
 use crate::helper_funcs::helper_funcs::{display_magnitude_map, trans_to_heightmap};
@@ -20,13 +20,13 @@ pub struct Analyser {
     ///Folder location holding the test data
     test_fp: String,
     ///The struct containing all the raw pos/force info etc
-    data_handler: DataHandler,
+    data_handler: Option<DataHandler>,
     ///Number of pointclouds taken in this test
     no_of_pcl: i32,
     ///The camera configuration information for the given test
-    cam_info: Vec<CamInfo>,
+    cam_info: Option<Vec<CamInfo>>,
     ///The robot configuration information for the given test
-    rob_info: RobInfo,
+    rob_info: Option<RobInfo>,
     ///Coordination pre-transform flag - True if trajectory already transformed
     pre_trans: bool,
 }
@@ -55,11 +55,27 @@ impl Analyser {
         let data_fp = format!("{}/data_{}.txt", test_fp, test_name);
 
         println!("Loading data - {data_fp}");
-        let data_handler = DataHandler::read_data_from_file(data_fp)?;
+        let data_handler: Option<DataHandler>;
+        if let Ok(data) = DataHandler::read_data_from_file(data_fp) {
+            data_handler = Some(data);
+        } else {
+            println!("WARNING: No data file");
+            data_handler = None;
+        }
 
         //Get the config info
         println!("Loading config - {test_fp}");
-        let config_info = get_config(&test_fp, &test_name)?;
+        let rob_info: Option<RobInfo>;
+        let mut pre_trans = false;
+        let cam_info: Option<Vec<CamInfo>>;
+        if let Ok(info) = get_config(&test_fp, &test_name) {
+            rob_info = Some(info.0);
+            cam_info = Some(info.1);
+            pre_trans = info.2;
+        } else {
+            rob_info = None;
+            cam_info = None;
+        }
 
         Ok(Self {
             filepath,
@@ -67,15 +83,22 @@ impl Analyser {
             test_fp,
             data_handler,
             no_of_pcl,
-            rob_info: config_info.0,
-            cam_info: config_info.1,
-            pre_trans: config_info.2,
+            rob_info,
+            cam_info,
+            pre_trans,
         })
     }
 
     ///Get the rectangular trajectory bound of the test
-    pub fn get_traj_bounds(&mut self) -> Result<[f64; 4], anyhow::Error> {
-        self.data_handler.get_traj_rect_bnds()
+    pub fn get_traj_bounds(&self) -> Result<[f64; 4], anyhow::Error> {
+        if self.data_handler.is_some() {
+            self.data_handler
+                .as_ref()
+                .expect("Failed to unwrap existing data handler")
+                .get_traj_rect_bnds()
+        } else {
+            bail!("No data file associated with test");
+        }
     }
 
     ///Compare the first and last heightmap from the test (i.e. the overall change)
@@ -291,6 +314,31 @@ impl Analyser {
         Ok(pcls)
     }
 
+    ///Get pcls that have the identifier in the filepath
+    fn get_pcl_with_identifier(
+        &mut self,
+        identifier: &str,
+    ) -> Result<Vec<PointCloud>, anyhow::Error> {
+        println!("LOADING POINTCLOUDS----------");
+
+        let mut pcls: Vec<PointCloud> = vec![];
+
+        //Iterate through each file
+        for path in fs::read_dir(&self.test_fp)? {
+            let path_str = path?.file_name();
+            let path_str = path_str.to_str().unwrap();
+
+            //Identify the hmap files
+            if path_str.starts_with("pcl_") && path_str.contains(identifier) {
+                let fp = format!("{}/{}", self.test_fp, path_str);
+
+                //Load the heightmap file
+                pcls.push(PointCloud::create_from_file(fp)?)
+            }
+        }
+        Ok(pcls)
+    }
+
     ///Generates a passband filter for test pointclouds based on the trajectory of the robot
     ///iso_(x/y)_radius determine how far the filter extends from the trajectory
     fn gen_iso_rect(
@@ -301,11 +349,18 @@ impl Analyser {
         //Get the bounds of the trajectory
         let mut traj_bounds = self.get_traj_bounds()?;
 
+        //Check that the robot info exists
+        let info = self
+            .rob_info
+            .as_ref()
+            .expect("Failed to get robot info")
+            .pos_to_zero();
+
         if !self.pre_trans {
-            traj_bounds[0] = traj_bounds[0] + self.rob_info.pos_to_zero()[0];
-            traj_bounds[1] = traj_bounds[1] + self.rob_info.pos_to_zero()[0];
-            traj_bounds[2] = traj_bounds[2] + self.rob_info.pos_to_zero()[1];
-            traj_bounds[3] = traj_bounds[3] + self.rob_info.pos_to_zero()[1];
+            traj_bounds[0] = traj_bounds[0] + info[0];
+            traj_bounds[1] = traj_bounds[1] + info[0];
+            traj_bounds[2] = traj_bounds[2] + info[1];
+            traj_bounds[3] = traj_bounds[3] + info[1];
         }
 
         println!("Trajectory bounds - {:?}", traj_bounds);
@@ -375,7 +430,11 @@ impl Analyser {
         let total_height = bounds[3] - bounds[2];
 
         //Get the trajectory
-        let mut traj = self.data_handler.get_traj();
+        let mut traj = self
+            .data_handler
+            .as_ref()
+            .expect("Failed to unwrap data handler")
+            .get_traj();
 
         //Check if the trajectory has been transformed
         if !self.pre_trans {
@@ -425,7 +484,11 @@ impl Analyser {
         let total_height = bounds[3] - bounds[2];
 
         //Get the trajectory data coupled with the force data
-        let mut traj_force_dat = self.data_handler.get_traj_force_pairs();
+        let mut traj_force_dat = self
+            .data_handler
+            .as_mut()
+            .expect("Failed to unwrap data handler")
+            .get_traj_force_pairs();
 
         //If the trajectory hasn't already been trasnformed
         if !self.pre_trans {
@@ -625,7 +688,11 @@ impl Analyser {
     ///Translate the trajectory in xyz frame relative to the provided config information
     fn translate_traj(&mut self, traj: Vec<[f64; 3]>) -> Vec<[f64; 3]> {
         let mut new_traj: Vec<[f64; 3]> = vec![];
-        let transform = self.rob_info.pos_to_zero();
+        let transform = self
+            .rob_info
+            .as_ref()
+            .expect("Failed to get robot info")
+            .pos_to_zero();
 
         for pnt in traj.iter() {
             new_traj.push([
@@ -635,6 +702,114 @@ impl Analyser {
             ]);
         }
         new_traj
+    }
+
+    ///Load all PCLs and cut them to meet the specified passband
+    ///WARNING: Will delete your data
+    pub fn apply_passband(
+        &mut self,
+        min_x: f64,
+        max_x: f64,
+        min_y: f64,
+        max_y: f64,
+        min_z: f64,
+        max_z: f64,
+    ) -> Result<(), anyhow::Error> {
+        let mut cnt = 0;
+
+        //Iterate through every pcl file in the test
+        //Iterate through each file
+        for path in fs::read_dir(&self.test_fp)? {
+            let path_str = path?.file_name();
+            let path_str = path_str.to_str().unwrap();
+
+            //Identify the pcl files
+            if path_str.starts_with("pcl_") {
+                println!("Trimming PCL: {}", cnt);
+
+                let pcl_fp = format!("{}/{}", self.test_fp, path_str);
+
+                let mut curr_pcl = PointCloud::create_from_file(pcl_fp.clone())?;
+
+                //Rotate the PCL
+                curr_pcl.passband_filter(min_x, max_x, min_y, max_y, min_z, max_z);
+
+                //Resave the PCL
+                curr_pcl.save_to_file(pcl_fp.strip_suffix(".txt").unwrap())?;
+
+                cnt += 1;
+            }
+        }
+
+        println!("Trimming complete");
+
+        Ok(())
+    }
+
+    ///From a tests pointclouds - create a set of parametric heightmaps
+    ///Define the resolutions, averages and identifiers
+    pub fn create_parametric_hmaps(
+        &mut self,
+        resolutions: Vec<u32>,
+        averages: Vec<u32>,
+        identifiers: Vec<&str>,
+    ) -> Result<(), anyhow::Error> {
+        //Get the maximum average value
+        let max_avg = *averages.iter().max().expect("Failed to get maximum") as i32;
+
+        //For each identifier specified
+        for identifier in identifiers.iter() {
+            //Loda all the pointclouds with that identifier
+            let mut curr_pcls: Vec<PointCloud> = self
+                .get_pcl_with_identifier(*identifier)
+                .expect("Failed to find identifier");
+
+            //check that there are enough for the maxmimum average
+            if curr_pcls.len() < max_avg as usize {
+                bail!("Not enough pointclouds for the average required!")
+            }
+
+            for resolution in resolutions.iter() {
+                let mut cnt: u32 = 0;
+
+                //Turn all of the pointclouds into heightmaps
+                let mut curr_hmaps: Vec<Heightmap> = vec![];
+
+                for pcl in curr_pcls.iter() {
+                    curr_hmaps.push(Heightmap::create_using_pcl_ref(
+                        pcl,
+                        *resolution,
+                        *resolution,
+                    ));
+
+                    cnt += 1;
+
+                    if averages.contains(&cnt) {
+                        let filepath = format!(
+                            "{}/hmap_{}_{}_res_{}_avg_{}",
+                            self.test_fp, self.test_name, *identifier, *resolution, cnt
+                        );
+
+                        println!("{}", filepath);
+
+                        terr_map_tools::average_heightmaps(&curr_hmaps).save_to_file(&filepath);
+
+                        println!(
+                            "Average created for {} number of pcls at resolution {} at identifier {}",
+                            cnt, *resolution, *identifier
+                        );
+                    }
+                }
+                println!("Completed for resolution {}", *resolution);
+            }
+
+            //Empty the current list
+            curr_pcls.clear();
+
+            println!("Completed for identifier {}", *identifier);
+        }
+
+        Ok(())
     }
 }
 
