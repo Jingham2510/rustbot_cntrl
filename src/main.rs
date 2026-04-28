@@ -18,7 +18,7 @@ mod networking;
 mod helper_funcs;
 mod modelling;
 
-use crate::analysis::analyser::{Analyser, ForceSel};
+use crate::analysis::analyser::Analyser;
 use crate::config::Config;
 use crate::mapping::terr_map_sense::RealsenseCam;
 use crate::mapping::terr_map_tools::{
@@ -129,8 +129,8 @@ fn core_cmd_handler(config: &mut Config) {
                     "C:\\Users\\User\\Documents\\Results\\DEPTH_TESTS\\nofilter_param_sweep_feature\\hmap_avg100_res50.txt",
                 ));
 
-                hmap_1.unwrap().disp_map();
-                hmap_2.unwrap().disp_map();
+                let _ = hmap_1.unwrap().disp_map();
+                let _ = hmap_2.unwrap().disp_map();
             }
 
             //Take a set of images on a timer for the charuco board claibration
@@ -152,9 +152,10 @@ fn core_cmd_handler(config: &mut Config) {
                 println!("Calibration image taken");
 
                 //Take a pointcloud
-                let mut pcl = cam.get_depth_pnts();
+                let pcl = cam.get_depth_pnts();
 
-                pcl.unwrap()
+                let _ = pcl
+                    .unwrap()
                     .save_to_file(&format!("pcl_{}_ext_calib_0", cam_no));
             }
 
@@ -299,25 +300,25 @@ fn analyse(config: &Config) -> Result<(), anyhow::Error> {
 
     //CURRENTLY ---------------------- RGDB vs FARO Scanner test analyses
 
-    /*
     //Trim all the pointclouds down
 
-    let min_x = -0.532;
-    let max_x = 0.49;
-    let min_y = -0.42;
-    let max_y = 0.43;
+    let min_x = -0.07;
+    let max_x = 0.1;
+    let min_y = -0.09;
+    let max_y = 0.09;
     let min_z = -999.0;
     let max_z = 999.0;
 
-    analyser.apply_passband(min_x, max_x, min_y, max_y, min_z, max_z);
-    */
+    let _ = analyser.apply_passband(min_x, max_x, min_y, max_y, min_z, max_z);
 
     //Turn the pointcloud set into heightmaps
-    analyser.create_parametric_hmaps(
+    let _ = analyser.create_parametric_hmaps(
         vec![5, 10, 25, 50, 75, 100, 200, 250, 500],
         vec![1, 2, 5, 10, 15, 20, 25],
         vec!["450mm", "550mm", "650mm", "750mm", "850mm", "950mm"],
     );
+
+    let _ = analyser.display_all();
 
     Ok(())
 }
@@ -416,8 +417,8 @@ fn multi_hmap(config: &Config) {
 
     for i in 0..1000 {
         //Take pointclouds
-        let pcl_0 = cam0.get_depth_pnts().unwrap();
-        let pcl_1 = cam1.get_depth_pnts().unwrap();
+        let _pcl_0 = cam0.get_depth_pnts().unwrap();
+        let _pcl_1 = cam1.get_depth_pnts().unwrap();
 
         //Transform pointclouds
         //Get the depth points

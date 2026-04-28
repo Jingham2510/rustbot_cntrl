@@ -52,15 +52,6 @@ impl RealsenseCam {
         })
     }
 
-    //Gets a temporally filtered pointcloud
-    pub fn get_temp_filt(&mut self) -> Result<PointCloud> {
-        let points = self.get_depth_pnts()?;
-
-        let temp_filt_frame = FrameProcBlock::make_tempflt_points_block(100)?;
-
-        todo!();
-    }
-
     fn setup(cam_no: usize) -> Result<(InactivePipeline, Config), anyhow::Error> {
         // Check for depth or color-compatible devices.
         let mut queried_devices = HashSet::new();

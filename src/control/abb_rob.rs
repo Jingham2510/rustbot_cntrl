@@ -339,7 +339,7 @@ impl AbbRob<'_> {
                     let mut seqno = 0;
 
                     //Move down until target z-force reached
-                    for i in 0..100 {
+                    for _ in 0..100 {
                         let recv_msg = egm_client.recv_egm().unwrap();
                         let time = recv_msg.get_time().unwrap();
 
@@ -377,7 +377,7 @@ impl AbbRob<'_> {
                 }
 
                 "camscan" => {
-                    self.feature_scan();
+                    let _ = self.feature_scan();
                 }
 
                 _ => println!("Unknown command - see CMDs for list of commands"),
@@ -469,6 +469,26 @@ impl AbbRob<'_> {
         } else {
             println!("Warning - no response - robot may not move");
         }
+    }
+
+    ///Allow the user to swap the currently held tool by moving to a predefined position
+    fn swap_tool(&mut self) -> Result<(), anyhow::Error> {
+        //First move to home to ensure an unobstructed movement
+        self.go_home_pos();
+
+        //DO NOT CHANGE WITHOUT MANUAL CONFIRMATION
+        const TOOL_CHANGE_POS: (f64, f64, f64) = (0.0, 0.0, 0.0);
+
+        self.set_pos(TOOL_CHANGE_POS);
+
+        //Wait for user confirmation that tool is swapped
+        println!("Please swap tool and press enter");
+        wait_for_enter();
+
+        //Move the robot back to home
+        self.go_home_pos();
+
+        Ok(())
     }
 
     ///A trajectory run that stores no information other than the desired trajectory
@@ -1483,7 +1503,7 @@ impl AbbRob<'_> {
         let number_of_pcls = 25;
 
         //Create the test data and the filepaths
-        let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
+        let test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
 
         //Move to cable attach position
         self.set_pos((940.0, 2139.0, 275.0));
@@ -1503,7 +1523,7 @@ impl AbbRob<'_> {
         //For each height
         for height in heights.iter() {
             //Setup the current robot config
-            let mut pcl_cnt = 0;
+            let _pcl_cnt = 0;
             let fp = format!(
                 "{}/pcl_{}_{}mm",
                 test_data.filepath, test_data.test_name, height

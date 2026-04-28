@@ -1,6 +1,6 @@
 ///Analyses test results in the form of displaying heightmap results
 use crate::analysis::data_handler::DataHandler;
-use crate::config::{CamInfo, Config, RobInfo};
+use crate::config::{CamInfo, RobInfo};
 use crate::helper_funcs;
 use crate::helper_funcs::helper_funcs::ColOpt;
 use crate::helper_funcs::helper_funcs::{display_magnitude_map, trans_to_heightmap};
@@ -792,7 +792,8 @@ impl Analyser {
 
                         println!("{}", filepath);
 
-                        terr_map_tools::average_heightmaps(&curr_hmaps).save_to_file(&filepath);
+                        let _ =
+                            terr_map_tools::average_heightmaps(&curr_hmaps).save_to_file(&filepath);
 
                         println!(
                             "Average created for {} number of pcls at resolution {} at identifier {}",

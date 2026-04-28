@@ -739,7 +739,7 @@ impl Heightmap {
             self.cells.clone(),
             self.width as usize,
             self.height as usize,
-            ColOpt::Intensity,
+            ColOpt::Median,
         )?;
         Ok(())
     }
