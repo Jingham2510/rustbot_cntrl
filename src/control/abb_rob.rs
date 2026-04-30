@@ -315,7 +315,7 @@ impl AbbRob<'_> {
 
                 //Placeholder for when testing new functions
                 "test" => {
-                    //CURRENTLY TESTING - feature size depth measurements
+                    //CURRENTLY TESTING - egm connectivity
                     //Setup and connect EGM
                     let egm_client = self.connect_egm_pose().expect("Failed to connect to EGM");
 
@@ -421,7 +421,7 @@ impl AbbRob<'_> {
     }
 
     ///Set the orientation of the robots tcp - error checking done by robot controller
-    fn set_ori(&mut self, q: &Quaternion) {
+    fn set_ori(&mut self, q: Quaternion) {
         if let Ok(_resp) = self
             .socket
             .req(&format!("STOR:[{}, {}, {}, {}]", q.w, q.x, q.y, q.z))
@@ -477,9 +477,17 @@ impl AbbRob<'_> {
         self.go_home_pos();
 
         //DO NOT CHANGE WITHOUT MANUAL CONFIRMATION
-        const TOOL_CHANGE_POS: (f64, f64, f64) = (0.0, 0.0, 0.0);
+        const TOOL_CHANGE_POS: (f64, f64, f64) = (2190.0, 440.0, 183.0);
+        const TOOL_CHANGE_ORI: Quaternion = Quaternion {
+            w: 0.70621,
+            x: -0.02795,
+            y: 0.70730,
+            z: -0.01446,
+        };
 
+        //Go to the tool change position and rotate
         self.set_pos(TOOL_CHANGE_POS);
+        self.set_ori(TOOL_CHANGE_ORI);
 
         //Wait for user confirmation that tool is swapped
         println!("Please swap tool and press enter");
@@ -1467,7 +1475,7 @@ impl AbbRob<'_> {
         let mut cnt = 0;
         for (i, ori) in oris.iter().enumerate() {
             //Move the robot to the requested orientation
-            self.set_ori(ori);
+            self.set_ori(*ori);
 
             //Set the marker in the test file
             self.write_marker(&test_data.data_filename, &format!("ORIENTATION {}", i));
@@ -1483,7 +1491,7 @@ impl AbbRob<'_> {
         }
 
         //Go back to the original orientation
-        self.set_ori(&Quaternion::from([0.0, 1.0, 0.0, 0.0]));
+        self.set_ori(Quaternion::from([0.0, 1.0, 0.0, 0.0]));
 
         //Return home
         self.go_home_pos();
@@ -1507,7 +1515,7 @@ impl AbbRob<'_> {
 
         //Move to cable attach position
         self.set_pos((940.0, 2139.0, 275.0));
-        self.set_ori(&Quaternion::from([0.0, 0.39616, 0.91817, -0.00312]));
+        self.set_ori(Quaternion::from([0.0, 0.39616, 0.91817, -0.00312]));
 
         println!("Please attach cable!");
         wait_for_enter();
@@ -1518,7 +1526,7 @@ impl AbbRob<'_> {
 
         //Move to the first position and rotate to correct orientation
         self.set_pos((xy_pos[0], xy_pos[1], heights[0]));
-        self.set_ori(&Quaternion::from([0.0, 0.39616, 0.91817, -0.00312]));
+        self.set_ori(Quaternion::from([0.0, 0.39616, 0.91817, -0.00312]));
 
         //For each height
         for height in heights.iter() {
@@ -1548,7 +1556,7 @@ impl AbbRob<'_> {
 
         //Move to cable detach position
         self.set_pos((940.0, 2139.0, 275.0));
-        self.set_ori(&Quaternion::from([0.0, 0.39616, 0.91817, -0.00312]));
+        self.set_ori(Quaternion::from([0.0, 0.39616, 0.91817, -0.00312]));
 
         println!("Please disconnect cable!");
         wait_for_enter();

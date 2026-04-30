@@ -289,24 +289,8 @@ pub struct EgmTestSignals {
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct EgmMeasuredForce {
-    #[prost(bool, optional, tag = "1")]
-    pub fc_active: ::core::option::Option<bool>,
-    #[prost(double, repeated, packed = "false", tag = "2")]
+    #[prost(double, repeated, packed = "false", tag = "1")]
     pub force: ::prost::alloc::vec::Vec<f64>,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct EgmCollisionInfo {
-    #[prost(bool, optional, tag = "1")]
-    pub collsion_triggered: ::core::option::Option<bool>,
-    #[prost(double, repeated, packed = "false", tag = "2")]
-    pub coll_det_quota: ::prost::alloc::vec::Vec<f64>,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct EgmRapiDdata {
-    #[prost(bool, optional, tag = "1")]
-    pub dig_val: ::core::option::Option<bool>,
-    #[prost(double, repeated, packed = "false", tag = "2")]
-    pub dnum: ::prost::alloc::vec::Vec<f64>,
 }
 /// Robot controller outbound message, sent from the controller to the sensor during position guidance and position streaming
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -331,12 +315,6 @@ pub struct EgmRobot {
     pub measured_force: ::core::option::Option<EgmMeasuredForce>,
     #[prost(double, optional, tag = "10")]
     pub utilization_rate: ::core::option::Option<f64>,
-    #[prost(uint32, optional, tag = "11")]
-    pub move_index: ::core::option::Option<u32>,
-    #[prost(message, optional, tag = "12")]
-    pub collision_info: ::core::option::Option<EgmCollisionInfo>,
-    #[prost(message, optional, tag = "13")]
-    pub rapi_dfrom_robot: ::core::option::Option<EgmRapiDdata>,
 }
 /// Robot controller inbound message, sent from sensor to the controller during position guidance
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -347,8 +325,6 @@ pub struct EgmSensor {
     pub planned: ::core::option::Option<EgmPlanned>,
     #[prost(message, optional, tag = "3")]
     pub speed_ref: ::core::option::Option<EgmSpeedRef>,
-    #[prost(message, optional, tag = "4")]
-    pub rapi_dto_robot: ::core::option::Option<EgmRapiDdata>,
 }
 /// Robot controller inbound message, sent from sensor during path correction
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]

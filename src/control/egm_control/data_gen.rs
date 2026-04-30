@@ -252,7 +252,6 @@ impl EgmSensor {
             header: Some(EgmHeader::create_header(seqno, clock.as_timestamp_ms())),
             planned: Some(EgmPlanned::create_egm_planned_cartesian(xyz, wxyz, time)),
             speed_ref: None,
-            rapi_dto_robot: None,
         }
     }
 
@@ -270,7 +269,6 @@ impl EgmSensor {
             header: Some(EgmHeader::create_header(seqno, clock.as_timestamp_ms())),
             planned: Some(EgmPlanned::create_egm_planned_cartesian(xyz, wxyz, time)),
             speed_ref: Some(EgmSpeedRef::create_egm_speed_linear(xyz_speed)),
-            rapi_dto_robot: None,
         }
     }
 
@@ -282,7 +280,6 @@ impl EgmSensor {
             header: Some(EgmHeader::create_header(seqno, clock.as_timestamp_ms())),
             planned: Some(EgmPlanned::create_egm_planned_joints(joints, time)),
             speed_ref: None,
-            rapi_dto_robot: None,
         }
     }
 
@@ -299,7 +296,6 @@ impl EgmSensor {
             header: Some(EgmHeader::create_header(seqno, clock.as_timestamp_ms())),
             planned: Some(EgmPlanned::create_egm_planned_joints(joints, time)),
             speed_ref: Some(EgmSpeedRef::create_egm_speed_joints(joints_speed)),
-            rapi_dto_robot: None,
         }
     }
 
@@ -313,23 +309,10 @@ impl EgmSensor {
         let clock = EgmClock::from(time);
         EgmSensor {
             header: Some(EgmHeader::create_header(seqno, clock.as_timestamp_ms())),
-            rapi_dto_robot: Some(EgmRapiDdata::stop_sig()),
             planned: Some(EgmPlanned::create_egm_planned_cartesian(
                 curr_pos, curr_ori, time,
             )),
             speed_ref: Some(EgmSpeedRef::create_egm_speed_linear([0.0, 0.0, 0.0])),
-        }
-    }
-}
-
-impl EgmRapiDdata {
-    ///Generate a stop signal that the robot will interpret
-    pub fn stop_sig() -> Self {
-        let data: Vec<f64> = vec![0.0, 1.0];
-
-        EgmRapiDdata {
-            dnum: data,
-            dig_val: Some(true),
         }
     }
 }

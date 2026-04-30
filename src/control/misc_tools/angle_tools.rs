@@ -3,6 +3,7 @@
 ///https://danceswithcode.net/engineeringnotes/quaternions/quaternions.html
 
 ///The quaternion structure
+#[derive(Clone, Copy)]
 pub struct Quaternion {
     ///Real value
     pub w: f64,
