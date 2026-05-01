@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use nalgebra::Matrix4;
 ///rustbot control!
 ///A rust and headerless version of the robot controller designed to run tests in the soilbed
 ///Author(s) - Joe Ingham
@@ -8,7 +9,6 @@ use std::fs::File;
 use std::io::{Write, stdin};
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
-
 mod analysis;
 mod config;
 mod control;
@@ -121,16 +121,24 @@ fn core_cmd_handler(config: &mut Config) {
 
             "test" => {
                 //Load the heightmaps of interest and display them
-                let hmap_1 = Heightmap::create_from_file(String::from(
-                    "C:\\Users\\User\\Documents\\Results\\DEPTH_TESTS\\tenth_hz_param_sweep_feature\\hmap_avg100_res100.txt",
-                ));
+                let mut pcl = PointCloud::create_from_file(String::from(
+                    "C:\\Users\\User\\Documents\\Results\\test_dump\\faro_big\\near_processed.txt",
+                ))
+                .unwrap();
 
-                let hmap_2 = Heightmap::create_from_file(String::from(
-                    "C:\\Users\\User\\Documents\\Results\\DEPTH_TESTS\\nofilter_param_sweep_feature\\hmap_avg100_res50.txt",
-                ));
+                let test_transform: Matrix4<f64> = Matrix4::new(
+                    0.999656, 0.024551, 0.009194, -0.419945, -0.024545, 0.999698, -0.000801,
+                    0.728475, 0.009211, -0.000575, -0.999957, -33.698029, 0.000000, 0.000000,
+                    0.000000, 1.000000,
+                );
 
-                let _ = hmap_1.unwrap().disp_map();
-                let _ = hmap_2.unwrap().disp_map();
+                pcl.transform_with(&test_transform);
+
+                pcl.passband_filter(-0.07, 0.1, -0.09, 0.09, -999.0, 999.0);
+
+                pcl.save_to_file(
+                    "C:\\Users\\User\\Documents\\Results\\test_dump\\faro_big\\faro_big_processed",
+                );
             }
 
             //Take a set of images on a timer for the charuco board claibration
@@ -302,10 +310,10 @@ fn analyse(config: &Config) -> Result<(), anyhow::Error> {
 
     //Trim all the pointclouds down
 
-    let min_x = -0.07;
-    let max_x = 0.1;
-    let min_y = -0.09;
-    let max_y = 0.09;
+    let min_x = -0.03;
+    let max_x = 0.05;
+    let min_y = -0.044;
+    let max_y = 0.04;
     let min_z = -999.0;
     let max_z = 999.0;
 

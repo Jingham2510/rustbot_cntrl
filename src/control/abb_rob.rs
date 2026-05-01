@@ -314,32 +314,30 @@ impl AbbRob<'_> {
                 }
 
                 //Placeholder for when testing new functions
-                "test" => {
+                "egmtest" => {
                     //CURRENTLY TESTING - egm connectivity
                     //Setup and connect EGM
                     let egm_client = self.connect_egm_pose().expect("Failed to connect to EGM");
 
-                    if self.start_egm_stream_speed().is_err() {
+                    if self.start_egm_stream_pose().is_err() {
                         println!("Failed to start the egm stream")
                     }
 
                     //Virtual recieves 518 bytes
                     //Remote recieves 469 bytes why less?
 
-                    println!(
-                        "{:?}",
-                        egm_client
-                            .recv_and_connect()
-                            .expect("Failed to return connection")
-                    );
+                    let init_resp = egm_client
+                        .recv_and_connect()
+                        .expect("Failed to return connection");
+
+                    let init_pos = init_resp.get_pos_xyz().unwrap();
 
                     //Set desired z-speed
-                    let desired_speed = [0.0, 0.0, 1.0];
 
                     let mut seqno = 0;
 
                     //Move down until target z-force reached
-                    for _ in 0..100 {
+                    for _ in 0..1000 {
                         let recv_msg = egm_client.recv_egm().unwrap();
                         let time = recv_msg.get_time().unwrap();
 
@@ -356,19 +354,39 @@ impl AbbRob<'_> {
 
                         //Update the robot EGM requirements
                         egm_client
-                            .send_egm(EgmSensor::set_pose_set_speed(
+                            .send_egm(EgmSensor::set_pose(
                                 seqno,
                                 time,
-                                [0.0, 0.0, 0.0],
+                                [init_pos[0], init_pos[1] + 300.0, init_pos[2]],
                                 self.ori.into(),
-                                desired_speed,
                             ))
                             .unwrap();
 
                         seqno += 1;
                     }
 
+                    println!("Final pos: {:?}", self.pos);
+                    egm_client.egm_end();
                     println!("EGM DONE?");
+                }
+
+                "test" => {
+                    //CURRENTLY TESTING - feature size depth measurements
+                    let xy_pos = [417.0, 2115.0];
+                    let small_indent = 252.0;
+                    let medium_indent = 237.0;
+                    let big_indent = 212.0;
+                    //Move to above
+                    self.set_pos((xy_pos[0], xy_pos[1], 275.0));
+
+                    //Move to indent
+                    self.set_pos((xy_pos[0], xy_pos[1], big_indent));
+
+                    //Move out
+                    self.set_pos((xy_pos[0], xy_pos[1], 275.0));
+
+                    //To home
+                    self.swap_tool();
                 }
 
                 //Send the robot to the pre-defined home position above the sand bed
@@ -1560,6 +1578,8 @@ impl AbbRob<'_> {
 
         println!("Please disconnect cable!");
         wait_for_enter();
+
+        self.swap_tool();
 
         Ok(())
     }
