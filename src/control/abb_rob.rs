@@ -8,7 +8,6 @@ use crate::control::misc_tools::misc::wait_for_enter;
 use crate::control::misc_tools::string_tools;
 use crate::control::trajectory_planner;
 use crate::control::trajectory_planner::calc_xy_timing;
-use crate::mapping::terr_map_sense::{self};
 use crate::mapping::terr_map_tools::Heightmap;
 use crate::modelling::experiment_model::ExpModel;
 use crate::networking::tcp_sock;
@@ -394,10 +393,6 @@ impl AbbRob<'_> {
                     self.go_home_pos();
                 }
 
-                "camscan" => {
-                    let _ = self.feature_scan();
-                }
-
                 _ => println!("Unknown command - see CMDs for list of commands"),
             }
         }
@@ -560,39 +555,6 @@ impl AbbRob<'_> {
         let desired_lat_speed = 0.1;
         let speed_instructions = calc_xy_timing(&mut test_data.traj, desired_lat_speed);
 
-        //Create the threading channels to trigger the camera
-        let (tx, rx) = mpsc::channel();
-
-        //Clone the cam configs to avoid handing ownership to the thread
-        let tmat_0 = self.config.cam_infor.tmat();
-        let scale_0 = self.config.cam_infor.x_scale();
-
-        //Create the thread that handles the depth camera
-
-        thread::spawn(move || {
-            Self::depth_sensing(rx, &*fp_copy, &*test_name_copy, true, tmat_0, scale_0, 0)
-        });
-
-        //Create the threading channels to trigger the camera
-        let (tx1, rx1) = mpsc::channel();
-
-        //Clone the cam configs to avoid handing ownership to the thread
-        let tmat_1 = self.config.cam_infol.tmat();
-        let scale_1 = self.config.cam_infol.x_scale();
-
-        //Create the thread that handles the second depth camera
-        thread::spawn(move || {
-            Self::depth_sensing(
-                rx1,
-                &*test_data.filepath.clone(),
-                &test_data.test_name.clone(),
-                true,
-                tmat_1,
-                scale_1,
-                1,
-            )
-        });
-
         //Setup the seperate PID controllers
         let mut phase2_cntrl =
             PHPIDController::create_PHPID(0.001, 0.000, 0.00002, 0.0, 0.001, 0.0001, 0.00001);
@@ -605,19 +567,8 @@ impl AbbRob<'_> {
         //Log the config
         self.log_config(&test_data.config_filename);
 
-        //Give the camera turn on process time to warm up
-        sleep(Duration::from_secs(2));
-        if tx.send(4).is_err() || tx1.send(4).is_err() {
-            println!("Failed dummy cam trigger");
-        }
-
         //Move the robot out of the way of the camera
         self.go_home_pos();
-
-        //Trigger before the test begins
-        if tx.send(2).is_err() || tx1.send(2).is_err() {
-            println!("Failed initial cam trigger");
-        }
 
         let start_pos = (
             test_data.traj[0].0,
@@ -695,10 +646,6 @@ impl AbbRob<'_> {
             seqno += 1;
             cnt += 1;
         }
-
-        //Take snapshot
-        let _ = tx.send(1);
-        let _ = tx1.send(1);
 
         println!("GEOTECH- Phase 1 Complete!");
         self.write_marker(&test_data.data_filename, "PHASE 1 END");
@@ -817,9 +764,6 @@ impl AbbRob<'_> {
         //Reset the force target to the desired
         self.force_target *= phase2_force_scaler;
 
-        //Take snapshot
-        let _ = tx.send(1);
-        let _ = tx1.send(1);
         //Phase 3 - Complete trajectory whilst (PID)
 
         //Set the speed of the robot
@@ -859,15 +803,6 @@ impl AbbRob<'_> {
                     return;
                 }
 
-                //Trigger the camera
-                if cnt % DEPTH_FREQ == 0 || cnt == 0 {
-                    if tx.send(1).is_ok() || tx1.send(1).is_ok() {
-                        //Do nothing here - normal operation
-                    } else {
-                        println!("Warning - Cam thread dead!");
-                    }
-                }
-
                 //Apply the controller
                 let des_z_speed = phase3_cntrl
                     .calc_op(self.force_err)
@@ -897,13 +832,8 @@ impl AbbRob<'_> {
 
         //Go back to home pos
         self.go_home_pos();
-        //No point error handling - if this fails the test is done anyway
-        let _ = tx.send(3);
-        let _ = tx1.send(3);
 
         println!("Trajectory done!");
-
-        let _ = tx.send(0);
 
         self.write_marker(&test_data.data_filename, "TEST END");
     }
@@ -966,100 +896,6 @@ impl AbbRob<'_> {
 
         //Go to the home position
         self.go_home_pos();
-    }
-
-    ///Function which repeatedly takes depth measurements on trigger
-    ///Designed to be used in a parallel thread
-    fn depth_sensing(
-        rx: Receiver<u32>,
-        filepath: &str,
-        test_name: &str,
-        hmap: bool,
-        tmat: Matrix4<f64>,
-        scale: f64,
-        cam_no: usize,
-    ) {
-        //Create a camera
-        let mut cam =
-            terr_map_sense::RealsenseCam::initialise_raw(cam_no).expect("Failed to create camera");
-
-        let mut cnt = 0;
-
-        //Loop forever - will be killed once the test ends automatically
-        loop {
-            let opt = rx.recv().expect("recieve thread error");
-
-            //Block until the trigger is recieved
-            if opt > 0 {
-                println!("Taking depth measure");
-
-                //Create a pointcloud
-                let mut curr_pcl = cam.get_depth_pnts().expect("Failed to get get pointcloud");
-
-                //Scale/rotate/transform the depth data so it is useable
-                curr_pcl.scale_even(scale);
-                curr_pcl.transform_with(&tmat);
-
-                //Pass band filter the transformed data to keep interest in the box only.
-                curr_pcl.passband_filter(-10.0, 2000.0, -10.0, 2000.0, -150.0, 200.0);
-
-                //Save the pointcloud
-                let pcl_filepath: String;
-
-                match opt {
-                    1 => pcl_filepath = format!("{filepath}/pcl_C{cam_no}_{test_name}_{cnt}"),
-                    2 => pcl_filepath = format!("{filepath}/pcl_C{cam_no}_{test_name}_START"),
-                    3 => pcl_filepath = format!("{filepath}/pcl_C{cam_no}_{test_name}_END"),
-
-                    //Sacrificial scan (i.e. to get a crappy one out the way
-                    4 => {
-                        println!("THROWAWAY SCAN");
-                        //Sleep to try let the cam warm
-                        sleep(Duration::from_secs(2));
-                        continue;
-                    }
-
-                    //If invalid number just take a count
-                    _ => pcl_filepath = format!("{filepath}/pcl_C{cam_no}_{test_name}_{cnt}"),
-                }
-
-                curr_pcl.save_to_file(&pcl_filepath).unwrap();
-
-                if hmap {
-                    //Create a heightmap from the pointcloud
-                    let mut curr_hmap = Heightmap::create_from_pcl(curr_pcl, 200, 200);
-
-                    //Save the heightmap
-                    let hmap_filepath: String = match opt {
-                        1 => {
-                            format!("{filepath}/hmap_C{cam_no}_{test_name}_{cnt}")
-                        }
-                        2 => {
-                            format!("{filepath}/hmap_C{cam_no}_{test_name}_START")
-                        }
-                        3 => {
-                            format!("{filepath}/hmap_C{cam_no}_{test_name}_END")
-                        }
-
-                        //If invalid number just take a count
-                        _ => {
-                            format!("{filepath}/hmap_C{cam_no}_{test_name}_{cnt}")
-                        }
-                    };
-
-                    //println!("{hmap_filepath}");
-                    curr_hmap.save_to_file(&hmap_filepath).unwrap()
-                }
-
-                if opt == 1 {
-                    //Increase the loop count
-                    cnt += 1;
-                }
-            } else {
-                println!("Closing cam thread");
-                return;
-            }
-        }
     }
 
     ///Requests the xyz position of the TCP from the robot and stores it in the robot info
@@ -1515,72 +1351,5 @@ impl AbbRob<'_> {
         self.go_home_pos();
 
         self.write_marker(&test_data.data_filename, "Test end");
-    }
-
-    ///An experiment that moves the robot vertically in a straight line and saves pointclouds at specific heights
-    fn feature_scan(&mut self) -> Result<(), anyhow::Error> {
-        //Predetermined XY position
-        let xy_pos = [417.0, 2115.0];
-
-        //Predetermined heights
-        let heights = [250.0, 350.0, 450.0, 550.0, 650.0, 750.0, 850.0, 950.0];
-
-        //Number of pointclouds to take
-        let number_of_pcls = 25;
-
-        //Create the test data and the filepaths
-        let test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
-
-        //Move to cable attach position
-        self.set_pos((940.0, 2139.0, 275.0));
-        self.set_ori(Quaternion::from([0.0, 0.39616, 0.91817, -0.00312]));
-
-        println!("Please attach cable!");
-        wait_for_enter();
-        //Turn on the camera
-        let mut cam = terr_map_sense::RealsenseCam::initialise_raw(0)?;
-
-        println!("Cam initialised.... Moving to feature scan position");
-
-        //Move to the first position and rotate to correct orientation
-        self.set_pos((xy_pos[0], xy_pos[1], heights[0]));
-        self.set_ori(Quaternion::from([0.0, 0.39616, 0.91817, -0.00312]));
-
-        //For each height
-        for height in heights.iter() {
-            //Setup the current robot config
-            let _pcl_cnt = 0;
-            let fp = format!(
-                "{}/pcl_{}_{}mm",
-                test_data.filepath, test_data.test_name, height
-            );
-
-            //Move the robot to the desired height
-            self.set_pos((xy_pos[0], xy_pos[1], *height));
-
-            //Take the pointclouds
-            for i in 0..number_of_pcls {
-                //Capture the depth points
-                let mut curr_pcl = cam.get_depth_pnts()?;
-
-                curr_pcl.save_to_file(&format!("{}_{}", fp, i))?;
-
-                //Ping to keep the connection alive
-                self.ping();
-            }
-
-            println!("Height completed - {}", height);
-        }
-
-        //Move to cable detach position
-        self.set_pos((940.0, 2139.0, 275.0));
-        self.set_ori(Quaternion::from([0.0, 0.39616, 0.91817, -0.00312]));
-
-        println!("Please disconnect cable!");
-        wait_for_enter();
-
-        self.swap_tool();
-
-        Ok(())
     }
 }

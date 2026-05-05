@@ -6,7 +6,6 @@ use anyhow::bail;
 use chrono::{DateTime, Utc};
 use nalgebra::{Matrix4, Vector4};
 use rand::RngExt;
-use realsense_sys::rs2_vertex;
 use scirs2::signal::FilterType::Lowpass;
 use scirs2::signal::filter::{butter, lfilter};
 use std::fs::File;
@@ -34,32 +33,6 @@ impl PointCloud {
 
         Self {
             points: pnts,
-            no_of_points,
-            rel_timestamp: timestamp,
-            global_timestamp: Utc::now(),
-            filename: None,
-        }
-    }
-
-    ///Create a pointcloud from a list of realsense vertices
-    pub fn create_from_iter(rs2_vertex: &[rs2_vertex], timestamp: f64) -> Self {
-        let mut points: Vec<[f64; 3]> = vec![];
-        let mut no_of_points = 0;
-
-        for vertex in rs2_vertex.iter() {
-            let pnt = vertex.xyz;
-
-            //check if the point is valid - if not ignore it
-            if pnt == [0.0, 0.0, 0.0] || pnt[2] > 2.0 {
-                continue;
-            }
-
-            points.push([pnt[0] as f64, pnt[1] as f64, pnt[2] as f64]);
-            no_of_points += 1;
-        }
-
-        Self {
-            points,
             no_of_points,
             rel_timestamp: timestamp,
             global_timestamp: Utc::now(),
