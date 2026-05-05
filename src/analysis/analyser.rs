@@ -319,7 +319,10 @@ impl Analyser {
         &mut self,
         identifier: &str,
     ) -> Result<Vec<PointCloud>, anyhow::Error> {
-        println!("LOADING POINTCLOUDS----------");
+        println!(
+            "LOADING POINTCLOUDS WITH IDENTIFIER: {} ----------",
+            identifier
+        );
 
         let mut pcls: Vec<PointCloud> = vec![];
 

@@ -119,25 +119,28 @@ fn core_cmd_handler(config: &mut Config) {
                 }
             }
 
-            "test" => {
-                //Load the heightmaps of interest and display them
-                let mut pcl = PointCloud::create_from_file(String::from(
-                    "C:\\Users\\User\\Documents\\Results\\test_dump\\faro_big\\near_processed.txt",
-                ))
-                .unwrap();
+            "temp" => {
+                //CURRENTLY - saving faro pointclouds as parametric heightmaps
 
-                let test_transform: Matrix4<f64> = Matrix4::new(
-                    0.999656, 0.024551, 0.009194, -0.419945, -0.024545, 0.999698, -0.000801,
-                    0.728475, 0.009211, -0.000575, -0.999957, -33.698029, 0.000000, 0.000000,
-                    0.000000, 1.000000,
-                );
+                let mut analyser = Analyser::init(config.test_fp(), String::from("faro_big"))
+                    .expect("Failed to find test");
 
-                pcl.transform_with(&test_transform);
+                //Parameters for the sweep
+                //1x1m space
+                //5 = 20cm resolution, 10 = 10cm resolution etc...
+                let resolutions: [u32; 10] = [5, 10, 20, 25, 50, 100, 200, 300, 400, 500];
 
-                pcl.passband_filter(-0.07, 0.1, -0.09, 0.09, -999.0, 999.0);
+                let n_averages: [u32; 1] = [1];
 
-                pcl.save_to_file(
-                    "C:\\Users\\User\\Documents\\Results\\test_dump\\faro_big\\faro_big_processed",
+                let identifier: [&str; 1] = ["big"];
+
+                println!(
+                    "{:?}",
+                    analyser.create_parametric_hmaps(
+                        resolutions.to_vec(),
+                        n_averages.to_vec(),
+                        identifier.to_vec(),
+                    )
                 );
             }
 
@@ -572,6 +575,7 @@ fn multi_cam_pcl(config: &Config) -> Result<(), anyhow::Error> {
 }
 
 ///Realsense parametric study when for looking at std deviation in measurements when changing heightmap resolution and averging quantities measuring a known surface
+
 fn res_vs_avg_parametric_sweep(config: &Config) -> Result<(), anyhow::Error> {
     //Parameters for the sweep
     //1x1m space

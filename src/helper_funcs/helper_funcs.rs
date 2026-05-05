@@ -361,10 +361,10 @@ fn median_cell_col(val: f64, min: f64, med_val: f64, max: f64) -> Color {
 ///Calculate the colour as a percentage of the distance from max value
 fn intensity_cell_col(val: f64, min: f64, max: f64) -> Color {
     Color::new(
-        255.0 as u8,
-        255.0 as u8,
-        255.0 as u8,
         (255.0 * (val - min) / (max - min)) as u8,
+        255.0 as u8,
+        255.0 as u8,
+        255,
     )
 }
 
