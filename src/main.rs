@@ -109,8 +109,10 @@ fn core_cmd_handler(config: &mut Config) {
             "temp" => {
                 //CURRENTLY - saving faro pointclouds as parametric heightmaps
 
-                let mut analyser = Analyser::init(config.test_fp(), String::from("faro_big"))
+                let mut analyser = Analyser::init(config.test_fp(), String::from("faro_flat"))
                     .expect("Failed to find test");
+
+                analyser.apply_passband(-0.228605, 0.277421, -0.154003, 0.154688, -999.0, 999.0);
 
                 //Parameters for the sweep
                 //1x1m space
