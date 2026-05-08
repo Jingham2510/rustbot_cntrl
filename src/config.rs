@@ -9,15 +9,11 @@ use std::io::{BufRead, BufReader};
 //TODO: Fix config again...
 //Config structs and setup
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 ///The programme configuration information
 pub struct Config {
     ///The filepath of a given test
     test_fp: String,
-    ///The first camera config info
-    pub cam_infor: CamInfo,
-    ///The second camerca config info
-    pub cam_infol: CamInfo,
     ///The robot information
     pub rob_info: RobInfo,
     ///Geo-test phase 2 controller settings
@@ -29,18 +25,7 @@ pub struct Config {
     default: bool,
 }
 
-#[derive(Debug)]
-///Camera config info
-pub struct CamInfo {
-    ///Homogeneous transform to world 0,0,0 with z as vertical depth
-    tmat: Matrix4<f64>,
-    ///The x scale relative to the real-world
-    x_scale: f64,
-    ///The y scale relative to the real world
-    y_scale: f64,
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 ///Robot config info
 pub struct RobInfo {
     ///The name of the robot
@@ -63,24 +48,10 @@ impl Default for Config {
             test_fp: "C:/Users/User/Documents/Results/DEPTH_TESTS"
                 .parse()
                 .unwrap(),
-            cam_infor: CamInfo::default(),
-            cam_infol: CamInfo::default(),
             rob_info: RobInfo::default(),
             phase2_cntrl_settings: "NONE".parse().unwrap(),
             phase3_cntrl_settings: "NONE".parse().unwrap(),
             default: true,
-        }
-    }
-}
-
-impl Default for CamInfo {
-    ///Create a default camera configuartion
-    fn default() -> CamInfo {
-        CamInfo {
-            tmat: Matrix4::identity(),
-            //Scale from mm to m
-            x_scale: 0.001,
-            y_scale: 0.001,
         }
     }
 }
@@ -106,8 +77,6 @@ impl Config {
         //Get the Caminfo (from the file)
         Ok(Self {
             test_fp,
-            cam_infor: CamInfo::read_cam_info_from_file(0)?,
-            cam_infol: CamInfo::read_cam_info_from_file(1)?,
             rob_info: RobInfo::read_rob_info_from_file()?,
             phase2_cntrl_settings: "NONE".parse()?,
             phase3_cntrl_settings: "NONE".parse()?,
@@ -154,143 +123,14 @@ impl Config {
     }
 }
 
-impl CamInfo {
-    ///Create the camera info
-    pub fn create_cam_info(tmat: Matrix4<f64>, x_scale: f64, y_scale: f64) -> Self {
-        Self {
-            tmat,
-            x_scale,
-            y_scale,
-        }
-    }
-
-    ///Create a caminfo struct from a line with format CAM: POS:[X,Y,Z] ORI:[X,Y,Z] X_SC:[X] Y_SC[Y]
-    pub fn create_cam_info_from_line(cam_info_line: String) -> Result<Self, anyhow::Error> {
-        let split = cam_info_line.replace(" ", "");
-        let split = split.split("SC");
-
-        let mut tmat: Matrix4<f64> = Matrix4::identity();
-        let mut x_scale: f64 = 1.0;
-        let mut y_scale: f64 = 1.0;
-
-        for (i, token) in split.into_iter().enumerate() {
-            match i {
-                //The extrinsic matrix is saved as columns due to nalgebra debug setup
-                0 => {
-                    //Cover both camera cases
-                    let mut tmat_token = token.replace("CAMR:EXT_MAT:", "").replace("X_", "");
-                    tmat_token = tmat_token.replace("CAML:EXT_MAT:", "").replace("X_", "");
-
-                    let tmat_split = tmat_token.split("],");
-
-                    for (i, token) in tmat_split.into_iter().enumerate() {
-                        let token = token.replace("[", "").replace("]", "");
-
-                        for (j, val) in token.split(",").into_iter().enumerate() {
-                            tmat[(j, i)] = val.parse()?;
-                        }
-                    }
-                }
-                1 => {
-                    let x_sc_str = token.replace(":[", "").replace("]Y_", "");
-                    x_scale = x_sc_str.parse()?;
-                }
-                2 => {
-                    let y_sc_str = token.replace(":[", "").replace("]\n", "");
-                    y_scale = y_sc_str.parse()?;
-                }
-                _ => {
-                    bail!("Cam line too long!");
-                }
-            }
-        }
-
-        let cam_info = CamInfo::create_cam_info(tmat, x_scale, y_scale);
-        Ok(cam_info)
-    }
-
-    ///Create cmarea info from camera preset camera config
-    fn read_cam_info_from_file(cam_no: usize) -> Result<Self, anyhow::Error> {
-        let cam_side = if cam_no == 0 { "r" } else { "l" };
-
-        //Construct the filepath
-        let cam_config_filename = format!("caminfo_{}.txt", cam_side);
-        let fp = format!("{}/{}", CONFIG_FP, cam_config_filename);
-
-        //Open the cam config file
-        let cam_config_file = File::open(fp)?;
-
-        //Have the default values initialised - incase they aren't overwritten
-        let mut tmat: Matrix4<f64> = Matrix4::identity();
-        let mut x_scale: f64 = 0.001;
-        let mut y_scale: f64 = 0.001;
-
-        //Go through each line and parse the info
-        for line in BufReader::new(cam_config_file).lines() {
-            let mut curr_line = line?;
-
-            if curr_line.starts_with("EXT_MAT") {
-                //Get rid of all blank space
-                curr_line = curr_line.replace(" ", "");
-                //Remove opening and ending brackets
-                curr_line = curr_line.replace("EXT_MAT=[", "");
-                curr_line = curr_line.replace("]", "");
-
-                //Split into lines
-                let row_split = curr_line.split(";");
-                for (i, token) in row_split.into_iter().enumerate() {
-                    let val_split = token.split(",");
-                    for (j, val) in val_split.into_iter().enumerate() {
-                        tmat[(i, j)] = val.parse()?;
-                    }
-                }
-            } else if curr_line.starts_with("X_SCALE") {
-                x_scale = Self::extract_scale(curr_line)?;
-            } else if curr_line.starts_with("Y_SCALE") {
-                y_scale = Self::extract_scale(curr_line)?;
-            } else {
-                bail!("Invalid cam config! - unknown line!")
-            }
-        }
-
-        Ok(Self {
-            tmat,
-            x_scale,
-            y_scale,
-        })
-    }
-
-    ///Get the scale from a string
-    fn extract_scale(line: String) -> Result<f64, anyhow::Error> {
-        //Access the value
-        let line_split: Vec<&str> = line.split("[").collect();
-        let val = line_split[1].replace("]", "");
-
-        //Attempt to parse it
-        Ok(val.parse()?)
-    }
-
-    ///Get the relative position
-    pub fn tmat(&self) -> Matrix4<f64> {
-        self.tmat
-    }
-
-    ///Get the x axis scaling factor
-    pub fn x_scale(&self) -> f64 {
-        self.x_scale
-    }
-    ///Get the y axis scaling factor
-    pub fn y_scale(&self) -> f64 {
-        self.y_scale
-    }
-}
-
 impl RobInfo {
     ///Create a rob info struct from the info file
     pub fn read_rob_info_from_file() -> Result<Self, anyhow::Error> {
         const ROB_CONFIG_FILENAME: &str = "robinfo.txt";
 
         let fp = format!("{}/{}", CONFIG_FP, ROB_CONFIG_FILENAME);
+
+        println!("{}", fp);
 
         let mut rob_name = String::new();
         let mut pos_for_zero = [0.0, 0.0, 0.0];

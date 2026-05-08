@@ -383,3 +383,9 @@ pub fn add_nan(var: f64, val: f64) -> f64 {
     //If the value is NaN just add nothing
     if val.is_nan() { var } else { var + val }
 }
+
+///Subtracts a value (that could possibly be NaN) to a variable
+pub fn sub_nan(var: f64, val: f64) -> f64 {
+    //If the value is NaN just add nothing
+    if val.is_nan() { var } else { var - val }
+}

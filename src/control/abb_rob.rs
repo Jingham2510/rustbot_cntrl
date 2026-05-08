@@ -1113,25 +1113,6 @@ impl AbbRob<'_> {
             .open(filepath.trim())
             .unwrap();
 
-        //Save the cam info
-        let line = format!(
-            "CAMR: EXT_MAT:[{:?}] X_SC:[{}] Y_SC:[{}]",
-            self.config.cam_infor.tmat(),
-            self.config.cam_infor.x_scale(),
-            self.config.cam_infor.y_scale()
-        );
-
-        writeln!(file, "{}", line).expect("FAILED TO WRITE CAM TO CONFIG - CLOSING");
-
-        let line = format!(
-            "CAML: EXT_MAT:[{:?}] X_SC:[{}] Y_SC:[{}]",
-            self.config.cam_infol.tmat(),
-            self.config.cam_infol.x_scale(),
-            self.config.cam_infol.y_scale()
-        );
-
-        writeln!(file, "{}", line).expect("FAILED TO WRITE CAM TO CONFIG - CLOSING");
-
         //Save another line with the robot pos/ori config data
         let line = format!(
             "ROB: NAME: \"{}\" POS:[{},{},{}] ORI:[{},{},{}] EMB:[{}]",

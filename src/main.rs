@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 use std::io::{Write, stdin};
-use std::thread::sleep;
+use std::thread;
 use std::time::{Duration, SystemTime};
 mod analysis;
 mod config;
@@ -108,29 +108,58 @@ fn core_cmd_handler(config: &mut Config) {
 
             "temp" => {
                 //CURRENTLY - saving faro pointclouds as parametric heightmaps
-
-                let mut analyser = Analyser::init(config.test_fp(), String::from("faro_flat"))
-                    .expect("Failed to find test");
-
-                analyser.apply_passband(-0.228605, 0.277421, -0.154003, 0.154688, -999.0, 999.0);
+                let tests_to_regen = vec![
+                    "flat_terrain_scan_1",
+                    "small_indent_scan_1",
+                    "medium_indent_scan_1",
+                    "big_indent_scan_1",
+                ];
 
                 //Parameters for the sweep
                 //1x1m space
                 //5 = 20cm resolution, 10 = 10cm resolution etc...
-                let resolutions: [u32; 10] = [5, 10, 20, 25, 50, 100, 200, 300, 400, 500];
+                let resolutions: [u32; 495] = core::array::from_fn(|i| (i + 5) as u32);
 
-                let n_averages: [u32; 1] = [1];
+                let n_averages: [u32; 25] = core::array::from_fn(|i| (i + 1) as u32);
 
-                let identifier: [&str; 1] = ["big"];
+                let identifier: [&str; 6] = ["450mm", "550mm", "650mm", "750mm", "850mm", "950mm"];
 
-                println!(
-                    "{:?}",
-                    analyser.create_parametric_hmaps(
-                        resolutions.to_vec(),
-                        n_averages.to_vec(),
-                        identifier.to_vec(),
-                    )
-                );
+                let ground_truths: [&str; 4] = [
+                    "/home/joe/Documents/Data/test_dumps/faro_flat/pcl_faro_flat_processed.txt",
+                    "/home/joe/Documents/Data/test_dumps/faro_flat/pcl_faro_flat_processed.txt",
+                    "/home/joe/Documents/Data/test_dumps/faro_flat/pcl_faro_flat_processed.txt",
+                    "/home/joe/Documents/Data/test_dumps/faro_flat/pcl_faro_flat_processed.txt",
+                ];
+
+                let height_deltas: [[f64; 6]; 4] = [
+                    [0.513, 0.411, 0.312, 0.207, 0.103, 0.0],
+                    [0.513, 0.410, 0.307, 0.205, 0.10, 0.0],
+                    [0.512, 0.408, 0.307, 0.203, 0.103, 0.0],
+                    [0.508, 0.407, 0.301, 0.202, 0.103, 0.0],
+                ];
+
+                let mut cnt = 0;
+
+                for test in tests_to_regen {
+                    thread::spawn(move || {
+                        let mut analyser = Analyser::init(
+                            String::from("/home/joe/Documents/Data/test_dumps"),
+                            String::from(test),
+                        )
+                        .expect("Failed to find test");
+
+                        analyser.save_parametric_hmap_stats(
+                            resolutions.to_vec(),
+                            n_averages.to_vec(),
+                            identifier.to_vec(),
+                            &PointCloud::create_from_file(String::from(ground_truths[cnt]))
+                                .expect("Failed to create pcl"),
+                            height_deltas[cnt].to_vec(),
+                        );
+                    });
+
+                    cnt += 1;
+                }
             }
 
             //Catch all else

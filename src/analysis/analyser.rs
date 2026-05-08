@@ -1,11 +1,11 @@
 ///Analyses test results in the form of displaying heightmap results
 use crate::analysis::data_handler::DataHandler;
-use crate::config::{CamInfo, RobInfo};
+use crate::config::RobInfo;
 use crate::helper_funcs;
-use crate::helper_funcs::helper_funcs::ColOpt;
+use crate::helper_funcs::helper_funcs::{ColOpt, add_nan, sub_nan};
 use crate::helper_funcs::helper_funcs::{display_magnitude_map, trans_to_heightmap};
 use crate::mapping::terr_map_tools;
-use crate::mapping::terr_map_tools::{Heightmap, PointCloud};
+use crate::mapping::terr_map_tools::{Heightmap, PointCloud, comp_maps};
 use anyhow::bail;
 use std::fs;
 use std::fs::File;
@@ -23,8 +23,6 @@ pub struct Analyser {
     data_handler: Option<DataHandler>,
     ///Number of pointclouds taken in this test
     no_of_pcl: i32,
-    ///The camera configuration information for the given test
-    cam_info: Option<Vec<CamInfo>>,
     ///The robot configuration information for the given test
     rob_info: Option<RobInfo>,
     ///Coordination pre-transform flag - True if trajectory already transformed
@@ -67,14 +65,11 @@ impl Analyser {
         println!("Loading config - {test_fp}");
         let rob_info: Option<RobInfo>;
         let mut pre_trans = false;
-        let cam_info: Option<Vec<CamInfo>>;
         if let Ok(info) = get_config(&test_fp, &test_name) {
             rob_info = Some(info.0);
-            cam_info = Some(info.1);
-            pre_trans = info.2;
+            pre_trans = info.1;
         } else {
             rob_info = None;
-            cam_info = None;
         }
 
         Ok(Self {
@@ -84,7 +79,6 @@ impl Analyser {
             data_handler,
             no_of_pcl,
             rob_info,
-            cam_info,
             pre_trans,
         })
     }
@@ -793,10 +787,12 @@ impl Analyser {
                             self.test_fp, self.test_name, *identifier, *resolution, cnt
                         );
 
-                        println!("{}", filepath);
-
-                        let _ =
-                            terr_map_tools::average_heightmaps(&curr_hmaps).save_to_file(&filepath);
+                        let _ = terr_map_tools::average_heightmaps(
+                            &curr_hmaps,
+                            curr_hmaps[0].lower_coord_bounds(),
+                            curr_hmaps[0].upper_coord_bounds(),
+                        )
+                        .save_to_file(&filepath);
 
                         println!(
                             "Average created for {} number of pcls at resolution {} at identifier {}",
@@ -815,6 +811,137 @@ impl Analyser {
 
         Ok(())
     }
+
+    ///From a tests pointclouds - create a set of parametric heightmaps
+    ///Define the resolutions, averages and identifiers
+    /// Compares these heightmaps with a provided pointcloud ground truth
+    /// Calculates the mean error and std_dev err
+    /// Allows a user to specify height deltas to offset height differences
+    pub fn save_parametric_hmap_stats(
+        &mut self,
+        resolutions: Vec<u32>,
+        averages: Vec<u32>,
+        identifiers: Vec<&str>,
+        gnd_truth_pcl: &PointCloud,
+        height_deltas: Vec<f64>,
+    ) -> Result<(), anyhow::Error> {
+        //Get the maximum average value
+        let max_avg = *averages.iter().max().expect("Failed to get maximum") as i32;
+
+        //For each identifier specified
+        for (i, identifier) in identifiers.iter().enumerate() {
+            let mut dist_stats: Vec<(u32, u32, f64, f64)> = vec![];
+
+            //Loda all the pointclouds with that identifier
+            let mut curr_pcls: Vec<PointCloud> = self
+                .get_pcl_with_identifier(*identifier)
+                .expect("Failed to find identifier");
+
+            //check that there are enough for the maxmimum average
+            if curr_pcls.len() < max_avg as usize {
+                bail!("Not enough pointclouds for the average required!")
+            }
+
+            if identifiers.len() != height_deltas.len() {
+                bail!("Number of identifiers does not equal number of height deltas!")
+            }
+
+            for resolution in resolutions.iter() {
+                let mut cnt: u32 = 0;
+
+                //Turn all of the pointclouds into heightmaps
+                let mut curr_hmaps: Vec<Heightmap> = vec![];
+
+                let curr_gnd_truth =
+                    Heightmap::create_using_pcl_ref(gnd_truth_pcl, *resolution, *resolution);
+
+                for pcl in curr_pcls.iter() {
+                    curr_hmaps.push(Heightmap::create_using_pcl_ref(
+                        pcl,
+                        *resolution,
+                        *resolution,
+                    ));
+
+                    cnt += 1;
+
+                    if averages.contains(&cnt) {
+                        let mut curr_hmap = terr_map_tools::average_heightmaps(
+                            &curr_hmaps,
+                            curr_hmaps[0].lower_coord_bounds(),
+                            curr_hmaps[0].upper_coord_bounds(),
+                        );
+
+                        //Acount for user specified height offsets
+                        if height_deltas[i] != 0.0 {
+                            curr_hmap.offset_map(height_deltas[i]);
+                        }
+
+                        let err_map =
+                            comp_maps(&curr_gnd_truth, &curr_hmap).expect("Failed to calc err map");
+
+                        let stats = get_err_stats(&err_map);
+
+                        dist_stats.push((*resolution, cnt, stats.0, stats.1));
+                    }
+                }
+                println!("{}-Completed for resolution {}", identifier, *resolution);
+            }
+
+            //Save the stats file
+            let filepath = format!(
+                "{}/comp_stats_{}_{}.csv",
+                self.test_fp, self.test_name, *identifier
+            );
+
+            let mut file = fs::OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(filepath)
+                .unwrap();
+
+            let csv_header = format!("resolution,average,mean_err,std.dev_err\n");
+            file.write_all(csv_header.as_bytes());
+
+            for stat in dist_stats.iter() {
+                let stats_str = format!("{},{},{},{}\n", stat.0, stat.1, stat.2, stat.3);
+                file.write_all(stats_str.as_bytes());
+            }
+
+            //Empty the current list
+            curr_pcls.clear();
+
+            println!("Completed for identifier {}", *identifier);
+        }
+
+        Ok(())
+    }
+}
+
+///For a given error heightmap, calculate the average (mean) error, and the standard deviation
+fn get_err_stats(err_map: &Heightmap) -> (f64, f64) {
+    //First flatten the map
+    let flattened_cells = err_map.get_flattened_cells().expect("Failed to flatten");
+
+    //Calculate the mean value of the cells
+    let no_of_cells = flattened_cells.len() as f64;
+    let mut sum = 0.0;
+    for cell in flattened_cells.iter() {
+        sum = add_nan(sum, cell.abs());
+    }
+    let mean = sum / no_of_cells;
+
+    //Calculate the std deviation of the cells
+    let mut sum = 0.0;
+    for cell in flattened_cells.iter() {
+        //Ignore nan cells
+        if cell.is_nan() {
+            continue;
+        }
+        sum += (*cell - mean).powf(2.0);
+    }
+    let std_dev = (sum / no_of_cells).sqrt();
+
+    (mean, std_dev)
 }
 
 ///Determines the method for force intensity calculation
@@ -830,23 +957,12 @@ pub enum ForceSel {
 }
 
 ///Loads the stored test configuration
-fn get_config(
-    filepath: &String,
-    test_name: &String,
-) -> Result<(RobInfo, Vec<CamInfo>, bool), anyhow::Error> {
+fn get_config(filepath: &String, test_name: &String) -> Result<(RobInfo, bool), anyhow::Error> {
     //Get the first line of the cam config file
     let config_fp = format!("{}/conf_{}.txt", filepath, test_name);
 
     let conf_file = File::open(config_fp)?;
     let mut line_reader = BufReader::new(conf_file);
-
-    //Open the file and read the first line
-    let mut cam0_info_line = String::new();
-    line_reader.read_line(&mut cam0_info_line)?;
-
-    //Open the file and read the first line
-    let mut cam1_info_line = String::new();
-    line_reader.read_line(&mut cam1_info_line)?;
 
     //Read the second line to get the robot info
     let mut rob_info_line = String::new();
@@ -862,10 +978,6 @@ fn get_config(
     //Attempt to create both the configs inplace
     Ok((
         RobInfo::create_rob_info_from_line(rob_info_line)?,
-        vec![
-            CamInfo::create_cam_info_from_line(cam0_info_line)?,
-            CamInfo::create_cam_info_from_line(cam1_info_line)?,
-        ],
         trans_flag,
     ))
 }

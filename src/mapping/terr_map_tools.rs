@@ -612,6 +612,13 @@ impl Heightmap {
         }
     }
 
+    pub fn lower_coord_bounds(&self) -> [f64; 2] {
+        self.lower_coord_bounds
+    }
+    pub fn upper_coord_bounds(&self) -> [f64; 2] {
+        self.upper_coord_bounds
+    }
+
     ///Set the height of all cells
     pub fn set_map(&mut self, new_heights: Heightmap) {
         //Sweep through each cell and replace with the new map height
@@ -626,6 +633,18 @@ impl Heightmap {
 
         self.get_max();
         self.get_min();
+    }
+
+    ///Modify the height of every cell by a specified value
+    pub fn offset_map(&mut self, height_change: f64) {
+        //Sweep through each cell and replace with the new map height
+        for row in self.cells.iter_mut() {
+            for col in row.iter_mut() {
+                *col = add_nan(*col, height_change);
+            }
+        }
+        self.max_updated = false;
+        self.min_updated = false;
     }
 
     ///Get the maximum cell height
@@ -718,7 +737,7 @@ impl Heightmap {
     }
 
     ///Returns the flattened cells (i.e. every single cell in a single vector)
-    pub fn get_flattened_cells(&mut self) -> Result<Vec<f64>, anyhow::Error> {
+    pub fn get_flattened_cells(&self) -> Result<Vec<f64>, anyhow::Error> {
         let mut cell_list: Vec<f64> = vec![];
 
         for x in 0..(self.width - 1) as usize {
@@ -935,7 +954,11 @@ pub fn comp_maps(
 //General heightmap statistical functions
 
 ///Takes a list of heightmaps that are the same size and averages them
-pub fn average_heightmaps(hmap_list: &Vec<Heightmap>) -> Heightmap {
+pub fn average_heightmaps(
+    hmap_list: &Vec<Heightmap>,
+    lower_bounds: [f64; 2],
+    upper_bounds: [f64; 2],
+) -> Heightmap {
     //Get the number of heightmaps
     let no_of_heightmaps = hmap_list.len();
 
@@ -952,6 +975,9 @@ pub fn average_heightmaps(hmap_list: &Vec<Heightmap>) -> Heightmap {
             *val = avg_val / no_of_heightmaps as f64;
         }
     }
+
+    avg_hmap.lower_coord_bounds = lower_bounds;
+    avg_hmap.upper_coord_bounds = upper_bounds;
 
     avg_hmap
 }
