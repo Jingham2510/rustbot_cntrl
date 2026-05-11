@@ -108,39 +108,18 @@ fn core_cmd_handler(config: &mut Config) {
 
             "temp" => {
                 //CURRENTLY - saving faro pointclouds as parametric heightmaps
-                let tests_to_regen = vec![
+                let tests_to_gen = vec![
                     "flat_terrain_scan_1",
                     "small_indent_scan_1",
                     "medium_indent_scan_1",
                     "big_indent_scan_1",
                 ];
 
-                //Parameters for the sweep
-                //1x1m space
-                //5 = 20cm resolution, 10 = 10cm resolution etc...
-                let resolutions: [u32; 495] = core::array::from_fn(|i| (i + 5) as u32);
-
-                let n_averages: [u32; 25] = core::array::from_fn(|i| (i + 1) as u32);
-
-                let identifier: [&str; 6] = ["450mm", "550mm", "650mm", "750mm", "850mm", "950mm"];
-
-                let ground_truths: [&str; 4] = [
-                    "/home/joe/Documents/Data/test_dumps/faro_flat/pcl_faro_flat_processed.txt",
-                    "/home/joe/Documents/Data/test_dumps/faro_flat/pcl_faro_flat_processed.txt",
-                    "/home/joe/Documents/Data/test_dumps/faro_flat/pcl_faro_flat_processed.txt",
-                    "/home/joe/Documents/Data/test_dumps/faro_flat/pcl_faro_flat_processed.txt",
-                ];
-
-                let height_deltas: [[f64; 6]; 4] = [
-                    [0.513, 0.411, 0.312, 0.207, 0.103, 0.0],
-                    [0.513, 0.410, 0.307, 0.205, 0.10, 0.0],
-                    [0.512, 0.408, 0.307, 0.203, 0.103, 0.0],
-                    [0.508, 0.407, 0.301, 0.202, 0.103, 0.0],
-                ];
+                let identifiers: [&str; 6] = ["450mm", "550mm", "650mm", "750mm", "850mm", "950mm"];
 
                 let mut cnt = 0;
 
-                for test in tests_to_regen {
+                for test in tests_to_gen {
                     thread::spawn(move || {
                         let mut analyser = Analyser::init(
                             String::from("/home/joe/Documents/Data/test_dumps"),
@@ -148,17 +127,8 @@ fn core_cmd_handler(config: &mut Config) {
                         )
                         .expect("Failed to find test");
 
-                        analyser.save_parametric_hmap_stats(
-                            resolutions.to_vec(),
-                            n_averages.to_vec(),
-                            identifier.to_vec(),
-                            &PointCloud::create_from_file(String::from(ground_truths[cnt]))
-                                .expect("Failed to create pcl"),
-                            height_deltas[cnt].to_vec(),
-                        );
+                        analyser.save_avg_point_density(identifiers.to_vec());
                     });
-
-                    cnt += 1;
                 }
             }
 

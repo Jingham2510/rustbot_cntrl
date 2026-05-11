@@ -309,10 +309,7 @@ impl Analyser {
     }
 
     ///Get pcls that have the identifier in the filepath
-    fn get_pcl_with_identifier(
-        &mut self,
-        identifier: &str,
-    ) -> Result<Vec<PointCloud>, anyhow::Error> {
+    fn get_pcl_with_identifier(&self, identifier: &str) -> Result<Vec<PointCloud>, anyhow::Error> {
         println!(
             "LOADING POINTCLOUDS WITH IDENTIFIER: {} ----------",
             identifier
@@ -815,6 +812,92 @@ impl Analyser {
     ///From a tests pointclouds - create a set of parametric heightmaps
     ///Define the resolutions, averages and identifiers
     /// Compares these heightmaps with a provided pointcloud ground truth
+    /// Save the generated error map
+    /// Allows a user to specify height deltas to offset height differences
+    pub fn save_parametric_error_maps(
+        &mut self,
+        resolutions: Vec<u32>,
+        averages: Vec<u32>,
+        identifiers: Vec<&str>,
+        gnd_truth_pcl: &PointCloud,
+        height_deltas: Vec<f64>,
+    ) -> Result<(), anyhow::Error> {
+        //Get the maximum average value
+        let max_avg = *averages.iter().max().expect("Failed to get maximum") as i32;
+
+        //For each identifier specified
+        for (i, identifier) in identifiers.iter().enumerate() {
+            //Loda all the pointclouds with that identifier
+            let mut curr_pcls: Vec<PointCloud> = self
+                .get_pcl_with_identifier(*identifier)
+                .expect("Failed to find identifier");
+
+            //check that there are enough for the maxmimum average
+            if curr_pcls.len() < max_avg as usize {
+                bail!("Not enough pointclouds for the average required!")
+            }
+
+            if identifiers.len() != height_deltas.len() {
+                bail!("Number of identifiers does not equal number of height deltas!")
+            }
+
+            for resolution in resolutions.iter() {
+                let mut cnt: u32 = 0;
+
+                //Turn all of the pointclouds into heightmaps
+                let mut curr_hmaps: Vec<Heightmap> = vec![];
+
+                let curr_gnd_truth =
+                    Heightmap::create_using_pcl_ref(gnd_truth_pcl, *resolution, *resolution);
+
+                for pcl in curr_pcls.iter() {
+                    curr_hmaps.push(Heightmap::create_using_pcl_ref(
+                        pcl,
+                        *resolution,
+                        *resolution,
+                    ));
+
+                    cnt += 1;
+
+                    if averages.contains(&cnt) {
+                        let mut curr_hmap = terr_map_tools::average_heightmaps(
+                            &curr_hmaps,
+                            curr_hmaps[0].lower_coord_bounds(),
+                            curr_hmaps[0].upper_coord_bounds(),
+                        );
+
+                        //Acount for user specified height offsets
+                        if height_deltas[i] != 0.0 {
+                            curr_hmap.offset_map(height_deltas[i]);
+                        }
+
+                        let err_map =
+                            comp_maps(&curr_gnd_truth, &curr_hmap).expect("Failed to calc err map");
+
+                        //Save the stats file
+                        let filepath = format!(
+                            "{}/hmap_err_{}_{}_{}_{}.txt",
+                            self.test_fp, self.test_name, *identifier, resolution, cnt
+                        );
+
+                        err_map.save_to_file(&filepath)?;
+                    }
+                }
+                println!("{}-Completed for resolution {}", identifier, *resolution);
+            }
+
+            //Empty the current list
+            curr_pcls.clear();
+
+            println!("Completed for identifier {}", *identifier);
+        }
+
+        Ok(())
+    }
+
+    ///From a tests pointclouds - create a set of parametric heightmaps
+    ///Define the resolutions, averages and identifiers
+    /// Compares these heightmaps with a provided pointcloud ground truth
     /// Calculates the mean error and std_dev err
     /// Allows a user to specify height deltas to offset height differences
     pub fn save_parametric_hmap_stats(
@@ -914,6 +997,54 @@ impl Analyser {
         }
 
         Ok(())
+    }
+
+    ///Go through the pcls in sets of identifiers
+    ///Calculate the point density (no. of points / area) - assume rectangular plane
+    ///
+    pub fn save_avg_point_density(&self, identifiers: Vec<&str>) {
+        //Density list
+        let mut avg_densities: Vec<(&str, f64)> = vec![];
+
+        //For each identifier specified
+        for identifier in identifiers.iter() {
+            //Loda all the pointclouds with that identifier
+            let curr_pcls: Vec<PointCloud> = self
+                .get_pcl_with_identifier(*identifier)
+                .expect("Failed to find identifier");
+
+            let mut avg_density = 0.0;
+            //Calculate the density for each pointcloud
+            for pcl in curr_pcls.iter() {
+                let pcl_cnt = pcl.size() as f64;
+
+                let area = pcl.get_xy_area();
+
+                avg_density += pcl_cnt / area;
+            }
+
+            avg_density /= curr_pcls.len() as f64;
+            //Log the overall average
+            avg_densities.push((identifier, avg_density))
+        }
+
+        //Save the avg densities in a csv
+        //Save the stats file
+        let filepath = format!("{}/pnt_density_{}.csv", self.test_fp, self.test_name);
+
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(filepath)
+            .unwrap();
+
+        let csv_header = format!("distance,density\n");
+        file.write_all(csv_header.as_bytes());
+
+        for density in avg_densities.iter() {
+            let stats_str = format!("{},{}\n", density.0, density.1);
+            file.write_all(stats_str.as_bytes());
+        }
     }
 }
 

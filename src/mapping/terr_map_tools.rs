@@ -135,6 +135,13 @@ impl PointCloud {
         [x_min, x_max, y_min, y_max]
     }
 
+    ///Calculate the xy plane area of the pcl
+    pub fn get_xy_area(&self) -> f64 {
+        let bounds = self.get_bounds();
+
+        ((bounds[1] - bounds[0]) * (bounds[3] - bounds[2])).abs()
+    }
+
     ///Rotate a pointcloud
     ///Can cheat with the mat multiplication here, we know the predefined sizes already
     ///Yaw - Z
@@ -750,7 +757,7 @@ impl Heightmap {
     }
 
     ///Saves the heightmap to a text file
-    pub fn save_to_file(&mut self, filepath: &str) -> Result<(), anyhow::Error> {
+    pub fn save_to_file(&self, filepath: &str) -> Result<(), anyhow::Error> {
         //Create a file
         let mut file = File::create(filepath.to_owned() + ".txt")?;
 
