@@ -299,7 +299,7 @@ impl AbbRob<'_> {
                         .expect("Failed to read line");
 
                     if let Ok(targ) = user_inp.trim().parse::<f64>() {
-                        self.force_err = targ;
+                        self.force_target = targ;
                     } else {
                         println!("Invalid force target... returning to cmd line");
                         return;
@@ -314,11 +314,32 @@ impl AbbRob<'_> {
 
                 //Placeholder for when testing new functions
                 "egmtest" => {
-                    //CURRENTLY TESTING - egm connectivity
+                    //CURRENTLY TESTING - egm trajectory
+
+                    //Create the test data and the filepaths
+                    let mut test_data =
+                        TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
+                    //Calcualte the speed intructions
+                    let desired_lat_speed = 50.0;
+                    let speed_instructions = calc_xy_timing(&mut test_data.traj, desired_lat_speed);
+
+                    println!("{:?}", speed_instructions);
+
+                    //Go to the starting position
+                    self.set_pos(test_data.traj[0]);
+
+                    let mut des_z: Vec<f64> = vec![];
+
+                    let mut cnt = 0.5;
+                    for inst in 0..speed_instructions.len() {
+                        des_z.push(cnt);
+                        cnt += 1.0;
+                    }
+
                     //Setup and connect EGM
                     let egm_client = self.connect_egm_pose().expect("Failed to connect to EGM");
 
-                    if self.start_egm_stream_pose().is_err() {
+                    if self.start_egm_stream_speed().is_err() {
                         println!("Failed to start the egm stream")
                     }
 
@@ -334,34 +355,60 @@ impl AbbRob<'_> {
                     //Set desired z-speed
 
                     let mut seqno = 0;
-
+                    let mut cnt = 0;
                     //Move down until target z-force reached
-                    for _ in 0..1000 {
-                        let recv_msg = egm_client.recv_egm().unwrap();
-                        let time = recv_msg.get_time().unwrap();
+                    for instruction in speed_instructions {
+                        //Get the time limit
+                        let time_lim = Duration::from_secs_f64(instruction.0);
 
-                        //Log the robot information gathered by the EGM using
-                        let _ = self.egm_update_state(recv_msg);
-                        //println!("{:?}", self.pos);
+                        //Start the timer
+                        let start_time = SystemTime::now();
 
-                        if self.limit_check() {
-                            println!("Out of bounds");
-                            egm_client.egm_end();
-                            self.go_home_pos();
-                            return;
-                        }
+                        //Send the speed instruction to the robot via EGM
+                        let mut desired_speed: [f64; 3];
 
-                        //Update the robot EGM requirements
-                        egm_client
-                            .send_egm(EgmSensor::set_pose(
+                        //While the timer is running
+                        while start_time.elapsed().unwrap() < time_lim {
+                            //Get the egm message
+                            let msg = egm_client.recv_egm().expect("Failed to get egm message");
+
+                            let time = msg.get_time().expect("Failed to get egm time");
+
+                            //Log the robot information gathered by the EGM using
+                            let info = self.egm_update_state(msg);
+
+                            self.store_state(&test_data.data_filename, cnt);
+
+                            if self.limit_check() {
+                                println!(
+                                    "WARNING: OUT OF BOUNDS - ENDING TEST---------------------------"
+                                );
+                                egm_client.egm_end();
+                                self.go_home_pos();
+                                self.write_marker(
+                                    &test_data.data_filename,
+                                    "TEST OUT OF  SAFETY BOUNDS",
+                                );
+                                return;
+                            }
+
+                            //Apply the controller
+                            let des_z_speed = 0.0;
+
+                            //Send the EGM control
+                            desired_speed = [instruction.1.0, instruction.1.1, des_z[cnt as usize]];
+                            let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
                                 seqno,
                                 time,
-                                [init_pos[0], init_pos[1] + 300.0, init_pos[2]],
+                                [0.0, 0.0, 0.0],
                                 self.ori.into(),
-                            ))
-                            .unwrap();
-
-                        seqno += 1;
+                                desired_speed,
+                            );
+                            egm_client
+                                .send_egm(sensor)
+                                .expect("Failed to send sensor info");
+                            seqno += 1;
+                        }
                     }
 
                     println!("Final pos: {:?}", self.pos);
@@ -391,6 +438,11 @@ impl AbbRob<'_> {
                 //Send the robot to the pre-defined home position above the sand bed
                 "home" => {
                     self.go_home_pos();
+                }
+
+                "get force" => {
+                    self.req_force();
+                    println!("{:?}", self.force);
                 }
 
                 _ => println!("Unknown command - see CMDs for list of commands"),
@@ -552,13 +604,12 @@ impl AbbRob<'_> {
         test_data.store_desired_trajectory(self.force_mode_flag);
 
         //Calcualte the speed intructions
-        let desired_lat_speed = 0.1;
+        let desired_lat_speed = 0.5;
         let speed_instructions = calc_xy_timing(&mut test_data.traj, desired_lat_speed);
 
         //Setup the seperate PID controllers
-        let mut phase2_cntrl =
-            PHPIDController::create_PHPID(0.001, 0.000, 0.00002, 0.0, 0.001, 0.0001, 0.00001);
-        let mut phase3_cntrl = PIDController::create_PID(0.00005, 0.000005, 0.000);
+        let mut phase2_cntrl = PIDController::create_PID(0.001, 0.0005, 0.001);
+        let mut phase3_cntrl = PIDController::create_PID(0.005, 0.0002, 0.01);
 
         //Setup the config information
         self.config.set_phase2_cntrl(phase2_cntrl.to_string());
@@ -611,7 +662,7 @@ impl AbbRob<'_> {
             .expect("Failed to return connection");
 
         //Set desired z-speed
-        let mut desired_speed = [0.0, 0.0, -5.0];
+        let mut desired_speed = [0.0, 0.0, -1.0];
 
         let mut seqno = 0;
 
@@ -623,6 +674,8 @@ impl AbbRob<'_> {
             //Log the robot information gathered by the EGM using
             let _ = self.egm_update_state(recv_msg);
             self.store_state(&test_data.data_filename, cnt);
+
+            // println!("Z force diff:{}", self.force_target - self.force.2);
 
             if self.limit_check() {
                 println!("Out of bounds");
@@ -653,27 +706,20 @@ impl AbbRob<'_> {
         //Phase 2 - force control until target force is stabilised (PID 1)
 
         let phase2_force_scaler = 2.0;
-        self.force_target /= phase2_force_scaler;
+        //self.force_target /= phase2_force_scaler;
         let mut force_stable = false;
         let mut force_errs: Vec<f64> = vec![];
         //Minimum of 500 measurements taken - just to prove its stable
-        const FORCE_ERR_ROLL_AVG: usize = 300;
+        const FORCE_ERR_ROLL_AVG: usize = 5000;
         let force_avg_threshold: f64 = match self.force_target {
-            -5.0 => 0.45,
-            -10.0 => 0.30,
-            -25.0 => 0.20,
-            _ => 0.10,
+            _ => 0.05,
         };
 
         //Actual values have to be within 30% of the desired force
-        const FORCE_THRESH_CNT: usize = 100;
+        const FORCE_THRESH_CNT: usize = 500;
         //The force threshold is based on the inverse of the magnitude
         let force_threshold: f64 = match self.force_target {
-            -5.0 => 1.0,
-            -10.0 => 0.6,
-            -25.0 => 0.5,
-            -50.0 => 0.25,
-            _ => 0.10,
+            _ => 0.05,
         };
 
         self.write_marker(&test_data.data_filename, "PHASE 2 STARTED");
@@ -694,11 +740,20 @@ impl AbbRob<'_> {
             }
 
             //Apply the controller
-            let des_z_speed = phase2_cntrl
+            let mut des_z_speed = phase2_cntrl
                 .calc_op(self.force_err)
                 .expect("Failed to calculate desired z speed");
 
-            desired_speed = [0.0, 0.0, des_z_speed];
+            println!("P2 - Force Error: {}", self.force_err);
+
+            if des_z_speed < -5.0 {
+                des_z_speed = -5.0;
+            }
+            if des_z_speed > 5.0 {
+                des_z_speed = 5.0;
+            }
+
+            desired_speed = [0.0, 0.0, -des_z_speed];
 
             //Update the robot EGM requirements
             egm_client
@@ -762,12 +817,12 @@ impl AbbRob<'_> {
         self.write_marker(&test_data.data_filename, "PHASE 2 ENDED");
 
         //Reset the force target to the desired
-        self.force_target *= phase2_force_scaler;
+        //self.force_target *= phase2_force_scaler;
 
         //Phase 3 - Complete trajectory whilst (PID)
 
         //Set the speed of the robot
-        self.set_speed(5.0);
+        //self.set_speed(5.0);
 
         //Start the trajectory
         self.write_marker(&test_data.data_filename, "PHASE 3 STARTED");
@@ -804,12 +859,21 @@ impl AbbRob<'_> {
                 }
 
                 //Apply the controller
-                let des_z_speed = phase3_cntrl
+                let mut des_z_speed = phase3_cntrl
                     .calc_op(self.force_err)
                     .expect("Failed to calculate desired z speed");
 
+                println!("P3 - Force Error: {}", self.force_err);
+
+                if des_z_speed < -5.0 {
+                    des_z_speed = -5.0;
+                }
+                if des_z_speed > 5.0 {
+                    des_z_speed = 5.0;
+                }
+
                 //Send the EGM control
-                desired_speed = [instruction.1.0, instruction.1.1, des_z_speed];
+                desired_speed = [-instruction.1.0, -instruction.1.1, -des_z_speed];
                 let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
                     seqno,
                     time,
@@ -824,11 +888,10 @@ impl AbbRob<'_> {
                 cnt += 1;
             }
         }
+        self.write_marker(&test_data.data_filename, "PHASE 3 ENDED");
 
         //End the EGM client
         egm_client.egm_end();
-
-        self.write_marker(&test_data.data_filename, "PHASE 3 ENDED");
 
         //Go back to home pos
         self.go_home_pos();
@@ -1236,7 +1299,7 @@ impl AbbRob<'_> {
         if let Some(force) = msg.get_measured_force() {
             self.force = force.into();
         } else {
-            bail!("Failed to update state - pos");
+            bail!("Failed to update state - force");
         };
 
         //if force mode update force error

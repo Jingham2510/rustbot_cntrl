@@ -52,7 +52,7 @@ impl Analyser {
         //Create the data handler
         let data_fp = format!("{}/data_{}.txt", test_fp, test_name);
 
-        println!("Loading data - {data_fp}");
+        //println!("Loading data - {data_fp}");
         let data_handler: Option<DataHandler>;
         if let Ok(data) = DataHandler::read_data_from_file(data_fp) {
             data_handler = Some(data);
@@ -62,7 +62,7 @@ impl Analyser {
         }
 
         //Get the config info
-        println!("Loading config - {test_fp}");
+        //println!("Loading config - {test_fp}");
         let rob_info: Option<RobInfo>;
         let mut pre_trans = false;
         if let Ok(info) = get_config(&test_fp, &test_name) {
@@ -310,10 +310,12 @@ impl Analyser {
 
     ///Get pcls that have the identifier in the filepath
     fn get_pcl_with_identifier(&self, identifier: &str) -> Result<Vec<PointCloud>, anyhow::Error> {
+        /*
         println!(
             "LOADING POINTCLOUDS WITH IDENTIFIER: {} ----------",
             identifier
         );
+        */
 
         let mut pcls: Vec<PointCloud> = vec![];
 
@@ -913,7 +915,7 @@ impl Analyser {
 
         //For each identifier specified
         for (i, identifier) in identifiers.iter().enumerate() {
-            let mut dist_stats: Vec<(u32, u32, f64, f64)> = vec![];
+            let mut dist_stats: Vec<(u32, u32, f64, f64, u32)> = vec![];
 
             //Loda all the pointclouds with that identifier
             let mut curr_pcls: Vec<PointCloud> = self
@@ -964,7 +966,13 @@ impl Analyser {
 
                         let stats = get_err_stats(&err_map);
 
-                        dist_stats.push((*resolution, cnt, stats.0, stats.1));
+                        dist_stats.push((
+                            *resolution,
+                            cnt,
+                            stats.0,
+                            stats.1,
+                            curr_hmap.no_of_nans(),
+                        ));
                     }
                 }
                 println!("{}-Completed for resolution {}", identifier, *resolution);
@@ -982,11 +990,11 @@ impl Analyser {
                 .open(filepath)
                 .unwrap();
 
-            let csv_header = format!("resolution,average,mean_err,std.dev_err\n");
+            let csv_header = format!("resolution,average,mean_err,std.dev_err,no_of_nans\n");
             file.write_all(csv_header.as_bytes());
 
             for stat in dist_stats.iter() {
-                let stats_str = format!("{},{},{},{}\n", stat.0, stat.1, stat.2, stat.3);
+                let stats_str = format!("{},{},{},{},{}\n", stat.0, stat.1, stat.2, stat.3, stat.4);
                 file.write_all(stats_str.as_bytes());
             }
 
@@ -1045,6 +1053,95 @@ impl Analyser {
             let stats_str = format!("{},{}\n", density.0, density.1);
             file.write_all(stats_str.as_bytes());
         }
+    }
+
+    ///Make a simple estimate of a simple feature
+    /// Calculates the depth/width and slope of a set of heightmaps created from pcls with a specific identifier
+    pub fn group_simple_feature_estimator(
+        &self,
+        resolutions: Vec<u32>,
+        averages: Vec<u32>,
+        identifiers: Vec<&str>,
+    ) -> Result<(), anyhow::Error> {
+        //Get the maximum average value
+        let max_avg = *averages.iter().max().expect("Failed to get maximum") as i32;
+
+        //For each identifier specified
+        for (i, identifier) in identifiers.iter().enumerate() {
+            //List of measured features - (depth, width, slope)
+            let mut features: Vec<(u32, u32, f64, f64, f64)> = vec![];
+
+            //Loda all the pointclouds with that identifier
+            let mut curr_pcls: Vec<PointCloud> = self
+                .get_pcl_with_identifier(*identifier)
+                .expect("Failed to find identifier");
+
+            //check that there are enough for the maxmimum average
+            if curr_pcls.len() < max_avg as usize {
+                bail!("Not enough pointclouds for the average required!")
+            }
+
+            for resolution in resolutions.iter() {
+                let mut cnt: u32 = 0;
+
+                //Turn all of the pointclouds into heightmaps
+                let mut curr_hmaps: Vec<Heightmap> = vec![];
+
+                for pcl in curr_pcls.iter() {
+                    curr_hmaps.push(Heightmap::create_using_pcl_ref(
+                        pcl,
+                        *resolution,
+                        *resolution,
+                    ));
+
+                    cnt += 1;
+
+                    if averages.contains(&cnt) {
+                        let mut curr_hmap = terr_map_tools::average_heightmaps(
+                            &curr_hmaps,
+                            curr_hmaps[0].lower_coord_bounds(),
+                            curr_hmaps[0].upper_coord_bounds(),
+                        );
+
+                        let feature_info: (u32, u32, f64, f64, f64);
+                        //Calculate the feature size
+                        if let Ok((depth, width, slope_avg)) = curr_hmap.calc_simple_feature() {
+                            feature_info = (*resolution, cnt, depth, width, slope_avg);
+                        } else {
+                            //If feature isn't identified
+                            feature_info = (*resolution, cnt, f64::NAN, f64::NAN, f64::NAN);
+                        }
+                        features.push(feature_info)
+                    }
+                }
+            }
+
+            //Save the stats file
+            let filepath = format!("{}/features_{}.csv", self.test_fp, self.test_name);
+
+            let mut file = fs::OpenOptions::new()
+                .append(true)
+                .create(true)
+                .open(filepath)
+                .unwrap();
+
+            if i == 0 {
+                let csv_header = format!("distance,resolution,average,depth,width,slope avg\n");
+                file.write_all(csv_header.as_bytes());
+            }
+
+            for feature in features.iter() {
+                let stats_str = format!(
+                    "{},{},{},{},{},{}\n",
+                    identifier, feature.0, feature.1, feature.2, feature.3, feature.4
+                );
+                file.write_all(stats_str.as_bytes());
+            }
+            //Empty the features vector
+            features.clear();
+        }
+
+        Ok(())
     }
 }
 

@@ -76,7 +76,7 @@ pub fn trans_to_heightmap(
     for (i, pnt_list) in cells_pnt_list.iter_mut().enumerate() {
         for pnts in pnt_list {
             //If the cell is NAN - keep it as a null cell
-            if pnts.iter().any(|x| x.is_nan()) || pnts.is_empty() {
+            if pnts.iter().all(|x| x.is_nan()) || pnts.is_empty() {
                 cells[i].push(f64::NAN);
                 continue;
             }
@@ -90,6 +90,11 @@ pub fn trans_to_heightmap(
 
                     //sum all the points in the list
                     for pnt in pnts {
+                        //Ignore the nan points
+                        if pnt.is_nan() {
+                            continue;
+                        }
+
                         pnt_to_add += *pnt;
                         cnt += 1;
                     }
@@ -388,4 +393,26 @@ pub fn add_nan(var: f64, val: f64) -> f64 {
 pub fn sub_nan(var: f64, val: f64) -> f64 {
     //If the value is NaN just add nothing
     if val.is_nan() { var } else { var - val }
+}
+
+///Returns the median value of a vector
+pub fn vec_median_f64(vec: &mut Vec<f64>) -> f64 {
+    //Get the vector length
+    let vec_len = vec.len();
+
+    if vec_len == 1 {
+        return vec[0];
+    }
+    //Sort the list
+    vec.sort_by(|a, b| a.total_cmp(b));
+
+    if vec_len == 2 {
+        return (vec[1] - vec[0]) / 2.0;
+    }
+    //Extract the medium
+    if vec_len % 2 == 0 {
+        return (vec[vec_len / 2] + vec[vec_len / 2 - 1]) / 2.0;
+    } else {
+        return vec[((vec_len as f64 / 2 as f64) - 0.5) as usize];
+    }
 }

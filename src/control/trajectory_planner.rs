@@ -17,7 +17,7 @@ const IMPL_TRAJS: [&str; 7] = [
 ];
 
 //120
-const DEFAULT_Z: f64 = 262.0;
+const DEFAULT_Z: f64 = 180.0;
 
 ///Generates a trajectory bsaed on string input from user
 pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
@@ -28,9 +28,9 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
         //Line trajectory
         "line" => {
             //Define all the starting points etc
-            let line_x = 400.0;
+            let line_x = 500.0;
             let line_z = DEFAULT_Z;
-            let start_y = 1600.0;
+            let start_y = 1800.0;
             let end_y = 2200.0;
             let start_pos = (line_x, start_y, line_z);
             let end_pos = (line_x, end_y, line_z);
@@ -41,10 +41,10 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
         //Straight line trajectory - discretised into multiple points
         "dline" => {
             //Define all the starting points etc
-            let line_x = 400.0;
+            let line_x = 500.0;
             let line_z = DEFAULT_Z;
             let start_y = 1800.0;
-            let end_y = 2600.0;
+            let end_y = 2200.0;
             let start_pos = (line_x, start_y, line_z);
             let end_pos = (line_x, end_y, line_z);
 
@@ -65,7 +65,7 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
         //A circular trajectory
         "circle" => {
             //Define all characteristics of the circle
-            let centre = (200.0, 2160.0, DEFAULT_Z);
+            let centre = (400.0, 2160.0, DEFAULT_Z + 200.0);
             //Number of times the circle goes round
             let loops = 1;
             //"size" of circle

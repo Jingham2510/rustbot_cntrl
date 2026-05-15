@@ -1,6 +1,6 @@
 ///Tools used to visualise andanalyse the measured terrain
 ///Includes pointclouds and heightmaps
-use crate::helper_funcs::helper_funcs;
+use crate::helper_funcs::helper_funcs::{self, vec_median_f64};
 use crate::helper_funcs::helper_funcs::{ColOpt, add_nan};
 use anyhow::bail;
 use chrono::{DateTime, Utc};
@@ -654,43 +654,81 @@ impl Heightmap {
         self.min_updated = false;
     }
 
-    ///Get the maximum cell height
+    ///Get the maximum cell distance
     fn get_max(&mut self) -> f64 {
+        //Skip the first as they contain plenty of nans
+        let mut skip_first_row = true;
+        let mut skip_first_column = true;
+
+        let mut max_pos: (u32, u32) = (0, 0);
+
         //Check whether a new maximum is required
         if !self.max_updated {
             let mut new_max: f64 = -999.0;
 
             //Check every value to see if its the largest
-            for row in self.cells.iter_mut() {
-                for col in row.iter_mut() {
+            for (i, row) in self.cells.iter_mut().enumerate() {
+                if skip_first_row {
+                    skip_first_row = false;
+                    continue;
+                }
+
+                for (j, col) in row.iter_mut().enumerate() {
+                    if skip_first_column {
+                        skip_first_column = false;
+                        continue;
+                    }
+
                     if col > &mut new_max {
                         new_max = *col;
+                        max_pos = (i as u32, j as u32);
                     }
                 }
             }
 
             self.max = new_max;
+            self.max_pos = max_pos;
             self.max_updated = true;
         }
 
         self.max
     }
 
-    ///Get the minimum cell height
+    ///Get the minimum cell distance
     fn get_min(&mut self) -> f64 {
         //Check whether a new minimum calc is required
         if !self.min_updated {
+            //Skip the first as they contain plenty of nans
+            let mut skip_first_row = true;
+            let mut skip_first_column = true;
+
             let mut new_min: f64 = 999.0;
+            let mut min_pos: (u32, u32) = (0, 0);
 
             //Check every value to see if its the smallest
-            for row in self.cells.iter_mut() {
-                for col in row.iter_mut() {
+            for (i, row) in self.cells.iter_mut().enumerate() {
+                if skip_first_row {
+                    skip_first_row = false;
+                    continue;
+                }
+                for (j, col) in row.iter_mut().enumerate() {
+                    if skip_first_column {
+                        skip_first_column = false;
+                        continue;
+                    }
+                    //Skip 0.0 (nan values)
+                    if *col == 0.0 {
+                        continue;
+                    }
+
                     if col < &mut new_min {
                         new_min = *col;
+                        min_pos = (i as u32, j as u32);
                     }
                 }
             }
             self.min = new_min;
+            self.min_pos = min_pos;
             self.min_updated = true;
         }
 
@@ -848,6 +886,21 @@ impl Heightmap {
         Ok(mid_pnt)
     }
 
+    ///Count and return the number of unknown cells in the heightmap
+    pub fn no_of_nans(&self) -> u32 {
+        let mut nan_cnt = 0;
+
+        for col in self.cells.iter() {
+            for cell in col.iter() {
+                if cell.is_nan() {
+                    nan_cnt += 1;
+                }
+            }
+        }
+
+        nan_cnt
+    }
+
     ///Remove any NaN entries in the provided data matrix
     /// Achieved by interpolating the point as an average between every surrounding point
     /// Assumes a 3x3 kernel (does not account for equal or smaller data matrices)
@@ -928,6 +981,117 @@ impl Heightmap {
                 self.cells[i as usize][j as usize] = total / (cnt as f64);
             }
         }
+    }
+
+    ///Calculates a simple estimation of a feature in a heightmap
+    /// Returned as (depth, width, (slope median, slope mode))
+    /// Assumes only two edges (i.e. a simple trough)
+    /// Assumes that the deep point is in the middle
+    pub fn calc_simple_feature(&mut self) -> Result<(f64, f64, f64), anyhow::Error> {
+        let stats: (f64, f64, f64);
+
+        //Calculate the bin size -- Assuming square so only need one set of bounds
+        let bin_size =
+            (self.upper_coord_bounds[0] - self.lower_coord_bounds[0]) / (self.width as f64);
+
+        //Get the lowest point and its row (which is actually the max - furhter away from heightmap)
+        if !self.max_updated {
+            self.get_max();
+        }
+        let max_row = self.max_pos.0;
+
+        //Load the row - CHECKED TO BE CORRECT USING PREGENNED HEIGHTMAPS
+        let max_row = self.cells[max_row as usize].clone();
+
+        //Take edge point as highest and use to calculate depth of feature
+        const EDGE_THRESHOLD: f64 = 0.0005;
+        const EDGE_HIGH_THRESHHOLD: f64 = 0.01;
+        let mut first_edge: usize = 0;
+        let mut second_edge: usize = 0;
+
+        //Compare a cell to see if it meets the threshold
+        for i in 0..((self.width() - 1) as usize) {
+            //ignoring 0.0 as they are NaN
+            if max_row[i] == 0.0 || max_row[i + 1] == 0.0 {
+                continue;
+            }
+
+            //REMEMBER: An increase in height means an increase in distance from the camera (i.e. going down)
+            if (max_row[i + 1] - max_row[i]) >= EDGE_THRESHOLD
+                && (max_row[i + 1] - max_row[i]) < EDGE_HIGH_THRESHHOLD
+            {
+                first_edge = i;
+                break;
+            }
+
+            if i == (self.width() - 1) as usize {
+                bail!("Failed to find first edge in hmap")
+            }
+        }
+        //Go backwards to find the edge on the other side
+        for i in (1..((self.width()) as usize)).rev() {
+            //ignoring 0.0 as they are NaN
+            if max_row[i] == 0.0 || max_row[i - 1] == 0.0 {
+                continue;
+            }
+
+            if (max_row[i - 1] - max_row[i]) >= EDGE_THRESHOLD
+                && (max_row[i - 1] - max_row[i]) < EDGE_HIGH_THRESHHOLD
+            {
+                second_edge = i;
+                break;
+            }
+        }
+
+        if first_edge == second_edge {
+            bail!("Only one edge detected!")
+        }
+
+        if self.max_pos.0 > second_edge as u32 || self.max_pos.0 < first_edge as u32 {
+            bail!("Invalid edge setup - deepest point outside edges")
+        }
+
+        //Calculate the height by doing (edge bin to deepest bin)
+        let highest_edge = if max_row[first_edge] > max_row[second_edge] {
+            max_row[first_edge]
+        } else {
+            max_row[second_edge]
+        };
+
+        /*
+        //Simple edge detection to find the edge of the feature
+        println!("{:?}", max_row);
+        println!("BIN DISTANCE: {}", bin_size);
+        println!(
+            "EDGE:{} - EDGE:{}",
+            max_row[first_edge], max_row[second_edge],
+        );
+        println!("EDGE IND:{} - EDGE IND:{}", first_edge, second_edge);
+        */
+
+        let depth = self.max - highest_edge;
+
+        //Calculate the width by doing (number of bins between edges multiplied by bin size)
+
+        let width: f64 = if second_edge > first_edge {
+            ((second_edge - first_edge) as f64) * bin_size
+        } else {
+            bail!("Invalid edge config")
+        };
+
+        if second_edge == self.max_pos.0 as usize || first_edge == self.max_pos.0 as usize {
+            bail!("Invalid edge config")
+        }
+
+        let slope = if max_row[second_edge] >= max_row[first_edge] {
+            depth / ((second_edge as u32 - self.max_pos.0 as u32) as f64 * bin_size)
+        } else {
+            depth / ((self.max_pos.0 as u32 - first_edge as u32) as f64 * bin_size)
+        };
+
+        //println!("{:?}", (depth, width, slope));
+
+        Ok((depth, width, slope))
     }
 }
 

@@ -115,19 +115,44 @@ fn core_cmd_handler(config: &mut Config) {
                     "big_indent_scan_1",
                 ];
 
+                let averages: [u32; 25] = core::array::from_fn(|i| (i + 1) as u32);
+                let resolutions: [u32; 495] = core::array::from_fn(|i| (i + 5) as u32);
+
                 let identifiers: [&str; 6] = ["450mm", "550mm", "650mm", "750mm", "850mm", "950mm"];
 
-                let mut cnt = 0;
+                let ground_truths: [&str; 4] = [
+                    "/home/joe/Documents/Data/test_dumps/faro_flat/pcl_faro_flat_processed.txt",
+                    "/home/joe/Documents/Data/test_dumps/faro_flat/pcl_faro_flat_processed.txt",
+                    "/home/joe/Documents/Data/test_dumps/faro_flat/pcl_faro_flat_processed.txt",
+                    "/home/joe/Documents/Data/test_dumps/faro_flat/pcl_faro_flat_processed.txt",
+                ];
 
-                for test in tests_to_gen {
-                    thread::spawn(move || {
+                let height_deltas: [[f64; 6]; 4] = [
+                    [0.513, 0.411, 0.312, 0.207, 0.103, 0.0],
+                    [0.513, 0.410, 0.307, 0.205, 0.10, 0.0],
+                    [0.512, 0.408, 0.307, 0.203, 0.103, 0.0],
+                    [0.508, 0.407, 0.301, 0.202, 0.103, 0.0],
+                ];
+
+                for (i, test) in tests_to_gen.iter().enumerate() {
+                    let t = thread::spawn(move || {
+                        println!("Thread {} running", test);
+
                         let mut analyser = Analyser::init(
                             String::from("/home/joe/Documents/Data/test_dumps"),
                             String::from(test),
                         )
                         .expect("Failed to find test");
 
-                        analyser.save_avg_point_density(identifiers.to_vec());
+                        analyser.save_parametric_hmap_stats(
+                            resolutions.to_vec(),
+                            averages.to_vec(),
+                            identifiers.to_vec(),
+                            &PointCloud::create_from_file(String::from(ground_truths[i])).unwrap(),
+                            height_delta[i],
+                        );
+
+                        println!("Thread {} complete", test);
                     });
                 }
             }

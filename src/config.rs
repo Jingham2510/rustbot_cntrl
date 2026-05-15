@@ -130,7 +130,7 @@ impl RobInfo {
 
         let fp = format!("{}/{}", CONFIG_FP, ROB_CONFIG_FILENAME);
 
-        println!("{}", fp);
+        //println!("{}", fp);
 
         let mut rob_name = String::new();
         let mut pos_for_zero = [0.0, 0.0, 0.0];
