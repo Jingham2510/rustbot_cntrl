@@ -966,13 +966,7 @@ impl Analyser {
 
                         let stats = get_err_stats(&err_map);
 
-                        dist_stats.push((
-                            *resolution,
-                            cnt,
-                            stats.0,
-                            stats.1,
-                            curr_hmap.no_of_nans(),
-                        ));
+                        dist_stats.push((*resolution, cnt, stats.0, stats.1, err_map.no_of_nans()));
                     }
                 }
                 println!("{}-Completed for resolution {}", identifier, *resolution);
@@ -1151,9 +1145,14 @@ fn get_err_stats(err_map: &Heightmap) -> (f64, f64) {
     let flattened_cells = err_map.get_flattened_cells().expect("Failed to flatten");
 
     //Calculate the mean value of the cells
-    let no_of_cells = flattened_cells.len() as f64;
+    let mut no_of_cells = flattened_cells.len() as f64;
     let mut sum = 0.0;
     for cell in flattened_cells.iter() {
+        if cell.is_nan() {
+            //Dont include the NaN cells in the mean count
+            no_of_cells -= 1.0;
+            continue;
+        }
         sum = add_nan(sum, cell.abs());
     }
     let mean = sum / no_of_cells;

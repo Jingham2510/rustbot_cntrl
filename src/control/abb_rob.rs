@@ -609,7 +609,7 @@ impl AbbRob<'_> {
 
         //Setup the seperate PID controllers
         let mut phase2_cntrl = PIDController::create_PID(0.001, 0.0005, 0.001);
-        let mut phase3_cntrl = PIDController::create_PID(0.005, 0.0002, 0.01);
+        let mut phase3_cntrl = PIDController::create_PID(0.02, 0.003, 0.001);
 
         //Setup the config information
         self.config.set_phase2_cntrl(phase2_cntrl.to_string());
@@ -667,7 +667,7 @@ impl AbbRob<'_> {
         let mut seqno = 0;
 
         //Move down until target z-force reached
-        while self.force.2 > self.force_target {
+        while self.force.2 < self.force_target {
             let recv_msg = egm_client.recv_egm().unwrap();
             let time = recv_msg.get_time().unwrap();
 
@@ -753,7 +753,7 @@ impl AbbRob<'_> {
                 des_z_speed = 5.0;
             }
 
-            desired_speed = [0.0, 0.0, -des_z_speed];
+            desired_speed = [0.0, 0.0, des_z_speed];
 
             //Update the robot EGM requirements
             egm_client
@@ -873,7 +873,7 @@ impl AbbRob<'_> {
                 }
 
                 //Send the EGM control
-                desired_speed = [-instruction.1.0, -instruction.1.1, -des_z_speed];
+                desired_speed = [-instruction.1.0, -instruction.1.1, des_z_speed];
                 let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
                     seqno,
                     time,

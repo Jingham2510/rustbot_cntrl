@@ -1139,11 +1139,19 @@ pub fn average_heightmaps(
     //Go through each point in the empty heightmap and take the mean of the genned heightmaps
     for (y, row) in avg_hmap.cells.iter_mut().enumerate() {
         for (x, val) in row.iter_mut().enumerate() {
-            let mut avg_val = 0.0;
+            let mut total_val = 0.0;
+            let mut valid_pnt_cnt = 0;
             for i in 0..no_of_heightmaps {
-                avg_val = add_nan(avg_val, hmap_list[i].cells[y][x]);
+                let cell_val = hmap_list[i].cells[y][x];
+
+                //Ignore nan valued cells - dont diminish mean error
+                if cell_val.is_nan() {
+                    continue;
+                }
+                total_val += cell_val;
+                valid_pnt_cnt += 1;
             }
-            *val = avg_val / no_of_heightmaps as f64;
+            *val = total_val / valid_pnt_cnt as f64;
         }
     }
 

@@ -116,15 +116,15 @@ fn core_cmd_handler(config: &mut Config) {
                 ];
 
                 let averages: [u32; 25] = core::array::from_fn(|i| (i + 1) as u32);
-                let resolutions: [u32; 495] = core::array::from_fn(|i| (i + 5) as u32);
+                let resolutions: [u32; 496] = core::array::from_fn(|i| (i + 5) as u32);
 
                 let identifiers: [&str; 6] = ["450mm", "550mm", "650mm", "750mm", "850mm", "950mm"];
 
                 let ground_truths: [&str; 4] = [
                     "/home/joe/Documents/Data/test_dumps/faro_flat/pcl_faro_flat_processed.txt",
-                    "/home/joe/Documents/Data/test_dumps/faro_flat/pcl_faro_flat_processed.txt",
-                    "/home/joe/Documents/Data/test_dumps/faro_flat/pcl_faro_flat_processed.txt",
-                    "/home/joe/Documents/Data/test_dumps/faro_flat/pcl_faro_flat_processed.txt",
+                    "/home/joe/Documents/Data/test_dumps/faro_small/pcl_faro_small_processed.txt",
+                    "/home/joe/Documents/Data/test_dumps/faro_medium/pcl_faro_medium_processed.txt",
+                    "/home/joe/Documents/Data/test_dumps/faro_big/pcl_faro_big_processed.txt",
                 ];
 
                 let height_deltas: [[f64; 6]; 4] = [
@@ -134,7 +134,9 @@ fn core_cmd_handler(config: &mut Config) {
                     [0.508, 0.407, 0.301, 0.202, 0.103, 0.0],
                 ];
 
-                for (i, test) in tests_to_gen.iter().enumerate() {
+                let mut cnt = 0;
+
+                for test in tests_to_gen {
                     let t = thread::spawn(move || {
                         println!("Thread {} running", test);
 
@@ -148,12 +150,15 @@ fn core_cmd_handler(config: &mut Config) {
                             resolutions.to_vec(),
                             averages.to_vec(),
                             identifiers.to_vec(),
-                            &PointCloud::create_from_file(String::from(ground_truths[i])).unwrap(),
-                            height_delta[i],
+                            &PointCloud::create_from_file(String::from(ground_truths[cnt]))
+                                .unwrap(),
+                            height_deltas[cnt].to_vec(),
                         );
 
                         println!("Thread {} complete", test);
                     });
+
+                    cnt += 1;
                 }
             }
 
