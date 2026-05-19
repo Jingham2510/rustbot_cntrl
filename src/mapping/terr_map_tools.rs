@@ -43,7 +43,10 @@ impl PointCloud {
     ///Create a pointcloud from a loaded file
     pub fn create_from_file(filepath: String) -> Result<Self, anyhow::Error> {
         //Create the filepath
-        let filepath = filepath.to_string();
+        let fp = filepath
+            .strip_suffix(".txt")
+            .expect("Failed to get filepath")
+            .to_string();
 
         //Open the file and create a buffer to read the lines
         let file = File::open(filepath.clone())?;
@@ -79,7 +82,7 @@ impl PointCloud {
             //Relative timestamp is -1.0 because there is no reference start time
             rel_timestamp: -1.0,
             global_timestamp,
-            filename: Some(filepath),
+            filename: Some(fp),
         })
     }
 
@@ -93,8 +96,8 @@ impl PointCloud {
         self.no_of_points
     }
 
-    pub fn filename(&self) -> Option<&String> {
-        self.filename.as_ref()
+    pub fn filename(&self) -> Option<String> {
+        self.filename.clone()
     }
 
     ///Print all points in the point cloud
@@ -1130,9 +1133,6 @@ pub fn average_heightmaps(
     lower_bounds: [f64; 2],
     upper_bounds: [f64; 2],
 ) -> Heightmap {
-    //Get the number of heightmaps
-    let no_of_heightmaps = hmap_list.len();
-
     //Create an empty heightmap the same size as the heightmaps in the list
     let mut avg_hmap = Heightmap::new(hmap_list[0].width(), hmap_list[0].height());
 
@@ -1141,7 +1141,7 @@ pub fn average_heightmaps(
         for (x, val) in row.iter_mut().enumerate() {
             let mut total_val = 0.0;
             let mut valid_pnt_cnt = 0;
-            for i in 0..no_of_heightmaps {
+            for i in 0..hmap_list.len() {
                 let cell_val = hmap_list[i].cells[y][x];
 
                 //Ignore nan valued cells - dont diminish mean error
@@ -1151,7 +1151,12 @@ pub fn average_heightmaps(
                 total_val += cell_val;
                 valid_pnt_cnt += 1;
             }
-            *val = total_val / valid_pnt_cnt as f64;
+
+            if total_val == 0.0 {
+                *val = f64::NAN
+            } else {
+                *val = total_val / valid_pnt_cnt as f64;
+            }
         }
     }
 

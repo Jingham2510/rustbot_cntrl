@@ -309,14 +309,10 @@ impl Analyser {
     }
 
     ///Get pcls that have the identifier in the filepath
-    fn get_pcl_with_identifier(&self, identifier: &str) -> Result<Vec<PointCloud>, anyhow::Error> {
-        /*
-        println!(
-            "LOADING POINTCLOUDS WITH IDENTIFIER: {} ----------",
-            identifier
-        );
-        */
-
+    pub fn get_pcl_with_identifier(
+        &self,
+        identifier: &str,
+    ) -> Result<Vec<PointCloud>, anyhow::Error> {
         let mut pcls: Vec<PointCloud> = vec![];
 
         //Iterate through each file
@@ -908,7 +904,6 @@ impl Analyser {
         averages: Vec<u32>,
         identifiers: Vec<&str>,
         gnd_truth_pcl: &PointCloud,
-        height_deltas: Vec<f64>,
     ) -> Result<(), anyhow::Error> {
         //Get the maximum average value
         let max_avg = *averages.iter().max().expect("Failed to get maximum") as i32;
@@ -925,10 +920,6 @@ impl Analyser {
             //check that there are enough for the maxmimum average
             if curr_pcls.len() < max_avg as usize {
                 bail!("Not enough pointclouds for the average required!")
-            }
-
-            if identifiers.len() != height_deltas.len() {
-                bail!("Number of identifiers does not equal number of height deltas!")
             }
 
             for resolution in resolutions.iter() {
@@ -955,11 +946,6 @@ impl Analyser {
                             curr_hmaps[0].lower_coord_bounds(),
                             curr_hmaps[0].upper_coord_bounds(),
                         );
-
-                        //Acount for user specified height offsets
-                        if height_deltas[i] != 0.0 {
-                            curr_hmap.offset_map(height_deltas[i]);
-                        }
 
                         let err_map =
                             comp_maps(&curr_gnd_truth, &curr_hmap).expect("Failed to calc err map");

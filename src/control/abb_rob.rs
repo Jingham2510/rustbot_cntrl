@@ -34,13 +34,14 @@ pub struct AbbRob<'a> {
     ///The current joint angles
     jnt_angles: (f64, f64, f64, f64, f64, f64),
     ///The currently measured force information
-    force: (f64, f64, f64, f64, f64, f64),
+    force: [f64; 6],
     ///State value that indicates if the robot has disconnected
     disconnected: bool,
     ///State value that indicates if the robot is being controlled via force
     force_mode_flag: bool,
     ///The target axis for the force control
-    force_axis: String,
+    ///0 -> x, 1-> y, 2->z, other -> invalid
+    force_axis: usize,
     ///The target force
     force_target: f64,
     ///The current force error (current force - target force)
@@ -225,10 +226,10 @@ impl AbbRob<'_> {
                 pos: (f64::NAN, f64::NAN, f64::NAN),
                 ori: (f64::NAN, f64::NAN, f64::NAN, f64::NAN),
                 jnt_angles: (f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN),
-                force: (f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN),
+                force: [f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN],
                 disconnected: false,
                 force_mode_flag: false,
-                force_axis: "Z".to_string(),
+                force_axis: 3,
                 force_target: 0.0,
                 force_err: 0.0,
                 config,
@@ -290,6 +291,23 @@ impl AbbRob<'_> {
                 //Start a "geo test" - force controlled test
                 "geo test" => {
                     self.force_mode_flag = true;
+
+                    println!("Please type the axis wished to be controlled");
+
+                    let mut user_inp = String::new();
+                    stdin()
+                        .read_line(&mut user_inp)
+                        .expect("Failed to read line");
+
+                    match user_inp.to_ascii_lowercase().trim() {
+                        "x" => self.force_axis = 0,
+                        "y" => self.force_axis = 1,
+                        "z" => self.force_axis = 2,
+                        _ => {
+                            println!("Invalid axis - returning to cmd line");
+                            return;
+                        }
+                    };
 
                     println!("Please type the target force");
 
@@ -588,9 +606,19 @@ impl AbbRob<'_> {
 
     ///A geo test that consists of three phases and aims to impart a desired force in the sand
     fn geo_test_regime(&mut self) {
+        const MAX_SPEED: f64 = 10.0;
+
         if !self.force_mode_flag {
             println!("Force mode not set! Returning!");
             return;
+        }
+
+        let mut phase_1: bool = false;
+        let mut phase_2: bool = false;
+
+        if self.force_axis == 2 {
+            phase_1 = true;
+            phase_2 = true;
         }
 
         //Create the test data and the filepaths
@@ -634,20 +662,16 @@ impl AbbRob<'_> {
         //Move to the starting point
         self.set_pos(start_pos);
 
+        if self.force_axis != 2 {
+            self.set_pos((start_pos.0, start_pos.1, start_pos.2 - 50.0))
+        }
+
         self.set_speed(2.0);
 
         //Read the values once
         self.update_rob_info();
 
         let mut cnt = 0;
-
-        //SETUP COMPLETE-----------------------
-
-        //Phase 1 - position control until target force reached
-
-        self.write_marker(&test_data.data_filename, "PHASE 1 STARTED");
-
-        //Find the vert force------------------------------
 
         //Setup and connect EGM
         let egm_client = self.connect_egm_pose().expect("Failed to connect to EGM");
@@ -661,153 +685,165 @@ impl AbbRob<'_> {
             .recv_and_connect()
             .expect("Failed to return connection");
 
-        //Set desired z-speed
-        let mut desired_speed = [0.0, 0.0, -1.0];
-
         let mut seqno = 0;
 
-        //Move down until target z-force reached
-        while self.force.2 < self.force_target {
-            let recv_msg = egm_client.recv_egm().unwrap();
-            let time = recv_msg.get_time().unwrap();
+        let mut desired_speed: [f64; 3] = [0.0, 0.0, 0.0];
 
-            //Log the robot information gathered by the EGM using
-            let _ = self.egm_update_state(recv_msg);
-            self.store_state(&test_data.data_filename, cnt);
+        //SETUP COMPLETE-----------------------
 
-            // println!("Z force diff:{}", self.force_target - self.force.2);
+        //Phase 1 - position control until target force reached
 
-            if self.limit_check() {
-                println!("Out of bounds");
-                egm_client.egm_end();
-                self.go_home_pos();
-                self.write_marker(&test_data.data_filename, "TEST OUT OF  SAFETY BOUNDS");
-                return;
+        if phase_1 {
+            self.write_marker(&test_data.data_filename, "PHASE 1 STARTED");
+
+            //Find the vert force------------------------------
+
+            //Set desired z-speed
+            desired_speed = [0.0, 0.0, -1.0];
+
+            //Move down until target z-force reached
+            while (self.force[self.force_axis]).abs() < self.force_target.abs() {
+                let recv_msg = egm_client.recv_egm().unwrap();
+                let time = recv_msg.get_time().unwrap();
+
+                //Log the robot information gathered by the EGM using
+                let _ = self.egm_update_state(recv_msg);
+                self.store_state(&test_data.data_filename, cnt);
+
+                // println!("Z force diff:{}", self.force_target - self.force.2);
+
+                if self.limit_check() {
+                    println!("Out of bounds");
+                    egm_client.egm_end();
+                    self.go_home_pos();
+                    self.write_marker(&test_data.data_filename, "TEST OUT OF  SAFETY BOUNDS");
+                    return;
+                }
+
+                //Update the robot EGM requirements
+                egm_client
+                    .send_egm(EgmSensor::set_pose_set_speed(
+                        seqno,
+                        time,
+                        [0.0, 0.0, 0.0],
+                        self.ori.into(),
+                        desired_speed,
+                    ))
+                    .unwrap();
+
+                seqno += 1;
+                cnt += 1;
             }
 
-            //Update the robot EGM requirements
-            egm_client
-                .send_egm(EgmSensor::set_pose_set_speed(
-                    seqno,
-                    time,
-                    [0.0, 0.0, 0.0],
-                    self.ori.into(),
-                    desired_speed,
-                ))
-                .unwrap();
-
-            seqno += 1;
-            cnt += 1;
+            println!("GEOTECH- Phase 1 Complete!");
+            self.write_marker(&test_data.data_filename, "PHASE 1 END");
         }
-
-        println!("GEOTECH- Phase 1 Complete!");
-        self.write_marker(&test_data.data_filename, "PHASE 1 END");
 
         //Phase 2 - force control until target force is stabilised (PID 1)
 
-        let phase2_force_scaler = 2.0;
-        //self.force_target /= phase2_force_scaler;
-        let mut force_stable = false;
-        let mut force_errs: Vec<f64> = vec![];
-        //Minimum of 500 measurements taken - just to prove its stable
-        const FORCE_ERR_ROLL_AVG: usize = 5000;
-        let force_avg_threshold: f64 = match self.force_target {
-            _ => 0.05,
-        };
+        if phase_2 {
+            let mut force_stable = false;
+            let mut force_errs: Vec<f64> = vec![];
+            //Minimum of 500 measurements taken - just to prove its stable
+            const FORCE_ERR_ROLL_AVG: usize = 5000;
+            let force_avg_threshold: f64 = match self.force_target {
+                _ => 0.05,
+            };
 
-        //Actual values have to be within 30% of the desired force
-        const FORCE_THRESH_CNT: usize = 500;
-        //The force threshold is based on the inverse of the magnitude
-        let force_threshold: f64 = match self.force_target {
-            _ => 0.05,
-        };
+            //Actual values have to be within 30% of the desired force
+            const FORCE_THRESH_CNT: usize = 500;
+            //The force threshold is based on the inverse of the magnitude
+            let force_threshold: f64 = match self.force_target {
+                _ => 0.05,
+            };
 
-        self.write_marker(&test_data.data_filename, "PHASE 2 STARTED");
-        while !force_stable {
-            let recv_msg = egm_client.recv_egm().unwrap();
-            let time = recv_msg.get_time().unwrap();
+            self.write_marker(&test_data.data_filename, "PHASE 2 STARTED");
+            while !force_stable {
+                let recv_msg = egm_client.recv_egm().unwrap();
+                let time = recv_msg.get_time().unwrap();
 
-            //Log the robot information gathered by the EGM using
-            let _ = self.egm_update_state(recv_msg);
-            self.store_state(&test_data.data_filename, cnt);
+                //Log the robot information gathered by the EGM using
+                let _ = self.egm_update_state(recv_msg);
+                self.store_state(&test_data.data_filename, cnt);
 
-            if self.limit_check() {
-                println!("Out of bounds");
-                egm_client.egm_end();
-                self.go_home_pos();
-                self.write_marker(&test_data.data_filename, "TEST OUT OF  SAFETY BOUNDS");
-                return;
-            }
-
-            //Apply the controller
-            let mut des_z_speed = phase2_cntrl
-                .calc_op(self.force_err)
-                .expect("Failed to calculate desired z speed");
-
-            println!("P2 - Force Error: {}", self.force_err);
-
-            if des_z_speed < -5.0 {
-                des_z_speed = -5.0;
-            }
-            if des_z_speed > 5.0 {
-                des_z_speed = 5.0;
-            }
-
-            desired_speed = [0.0, 0.0, des_z_speed];
-
-            //Update the robot EGM requirements
-            egm_client
-                .send_egm(EgmSensor::set_pose_set_speed(
-                    seqno,
-                    time,
-                    [0.0, 0.0, 0.0],
-                    self.ori.into(),
-                    desired_speed,
-                ))
-                .unwrap();
-
-            seqno += 1;
-            cnt += 1;
-
-            //Calc the force error and add to rolling average list
-            if force_errs.len() < FORCE_ERR_ROLL_AVG {
-                force_errs.push(self.force_err);
-            } else {
-                force_errs.remove(0);
-                force_errs.push(self.force_err);
-            }
-
-            //Check if the rolling average is within an acceptable range
-            //Check if every value in the rolling queue is within the required threshold
-            if force_errs.len() == FORCE_ERR_ROLL_AVG {
-                let mut force_sum = 0.0;
-                let force_avg: f64;
-
-                let mut all_within = true;
-                //Check that the rolling average is within 10% (globally correct)
-                for (i, force) in force_errs.iter().enumerate() {
-                    force_sum += force;
-
-                    //Check that the actual previous values are within 30% (locally correct)
-                    //Higher threshold to account for noise
-                    if i >= FORCE_THRESH_CNT {
-                        let curr_val = force / self.force_target;
-                        if curr_val.abs() > force_threshold {
-                            //println!("Failed at: {curr_val}");
-                            all_within = false;
-                            break;
-                        }
-                    }
+                if self.limit_check() {
+                    println!("Out of bounds");
+                    egm_client.egm_end();
+                    self.go_home_pos();
+                    self.write_marker(&test_data.data_filename, "TEST OUT OF  SAFETY BOUNDS");
+                    return;
                 }
 
-                if all_within {
-                    //Check that the global average is okay
-                    force_avg = force_sum / FORCE_ERR_ROLL_AVG as f64;
-                    if (force_avg / self.force_target).abs() < force_avg_threshold {
-                        //Count the force as stable
-                        force_stable = true;
-                    } else {
-                        println!("GLOBAL AVG INCORRECT: {force_avg}")
+                //Apply the controller
+                let mut des_z_speed = phase2_cntrl
+                    .calc_op(self.force_err)
+                    .expect("Failed to calculate desired z speed");
+
+                println!("P2 - Force Error: {}", self.force_err);
+
+                if des_z_speed < -MAX_SPEED {
+                    des_z_speed = -MAX_SPEED;
+                }
+                if des_z_speed > MAX_SPEED {
+                    des_z_speed = MAX_SPEED;
+                }
+
+                desired_speed = [0.0, 0.0, des_z_speed];
+
+                //Update the robot EGM requirements
+                egm_client
+                    .send_egm(EgmSensor::set_pose_set_speed(
+                        seqno,
+                        time,
+                        [0.0, 0.0, 0.0],
+                        self.ori.into(),
+                        desired_speed,
+                    ))
+                    .unwrap();
+
+                seqno += 1;
+                cnt += 1;
+
+                //Calc the force error and add to rolling average list
+                if force_errs.len() < FORCE_ERR_ROLL_AVG {
+                    force_errs.push(self.force_err);
+                } else {
+                    force_errs.remove(0);
+                    force_errs.push(self.force_err);
+                }
+
+                //Check if the rolling average is within an acceptable range
+                //Check if every value in the rolling queue is within the required threshold
+                if force_errs.len() == FORCE_ERR_ROLL_AVG {
+                    let mut force_sum = 0.0;
+                    let force_avg: f64;
+
+                    let mut all_within = true;
+                    //Check that the rolling average is within 10% (globally correct)
+                    for (i, force) in force_errs.iter().enumerate() {
+                        force_sum += force;
+
+                        //Check that the actual previous values are within 30% (locally correct)
+                        //Higher threshold to account for noise
+                        if i >= FORCE_THRESH_CNT {
+                            let curr_val = force / self.force_target;
+                            if curr_val.abs() > force_threshold {
+                                //println!("Failed at: {curr_val}");
+                                all_within = false;
+                                break;
+                            }
+                        }
+                    }
+
+                    if all_within {
+                        //Check that the global average is okay
+                        force_avg = force_sum / FORCE_ERR_ROLL_AVG as f64;
+                        if (force_avg / self.force_target).abs() < force_avg_threshold {
+                            //Count the force as stable
+                            force_stable = true;
+                        } else {
+                            println!("GLOBAL AVG INCORRECT: {force_avg}")
+                        }
                     }
                 }
             }
@@ -816,13 +852,7 @@ impl AbbRob<'_> {
         println!("GEOTECH - PHASE 2 COMPLETE!");
         self.write_marker(&test_data.data_filename, "PHASE 2 ENDED");
 
-        //Reset the force target to the desired
-        //self.force_target *= phase2_force_scaler;
-
         //Phase 3 - Complete trajectory whilst (PID)
-
-        //Set the speed of the robot
-        //self.set_speed(5.0);
 
         //Start the trajectory
         self.write_marker(&test_data.data_filename, "PHASE 3 STARTED");
@@ -859,21 +889,23 @@ impl AbbRob<'_> {
                 }
 
                 //Apply the controller
-                let mut des_z_speed = phase3_cntrl
+                let mut force_speed = phase3_cntrl
                     .calc_op(self.force_err)
                     .expect("Failed to calculate desired z speed");
 
                 println!("P3 - Force Error: {}", self.force_err);
 
-                if des_z_speed < -5.0 {
-                    des_z_speed = -5.0;
+                if force_speed < -MAX_SPEED {
+                    force_speed = -MAX_SPEED;
                 }
-                if des_z_speed > 5.0 {
-                    des_z_speed = 5.0;
+                if force_speed > MAX_SPEED {
+                    force_speed = MAX_SPEED;
                 }
 
                 //Send the EGM control
-                desired_speed = [-instruction.1.0, -instruction.1.1, des_z_speed];
+                desired_speed = [instruction.1.0, instruction.1.0, 0.0];
+                desired_speed[self.force_axis] = force_speed;
+
                 let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
                     seqno,
                     time,
@@ -1053,12 +1085,12 @@ impl AbbRob<'_> {
             if fc_vec.len() != 6 {
                 println!("joint angle read error!");
                 println!("Expected: 6. Actual: {}", fc_vec.len());
-                self.force = (f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN);
+                self.force = [f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN];
             } else {
                 //Store the pos in the robot info
-                self.force = (
+                self.force = [
                     fc_vec[0], fc_vec[1], fc_vec[2], fc_vec[3], fc_vec[4], fc_vec[5],
-                );
+                ];
             }
         } else {
             //If the socket request returns nothing
@@ -1126,12 +1158,12 @@ impl AbbRob<'_> {
                 self.ori.1,
                 self.ori.2,
                 self.ori.3,
-                self.force.0,
-                self.force.1,
-                self.force.2,
-                self.force.3,
-                self.force.4,
-                self.force.5,
+                self.force[0],
+                self.force[1],
+                self.force[2],
+                self.force[3],
+                self.force[4],
+                self.force[5],
                 self.force_err
             );
 
@@ -1218,20 +1250,11 @@ impl AbbRob<'_> {
     fn calc_force_err(&mut self) -> Result<f64, anyhow::Error> {
         //Check that force mode is enabled (otherwise there's no point in calcing the error
         if self.force_mode_flag {
-            let force_val: f64;
             //Extract the correct axis information
-            match self.force_axis.as_str() {
-                //Cover both case values
-                "Z" | "z" => {
-                    force_val = self.force.2;
-                }
-                _ => {
-                    bail!("Not implemented for axis {} yet", self.force_axis)
-                }
-            }
+
             //Return the error (not absed because we want to know if we are over or under)
 
-            self.force_err = force_val - self.force_target;
+            self.force_err = self.force[self.force_axis] - self.force_target;
 
             Ok(self.force_err)
         } else {

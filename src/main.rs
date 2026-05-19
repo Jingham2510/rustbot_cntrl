@@ -127,13 +127,6 @@ fn core_cmd_handler(config: &mut Config) {
                     "/home/joe/Documents/Data/test_dumps/faro_big/pcl_faro_big_processed.txt",
                 ];
 
-                let height_deltas: [[f64; 6]; 4] = [
-                    [0.513, 0.411, 0.312, 0.207, 0.103, 0.0],
-                    [0.513, 0.410, 0.307, 0.205, 0.10, 0.0],
-                    [0.512, 0.408, 0.307, 0.203, 0.103, 0.0],
-                    [0.508, 0.407, 0.301, 0.202, 0.103, 0.0],
-                ];
-
                 let mut cnt = 0;
 
                 for test in tests_to_gen {
@@ -152,13 +145,55 @@ fn core_cmd_handler(config: &mut Config) {
                             identifiers.to_vec(),
                             &PointCloud::create_from_file(String::from(ground_truths[cnt]))
                                 .unwrap(),
-                            height_deltas[cnt].to_vec(),
                         );
 
                         println!("Thread {} complete", test);
                     });
 
                     cnt += 1;
+                }
+            }
+
+            //Transform a set of pointclouds
+            "__pcl" => {
+                //Folderpath for folder of interest
+                let test = "flat_terrain_scan_1";
+
+                //List of test identifiers (for splitting tests)
+                let ids: [&str; 6] = ["450mm", "550mm", "650mm", "750mm", "850mm", "950mm"];
+
+                //List of translations for the pointclouds (matches order of ids)
+                let transform: Matrix4<f64> = Matrix4::new(
+                    0.999962, -0.000038, 0.008726, -0.006886, 0.000000, 0.999990, 0.004363,
+                    -0.003444, -0.008727, -0.004363, 0.999952, 0.000249, 0.000000, 0.000000,
+                    0.000000, 1.000000,
+                );
+
+                //let mut pcl = PointCloud::create_from_file(String::from("/home/joe/Documents/Data/test_dumps/big_indent_scan_1/pcl_big_indent_scan_1_950mm_0.txt")).unwrap();
+
+                //pcl.translate(0.0, 0.0, 0.0065);
+
+                //pcl.save_to_file("/home/joe/Documents/Data/test_dumps/big_indent_scan_1/pcl_big_indent_scan_1_950mm_0");
+
+                //Create the analyser for the test
+                let mut analyser = Analyser::init(
+                    String::from("/home/joe/Documents/Data/test_dumps"),
+                    String::from(test),
+                )
+                .expect("Failed to make analyser");
+
+                //For each set of ids
+                for (i, id) in ids.iter().enumerate() {
+                    //Load the pointclouds - translate all of them and resave them
+                    let mut pcls = analyser
+                        .get_pcl_with_identifier(id)
+                        .expect("Failed to get pcls");
+
+                    for pcl in pcls.iter_mut() {
+                        pcl.transform_with(&transform);
+                        pcl.save_to_file(&pcl.filename().unwrap())
+                            .expect("Failed to save pcl");
+                    }
                 }
             }
 
