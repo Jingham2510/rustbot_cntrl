@@ -19,7 +19,7 @@ enum SignalType {
 }
 
 ///Function specification
-struct ForceFunctionGenerator {
+pub struct ForceFunctionGenerator {
     ///The type of signal form
     sig_type: SignalType,
     ///The total number of changes
@@ -55,12 +55,14 @@ impl ForceFunctionGenerator {
         let mut sig_vals: Vec<f64> = vec![];
         let mut sig_time: Vec<f64> = vec![];
 
-        for i in 0..no_of_steps {
-            let force_val = min_force + (i as f64 * ((max_force - min_force) / no_of_steps as f64));
+        let step_size = (max_force - min_force) / (no_of_steps as f64);
+
+        for i in 0..=no_of_steps {
+            let force_val = min_force + i as f64 * step_size;
 
             sig_vals.push(force_val);
 
-            sig_time.push(100.0 / no_of_steps as f64);
+            sig_time.push(100.0 / (1.0 + no_of_steps as f64));
         }
 
         verify_time_constraint(&sig_time)?;
@@ -81,8 +83,10 @@ impl ForceFunctionGenerator {
         let mut sig_vals: Vec<f64> = vec![];
         let mut sig_time: Vec<f64> = vec![];
 
+        let step_size = (max_force - min_force) / (RAMP_VAR as f64);
+
         for i in 0..RAMP_VAR {
-            let force_val = min_force + (i as f64 * ((max_force - min_force) / RAMP_VAR as f64));
+            let force_val = min_force + (i as f64 * step_size);
 
             sig_vals.push(force_val);
 
@@ -114,12 +118,13 @@ impl ForceFunctionGenerator {
     pub fn save_to_file(&self, filepath: &str) -> Result<(), anyhow::Error> {
         //Open the file (or create if it doesn't exist)
         let mut file = OpenOptions::new()
-            .append(false)
+            .write(true)
+            .truncate(true)
             .create(true)
             .open(filepath.trim())
             .unwrap();
 
-        let line: String = format!("Desired force profile\n");
+        let line: String = format!("Desired force profile");
 
         //Write to the file - indicating if writing failed (but don't worry about it!)
         if let Err(e) = writeln!(file, "{}", line) {
@@ -130,7 +135,7 @@ impl ForceFunctionGenerator {
         let line: String =
             //Format the line to write
             format!(
-                "TYPE:{:?},VAL_CNT:{},VALS:{:?},PERC_TIMES:{:?}\n",
+                "TYPE:{:?},VAL_CNT:{},VALS:{:?},PERC_TIMES:{:?}",
                 self.sig_type,
                 self.force_changes,
                 self.sig_vals,
@@ -154,7 +159,7 @@ fn verify_time_constraint(sig_time: &Vec<f64>) -> Result<(), anyhow::Error> {
         total += i;
     }
 
-    if total == 100.0 {
+    if total.round() == 100.0 {
         Ok(())
     } else {
         bail!("Invalid time constraints")

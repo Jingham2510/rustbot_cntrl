@@ -20,10 +20,10 @@ mod modelling;
 
 use crate::analysis::analyser::Analyser;
 use crate::config::Config;
+use crate::control::force_control::force_function_generator::ForceFunctionGenerator;
 use crate::mapping::terr_map_tools::{
     Heightmap, PointCloud, average_heightmaps, low_pass_heightmaps,
 };
-
 use control::abb_rob;
 
 const VER_NUM: &str = "V0.8";
@@ -106,6 +106,10 @@ fn core_cmd_handler(config: &mut Config) {
                 }
             }
 
+            "test" => {
+                let ffunc = ForceFunctionGenerator::ramp_force(100.0, -100.0).expect("Failed");
+                ffunc.save_to_file("test.txt");
+            }
             "temp" => {
                 //CURRENTLY - saving faro pointclouds as parametric heightmaps
                 let tests_to_gen = vec![
