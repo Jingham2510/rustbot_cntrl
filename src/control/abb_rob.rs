@@ -747,6 +747,7 @@ impl AbbRob<'_> {
             //Minimum of 500 measurements taken - just to prove its stable
             const FORCE_ERR_ROLL_AVG: usize = 5000;
             let force_avg_threshold: f64 = match self.force_target {
+                10.0 => 0.2,
                 _ => 0.05,
             };
 
@@ -754,6 +755,7 @@ impl AbbRob<'_> {
             const FORCE_THRESH_CNT: usize = 500;
             //The force threshold is based on the inverse of the magnitude
             let force_threshold: f64 = match self.force_target {
+                10.0 => 0.2,
                 _ => 0.05,
             };
 
@@ -861,7 +863,7 @@ impl AbbRob<'_> {
 
         for instruction in speed_instructions.iter() {
             //Get the time limit
-            let time_lim = Duration::from_secs_f64(instruction.0);
+            let time_lim = instruction.0;
 
             //Start the timer
             let start_time = SystemTime::now();
@@ -870,7 +872,7 @@ impl AbbRob<'_> {
             let mut desired_speed: [f64; 3];
 
             //While the timer is running
-            while start_time.elapsed().unwrap() < time_lim {
+            while start_time.elapsed().unwrap().as_secs_f64() < time_lim {
                 //Get the egm message
                 let msg = egm_client.recv_egm().expect("Failed to get egm message");
 
@@ -902,8 +904,9 @@ impl AbbRob<'_> {
                     force_speed = MAX_SPEED;
                 }
 
-                //Send the EGM control
-                desired_speed = [instruction.1.0, instruction.1.0, 0.0];
+                //Send the EGM control - override x with minimal speed to stop drift
+                desired_speed = [-0.001, -instruction.1.1, 0.0];
+
                 desired_speed[self.force_axis] = force_speed;
 
                 let sensor: EgmSensor = EgmSensor::set_pose_set_speed(

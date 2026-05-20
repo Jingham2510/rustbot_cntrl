@@ -995,11 +995,12 @@ impl Heightmap {
 
         //Calculate the bin size -- Assuming square so only need one set of bounds
         let bin_size =
-            (self.upper_coord_bounds[0] - self.lower_coord_bounds[0]) / (self.width as f64);
+            (self.upper_coord_bounds[0] - self.lower_coord_bounds[0]) / (self.width as f64 - 1.0);
 
         //Get the lowest point and its row (which is actually the max - furhter away from heightmap)
         if !self.max_updated {
             self.get_max();
+            self.get_min();
         }
         let max_row = self.max_pos.0;
 
