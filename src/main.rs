@@ -107,8 +107,9 @@ fn core_cmd_handler(config: &mut Config) {
             }
 
             "test" => {
-                let ffunc = ForceFunctionGenerator::ramp_force(100.0, -100.0).expect("Failed");
-                ffunc.save_to_file("test.txt");
+                let ffunc = ForceFunctionGenerator::step_force(0.0, 100.0, 10).expect("Failed");
+
+                println!("{:?}", ffunc.as_time_f64(100.0));
             }
             "temp" => {
                 //CURRENTLY - saving faro pointclouds as parametric heightmaps

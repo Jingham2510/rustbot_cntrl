@@ -115,6 +115,25 @@ impl ForceFunctionGenerator {
         })
     }
 
+    ///Converts the relative percentage times to timestamps to compare against
+    ///They are additive i.e. two one second blocks will display as [1.0, 2.0]
+    pub fn as_time_f64(&self, total_time: f64) -> Vec<f64> {
+        let mut timestamp_vec: Vec<f64> = vec![];
+
+        let mut curr_time = 0.0;
+
+        for perc_time in self.sig_time.iter() {
+            //Update the current time
+            curr_time += total_time * (perc_time / 100.0);
+
+            timestamp_vec.push(curr_time);
+        }
+
+        println!("TOTAL SUMMED: {}", curr_time);
+
+        timestamp_vec
+    }
+
     pub fn save_to_file(&self, filepath: &str) -> Result<(), anyhow::Error> {
         //Open the file (or create if it doesn't exist)
         let mut file = OpenOptions::new()
