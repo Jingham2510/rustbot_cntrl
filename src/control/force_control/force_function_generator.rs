@@ -1,7 +1,7 @@
 use anyhow::{Error, bail};
 use std::fmt;
 use std::fs::OpenOptions;
-use std::io::Write;
+use std::io::{Write, stdin};
 ///This file contains functions required for creation of force function generators
 
 ///Types of signal that can be generated
@@ -31,6 +31,94 @@ pub struct ForceFunctionGenerator {
 }
 
 impl ForceFunctionGenerator {
+    pub fn user_interface() -> Result<Self, anyhow::Error> {
+        loop {
+            println!("Select a force type:");
+
+            //Get user input
+            let mut user_inp = String::new();
+            stdin()
+                .read_line(&mut user_inp)
+                .expect("Failed to read line");
+
+            match user_inp.to_lowercase().trim() {
+                "ramp" | "step" => {
+                    let min_force: f64;
+                    let max_force: f64;
+
+                    println!("Type the start value");
+
+                    //Get user input
+                    let mut val_sel = String::new();
+                    stdin()
+                        .read_line(&mut val_sel)
+                        .expect("Failed to read line");
+
+                    if let Ok(val) = val_sel.trim().parse::<f64>() {
+                        min_force = val;
+                    } else {
+                        println!("Invalid value");
+                        continue;
+                    }
+
+                    println!("Type the end value");
+
+                    //Get user input
+                    let mut val_sel = String::new();
+                    stdin()
+                        .read_line(&mut val_sel)
+                        .expect("Failed to read line");
+
+                    if let Ok(val) = val_sel.trim().parse::<f64>() {
+                        max_force = val;
+                    } else {
+                        println!("Invalid value");
+                        continue;
+                    }
+
+                    if user_inp.to_lowercase().trim() == "ramp" {
+                        return ForceFunctionGenerator::ramp_force(min_force, max_force);
+                    } else {
+                        println!("Type how many steps are required");
+                        //Get user input
+                        let mut val_sel = String::new();
+                        stdin()
+                            .read_line(&mut val_sel)
+                            .expect("Failed to read line");
+
+                        if let Ok(val) = val_sel.trim().parse::<usize>() {
+                            return ForceFunctionGenerator::step_force(min_force, max_force, val);
+                        } else {
+                            println!("Invalid value");
+                            continue;
+                        }
+                    }
+                }
+
+                "constant" => {
+                    println!("Type the desired force");
+
+                    //Get user input
+                    let mut val_sel = String::new();
+                    stdin()
+                        .read_line(&mut val_sel)
+                        .expect("Failed to read line");
+
+                    if let Ok(val) = val_sel.trim().parse::<f64>() {
+                        return ForceFunctionGenerator::constant_force(val);
+                    } else {
+                        println!("Invalid value");
+                        continue;
+                    }
+                }
+
+                _ => {
+                    println!("Invalid choice")
+                }
+            }
+        }
+    }
+
     ///Create a force function with a constant value
     pub fn constant_force(desired_force: f64) -> Result<Self, anyhow::Error> {
         Ok(ForceFunctionGenerator {
@@ -48,8 +136,13 @@ impl ForceFunctionGenerator {
         no_of_steps: usize,
     ) -> Result<Self, anyhow::Error> {
         //Ensure valid force profile
-        if no_of_steps == 0 {
+        if no_of_steps == 0 || min_force == max_force {
+            println!("Too few steps! Generating constant force");
             return ForceFunctionGenerator::constant_force(min_force);
+        }
+        if no_of_steps >= 100000 {
+            println!("Too many steps! Generating ramp");
+            return ForceFunctionGenerator::ramp_force(min_force, max_force);
         }
 
         let mut sig_vals: Vec<f64> = vec![];
@@ -78,6 +171,11 @@ impl ForceFunctionGenerator {
     ///Create a force function that ramps between two values
     ///Essentially a very fine step function
     pub fn ramp_force(min_force: f64, max_force: f64) -> Result<Self, anyhow::Error> {
+        if min_force == max_force {
+            println!("No change! Generating constant force");
+            return ForceFunctionGenerator::constant_force(min_force);
+        }
+
         const RAMP_VAR: usize = 100000;
 
         let mut sig_vals: Vec<f64> = vec![];
@@ -129,8 +227,6 @@ impl ForceFunctionGenerator {
             timestamp_vec.push(curr_time);
         }
 
-        println!("TOTAL SUMMED: {}", curr_time);
-
         timestamp_vec
     }
 
@@ -154,7 +250,7 @@ impl ForceFunctionGenerator {
         let line: String =
             //Format the line to write
             format!(
-                "TYPE:{:?},VAL_CNT:{},VALS:{:?},PERC_TIMES:{:?}",
+                "TYPE:{:?}|VAL_CNT:{}|VALS:{:?}|PERC_TIMES:{:?}",
                 self.sig_type,
                 self.force_changes,
                 self.sig_vals,
@@ -167,6 +263,20 @@ impl ForceFunctionGenerator {
         }
 
         Ok(())
+    }
+
+    pub fn force_changes(&self) -> usize {
+        self.force_changes
+    }
+
+    ///Get the signal values
+    pub fn sig_vals(&self) -> Vec<f64> {
+        self.sig_vals.clone()
+    }
+
+    ///Get the signal times
+    pub fn sig_time(&self) -> Vec<f64> {
+        self.sig_time.clone()
     }
 }
 

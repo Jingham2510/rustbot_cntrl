@@ -1061,19 +1061,7 @@ impl Heightmap {
         } else {
             max_row[second_edge]
         };
-
-        /*
-        //Simple edge detection to find the edge of the feature
-        println!("{:?}", max_row);
-        println!("BIN DISTANCE: {}", bin_size);
-        println!(
-            "EDGE:{} - EDGE:{}",
-            max_row[first_edge], max_row[second_edge],
-        );
-        println!("EDGE IND:{} - EDGE IND:{}", first_edge, second_edge);
-        */
-
-        let depth = self.max - highest_edge;
+        let depth = self.max - self.min;
 
         //Calculate the width by doing (number of bins between edges multiplied by bin size)
 
@@ -1092,8 +1080,6 @@ impl Heightmap {
         } else {
             depth / ((self.max_pos.0 as u32 - first_edge as u32) as f64 * bin_size)
         };
-
-        //println!("{:?}", (depth, width, slope));
 
         Ok((depth, width, slope))
     }

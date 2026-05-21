@@ -20,7 +20,7 @@ impl Default for EgmServer {
 impl EgmServer {
     ///Creates the EGM udp socket
     pub fn create_egm_socket(socket: UdpSocket) -> Self {
-        println!("UDP socket bound to: {:?}", socket.local_addr());
+        //println!("UDP socket bound to: {:?}", socket.local_addr());
 
         EgmServer { socket }
     }
@@ -62,14 +62,14 @@ impl EgmServer {
 
     ///Recieves a message from any UDP socket and then attempts to return the connection for sending messages
     pub fn recv_and_connect(&self) -> Result<EgmRobot, anyhow::Error> {
-        println!("Getting controller port...");
+        //println!("Getting controller port...");
 
         //Allocate a MB for recieving the data
         let mut buffer = vec![0u8; 1024];
         //Recieve the data
         let (bytes_recieved, addr) = self.socket.recv_from(&mut buffer)?;
 
-        println!("No of bytes recieved: {}", bytes_recieved);
+        //println!("No of bytes recieved: {}", bytes_recieved);
 
         //Attempt to connect to the socket address
         if self.socket.connect(addr).is_ok() {

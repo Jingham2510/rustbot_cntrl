@@ -107,21 +107,20 @@ fn core_cmd_handler(config: &mut Config) {
             }
 
             "test" => {
-                let ffunc = ForceFunctionGenerator::step_force(0.0, 100.0, 10).expect("Failed");
+                let ffunc = ForceFunctionGenerator::user_interface().unwrap();
 
-                println!("{:?}", ffunc.as_time_f64(100.0));
+                ffunc.save_to_file("funcgen_test.txt");
             }
             "temp" => {
                 //CURRENTLY - saving faro pointclouds as parametric heightmaps
                 let tests_to_gen = vec![
-                    "flat_terrain_scan_1",
                     "small_indent_scan_1",
                     "medium_indent_scan_1",
                     "big_indent_scan_1",
                 ];
 
                 let averages: [u32; 1] = [5];
-                let resolutions: [u32; 296] = core::array::from_fn(|i| (i + 5) as u32);
+                let resolutions: [u32; 170] = core::array::from_fn(|i| (i + 5) as u32);
 
                 let identifiers: [&str; 6] = ["450mm", "550mm", "650mm", "750mm", "850mm", "950mm"];
 

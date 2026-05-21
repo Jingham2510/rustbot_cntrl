@@ -3,6 +3,7 @@ use crate::config::Config;
 use crate::control::egm_control::abb_egm::{EgmRobot, EgmSensor};
 use crate::control::egm_control::egm_udp::EgmServer;
 use crate::control::force_control::force_control::{PHPIDController, PIDController};
+use crate::control::force_control::force_function_generator::ForceFunctionGenerator;
 use crate::control::misc_tools::angle_tools::Quaternion;
 use crate::control::misc_tools::misc::wait_for_enter;
 use crate::control::misc_tools::string_tools;
@@ -106,11 +107,7 @@ impl TestData {
             let user_inp = user_inp.to_lowercase();
             let user_inp = user_inp.trim();
 
-            if forcemode {
-                traj = trajectory_planner::relative_traj_gen(user_inp);
-            } else {
-                traj = trajectory_planner::traj_gen(user_inp);
-            }
+            traj = trajectory_planner::traj_gen(user_inp);
 
             if traj.is_ok() {
                 return traj;
@@ -308,20 +305,6 @@ impl AbbRob<'_> {
                             return;
                         }
                     };
-
-                    println!("Please type the target force");
-
-                    let mut user_inp = String::new();
-                    stdin()
-                        .read_line(&mut user_inp)
-                        .expect("Failed to read line");
-
-                    if let Ok(targ) = user_inp.trim().parse::<f64>() {
-                        self.force_target = targ;
-                    } else {
-                        println!("Invalid force target... returning to cmd line");
-                        return;
-                    }
 
                     self.geo_test_regime();
                 }
@@ -606,6 +589,9 @@ impl AbbRob<'_> {
 
     ///A geo test that consists of three phases and aims to impart a desired force in the sand
     fn geo_test_regime(&mut self) {
+        //Get the user to input a force function
+        let ffunc = ForceFunctionGenerator::user_interface().unwrap();
+
         const MAX_SPEED: f64 = 10.0;
 
         if !self.force_mode_flag {
@@ -631,9 +617,24 @@ impl AbbRob<'_> {
         //Store the desired trajectory
         test_data.store_desired_trajectory(self.force_mode_flag);
 
+        //Store the desired force profile
+        let ffunc_fp = format!("{}/forcefunc_{}.txt", fp_copy, test_name_copy);
+        let _ = ffunc.save_to_file(&ffunc_fp);
+
         //Calcualte the speed intructions
         let desired_lat_speed = 0.5;
         let speed_instructions = calc_xy_timing(&mut test_data.traj, desired_lat_speed);
+
+        let mut total_time = 0.0;
+        for inst in speed_instructions.iter() {
+            total_time += inst.0;
+        }
+
+        //Calculate the associated force instructions
+        let force_vals = ffunc.sig_vals();
+        self.force_target = force_vals[0];
+
+        let force_times = ffunc.as_time_f64(total_time);
 
         //Setup the seperate PID controllers
         let mut phase2_cntrl = PIDController::create_PID(0.001, 0.0005, 0.001);
@@ -662,11 +663,10 @@ impl AbbRob<'_> {
         //Move to the starting point
         self.set_pos(start_pos);
 
+        //Embed self if doing horizontal loading
         if self.force_axis != 2 {
             self.set_pos((start_pos.0, start_pos.1, start_pos.2 - 50.0))
         }
-
-        self.set_speed(2.0);
 
         //Read the values once
         self.update_rob_info();
@@ -742,10 +742,11 @@ impl AbbRob<'_> {
         //Phase 2 - force control until target force is stabilised (PID 1)
 
         if phase_2 {
+            println!("PHASE 2: Stabilising vertical load");
             let mut force_stable = false;
             let mut force_errs: Vec<f64> = vec![];
             //Minimum of 500 measurements taken - just to prove its stable
-            const FORCE_ERR_ROLL_AVG: usize = 5000;
+            const FORCE_ERR_ROLL_AVG: usize = 2500;
             let force_avg_threshold: f64 = match self.force_target {
                 10.0 => 0.2,
                 _ => 0.05,
@@ -780,8 +781,6 @@ impl AbbRob<'_> {
                 let mut des_z_speed = phase2_cntrl
                     .calc_op(self.force_err)
                     .expect("Failed to calculate desired z speed");
-
-                println!("P2 - Force Error: {}", self.force_err);
 
                 if des_z_speed < -MAX_SPEED {
                     des_z_speed = -MAX_SPEED;
@@ -857,22 +856,40 @@ impl AbbRob<'_> {
         //Phase 3 - Complete trajectory whilst (PID)
 
         //Start the trajectory
+
+        println!("GEOTECH - PHASE 3");
+        println!("Running time: {}", total_time);
+
         self.write_marker(&test_data.data_filename, "PHASE 3 STARTED");
 
         const DEPTH_FREQ: i32 = 250;
+
+        let mut curr_force_val: usize = 0;
+
+        let global_start = SystemTime::now();
 
         for instruction in speed_instructions.iter() {
             //Get the time limit
             let time_lim = instruction.0;
 
             //Start the timer
-            let start_time = SystemTime::now();
+            let local_time = SystemTime::now();
 
             //Send the speed instruction to the robot via EGM
             let mut desired_speed: [f64; 3];
 
             //While the timer is running
-            while start_time.elapsed().unwrap().as_secs_f64() < time_lim {
+
+            while local_time.elapsed().unwrap().as_secs_f64() < time_lim {
+                //Check if the desired force value needs to be updated
+                if global_start.elapsed().unwrap().as_secs_f64() >= force_times[curr_force_val]
+                    && curr_force_val <= ffunc.force_changes()
+                {
+                    curr_force_val += 1;
+                    self.force_target = force_vals[curr_force_val];
+                    println!("New force target: {}", self.force_target);
+                }
+
                 //Get the egm message
                 let msg = egm_client.recv_egm().expect("Failed to get egm message");
 
@@ -895,7 +912,7 @@ impl AbbRob<'_> {
                     .calc_op(self.force_err)
                     .expect("Failed to calculate desired z speed");
 
-                println!("P3 - Force Error: {}", self.force_err);
+                //println!("P3 - Force Error: {}", self.force_err);
 
                 if force_speed < -MAX_SPEED {
                     force_speed = -MAX_SPEED;
@@ -904,8 +921,8 @@ impl AbbRob<'_> {
                     force_speed = MAX_SPEED;
                 }
 
-                //Send the EGM control - override x with minimal speed to stop drift
-                desired_speed = [-0.001, -instruction.1.1, 0.0];
+                //Send the EGM control
+                desired_speed = [instruction.1.0, instruction.1.1, 0.0];
 
                 desired_speed[self.force_axis] = force_speed;
 
@@ -1286,7 +1303,7 @@ impl AbbRob<'_> {
 
         self.socket.req("EGSS:0")?;
 
-        println!("EGM speed stream started");
+        //println!("EGM speed stream started");
 
         Ok(())
     }
