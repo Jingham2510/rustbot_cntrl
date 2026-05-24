@@ -81,6 +81,35 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
             }
         }
 
+        //A circular trajectory
+        "spiral" => {
+            //Define all characteristics of the circle
+            let centre = (400.0, 2000.0, DEFAULT_Z);
+            //Number of times the circle goes round
+            let loops = 1;
+
+            //"size" of circle
+            let start_r = 100.0;
+            let stop_r = 300.0;
+
+            let mut curr_r = start_r;
+
+            //Create the circle trajectory
+            for i in 1..(360 * loops) {
+                trajectory.push((
+                    centre.0 + ((i as f64 * (PI / 180.0)).sin() * curr_r),
+                    centre.1 + ((i as f64 * (PI / 180.0)).cos() * curr_r),
+                    centre.2,
+                ));
+
+                if (start_r <= stop_r) {
+                    curr_r = start_r + ((stop_r - start_r).abs() * (i / (360 * loops)) as f64);
+                } else {
+                    curr_r = start_r - ((stop_r - start_r).abs() * (i / (360 * loops)) as f64);
+                }
+            }
+        }
+
         //A straight line that descends in height (i.e. slides down)
         "slidedown" => {
             let line_x = 262.0;

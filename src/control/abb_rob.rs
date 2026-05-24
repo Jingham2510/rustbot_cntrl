@@ -694,6 +694,8 @@ impl AbbRob<'_> {
         //Phase 1 - position control until target force reached
 
         if phase_1 {
+            println!("PHASE 1: FINDING TARGET FORCE");
+
             self.write_marker(&test_data.data_filename, "PHASE 1 STARTED");
 
             //Find the vert force------------------------------
@@ -749,6 +751,7 @@ impl AbbRob<'_> {
             const FORCE_ERR_ROLL_AVG: usize = 2500;
             let force_avg_threshold: f64 = match self.force_target {
                 10.0 => 0.2,
+                25.0 => 0.2,
                 _ => 0.05,
             };
 
@@ -757,6 +760,7 @@ impl AbbRob<'_> {
             //The force threshold is based on the inverse of the magnitude
             let force_threshold: f64 = match self.force_target {
                 10.0 => 0.2,
+                25.0 => 0.2,
                 _ => 0.05,
             };
 

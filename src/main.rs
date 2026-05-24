@@ -147,14 +147,20 @@ fn core_cmd_handler(config: &mut Config) {
 
             //Create a heightmap from a specified height map
             "__pcl" => {
-                let pcl_fp = "/home/joe/Documents/Data/test_dumps/small_indent_scan_1/pcl_small_indent_scan_1_950mm_0.txt";
+                let averages: [u32; 5] = [1, 5, 10, 15, 25];
+                let resolutions: [u32; 1] = [75];
+                let identifiers: [&str; 1] = ["950mm"];
 
-                let mut pcl = PointCloud::create_from_file(String::from(pcl_fp)).unwrap();
+                let mut analyser = Analyser::init(
+                    String::from("/home/joe/Documents/Data/test_dumps"),
+                    String::from("medium_indent_scan_1"),
+                )
+                .unwrap();
 
-                let hmap = Heightmap::create_from_pcl(pcl, 75, 75);
-
-                hmap.save_to_file(
-                    "/home/joe/Documents/figs/rgbd_vs_faro/hmap_small_indent_950mm_res_75",
+                analyser.create_parametric_hmaps(
+                    resolutions.to_vec(),
+                    averages.to_vec(),
+                    identifiers.to_vec(),
                 );
             }
 
