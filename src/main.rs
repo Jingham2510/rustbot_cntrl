@@ -12,9 +12,6 @@ use std::time::{Duration, SystemTime};
 mod config;
 mod control;
 mod networking;
-
-mod modelling;
-
 use crate::config::Config;
 use crate::control::force_control::force_function_generator::ForceFunctionGenerator;
 
