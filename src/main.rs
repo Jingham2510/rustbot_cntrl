@@ -9,24 +9,18 @@ use std::fs::File;
 use std::io::{Write, stdin};
 use std::thread;
 use std::time::{Duration, SystemTime};
-mod analysis;
 mod config;
 mod control;
-mod mapping;
 mod networking;
 
-mod helper_funcs;
 mod modelling;
 
-use crate::analysis::analyser::Analyser;
 use crate::config::Config;
 use crate::control::force_control::force_function_generator::ForceFunctionGenerator;
-use crate::mapping::terr_map_tools::{
-    Heightmap, PointCloud, average_heightmaps, low_pass_heightmaps,
-};
+
 use control::abb_rob;
 
-const VER_NUM: &str = "V0.8";
+const VER_NUM: &str = "V0.9";
 //Program title
 const TITLE: &str = "Rustbot Control";
 
@@ -100,68 +94,10 @@ fn core_cmd_handler(config: &mut Config) {
 
             "connect" => rob_connect(config),
 
-            "analyse" => {
-                if let Err(e) = analyse(&config) {
-                    println!("ANALYSE ERROR - {e}")
-                }
-            }
-
             "test" => {
                 let ffunc = ForceFunctionGenerator::user_interface().unwrap();
 
                 ffunc.save_to_file("funcgen_test.txt");
-            }
-            "temp" => {
-                //CURRENTLY - saving faro pointclouds as parametric heightmaps
-                let tests_to_gen = vec![
-                    "small_indent_scan_1",
-                    "medium_indent_scan_1",
-                    "big_indent_scan_1",
-                ];
-
-                let averages: [u32; 1] = [5];
-                let resolutions: [u32; 170] = core::array::from_fn(|i| (i + 5) as u32);
-
-                let identifiers: [&str; 6] = ["450mm", "550mm", "650mm", "750mm", "850mm", "950mm"];
-
-                for test in tests_to_gen {
-                    let t = thread::spawn(move || {
-                        println!("Thread {} running", test);
-
-                        let mut analyser = Analyser::init(
-                            String::from("/home/joe/Documents/Data/test_dumps"),
-                            String::from(test),
-                        )
-                        .expect("Failed to find test");
-
-                        analyser.group_simple_feature_estimator(
-                            resolutions.to_vec(),
-                            averages.to_vec(),
-                            identifiers.to_vec(),
-                        );
-
-                        println!("Thread {} complete", test);
-                    });
-                }
-            }
-
-            //Create a heightmap from a specified height map
-            "__pcl" => {
-                let averages: [u32; 5] = [1, 5, 10, 15, 25];
-                let resolutions: [u32; 1] = [75];
-                let identifiers: [&str; 1] = ["950mm"];
-
-                let mut analyser = Analyser::init(
-                    String::from("/home/joe/Documents/Data/test_dumps"),
-                    String::from("medium_indent_scan_1"),
-                )
-                .unwrap();
-
-                analyser.create_parametric_hmaps(
-                    resolutions.to_vec(),
-                    averages.to_vec(),
-                    identifiers.to_vec(),
-                );
             }
 
             //Catch all else
@@ -225,89 +161,4 @@ fn rob_connect(config: &mut Config) {
         println!("{TITLE} - {VER_NUM}");
         return;
     }
-}
-
-///Analyse a tests gathered terrain information (usually changes regularly!)
-fn analyse(config: &Config) -> Result<(), anyhow::Error> {
-    //Print and number the list of tests in the DEPTH_TESTS folder (ignoring _archive)
-    let depth_test_fp: String = config.test_fp();
-
-    let paths = fs::read_dir(&depth_test_fp)?;
-
-    //Test enumeration holder
-    let mut test_enum: Vec<(i32, String)> = vec![];
-
-    let mut test_cnt = 0;
-
-    for path in paths {
-        //Convert the path to a string
-        let folder_str = path?
-            .file_name()
-            .into_string()
-            .expect("FAILED TO CONVERT PATH TO STRING");
-
-        //Ignore all folders starting with '_'
-        if folder_str.starts_with("_") {
-            continue;
-        }
-        test_enum.push((test_cnt, folder_str));
-
-        test_cnt = test_cnt + 1;
-    }
-    //Ask the user to pick  the numbered tests they want to view
-    let mut user_sel: usize;
-
-    loop {
-        //Display all the test options
-        for test in test_enum.iter() {
-            println!("{} - {}", test.0, test.1);
-        }
-
-        println!("Please select a test number:");
-        //Get user input
-        let mut user_inp = String::new();
-        stdin()
-            .read_line(&mut user_inp)
-            .expect("Failed to read line");
-
-        //check if the user selection is valid
-        if let Ok(sel) = user_inp.trim().parse() {
-            user_sel = sel;
-            //If valid break
-            if user_sel < test_enum.len() {
-                break;
-            }
-        } else {
-            continue;
-        }
-    }
-
-    //Create analysis tool from chosen test
-    let mut analyser = Analyser::init(depth_test_fp, test_enum[user_sel].1.clone())?;
-
-    println!("Analyser created");
-
-    //CURRENTLY ---------------------- RGDB vs FARO Scanner test analyses
-
-    //Trim all the pointclouds down
-
-    let min_x = -0.03;
-    let max_x = 0.05;
-    let min_y = -0.044;
-    let max_y = 0.04;
-    let min_z = -999.0;
-    let max_z = 999.0;
-
-    let _ = analyser.apply_passband(min_x, max_x, min_y, max_y, min_z, max_z);
-
-    //Turn the pointcloud set into heightmaps
-    let _ = analyser.create_parametric_hmaps(
-        vec![5, 10, 25, 50, 75, 100, 200, 250, 500],
-        vec![1, 2, 5, 10, 15, 20, 25],
-        vec!["450mm", "550mm", "650mm", "750mm", "850mm", "950mm"],
-    );
-
-    let _ = analyser.display_all();
-
-    Ok(())
 }

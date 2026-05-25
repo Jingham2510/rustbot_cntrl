@@ -9,7 +9,6 @@ use crate::control::misc_tools::misc::wait_for_enter;
 use crate::control::misc_tools::string_tools;
 use crate::control::trajectory_planner;
 use crate::control::trajectory_planner::calc_xy_timing;
-use crate::mapping::terr_map_tools::Heightmap;
 use crate::modelling::experiment_model::ExpModel;
 use crate::networking::tcp_sock;
 use anyhow::bail;
