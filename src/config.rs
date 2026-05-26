@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 ///Configuraiton setup for the program
 use anyhow::bail;
-use nalgebra::Matrix4;
 use std::fmt::Debug;
 use std::fs::File;
 use std::io::{BufRead, BufReader};

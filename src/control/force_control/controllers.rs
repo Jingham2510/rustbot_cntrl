@@ -136,8 +136,6 @@ impl PIDController {
 
     ///Approximate the integral area using the trapezium approximation
     fn calc_integral_trap_approx(&mut self) -> f64 {
-        let new_area: f64;
-
         let curr_err = self.errs[self.errs.len() - 1];
         let prev_err = self.errs[self.errs.len() - 2];
         let curr_time = self.timestamps[self.timestamps.len() - 1].timestamp();
@@ -146,18 +144,15 @@ impl PIDController {
 
         //Check the sign of the error and the previous error
         //BOTH ERRS POS
-        if (curr_err >= 0.0) & (prev_err >= 0.0) {
-            new_area = (time_delta as f64) * ((prev_err + curr_err) / 2.0)
-        }
-        //BOTH ERRS NEGATIVE
-        else if (curr_err <= 0.0) & (prev_err <= 0.0) {
-            new_area = (time_delta as f64) * ((prev_err + curr_err) / 2.0)
-        } else {
-            //Calc the midpoint (where it crosses the polarity approx)
+        let new_area =
+            if ((curr_err >= 0.0) & (prev_err >= 0.0)) || ((curr_err <= 0.0) & (prev_err <= 0.0)) {
+                (time_delta as f64) * ((prev_err + curr_err) / 2.0)
+            } else {
+                //Calc the midpoint (where it crosses the polarity approx)
 
-            //WILL APPROXIMATE TO 0 HERE - if we are calculating the midpoint it will always have equal area on both sides
-            new_area = 0.0;
-        }
+                //WILL APPROXIMATE TO 0 HERE - if we are calculating the midpoint it will always have equal area on both sides
+                0.0
+            };
 
         self.curr_integral += new_area;
         self.curr_integral
@@ -202,87 +197,5 @@ impl Display for PHPIDController {
         );
 
         write!(f, "{}", string)
-    }
-}
-
-impl PHPIDController {
-    #![allow(nonstandard_style)]
-    ///Create a PHPID controller
-    pub fn create_PHPID(
-        Hi_KP_gain: f64,
-        Hi_KI_gain: f64,
-        Hi_KD_gain: f64,
-        heaviside_val: f64,
-        Lo_KP_gain: f64,
-        Lo_KI_gain: f64,
-        Lo_KD_gain: f64,
-    ) -> PHPIDController {
-        PHPIDController {
-            errs: vec![0.0],
-            timestamps: vec![Local::now()],
-            curr_integral: 0.0,
-            hi_kp_gain: Hi_KP_gain,
-            hi_ki_gain: Hi_KI_gain,
-            hi_kd_gain: Hi_KD_gain,
-            heaviside_val,
-            lo_kp_gain: Lo_KP_gain,
-            lo_ki_gain: Lo_KI_gain,
-            lo_kd_gain: Lo_KD_gain,
-        }
-    }
-
-    ///Calculate the output of the controller
-    pub fn calc_op(&mut self, err: f64) -> Result<f64, anyhow::Error> {
-        self.timestamps.push(Local::now());
-        self.errs.push(err);
-
-        //Calculate the derivative - also converting s to ms
-        let derr = (err - self.errs[self.errs.len() - 2])
-            / ((self.timestamps[self.timestamps.len() - 1]
-                - self.timestamps[self.timestamps.len() - 2])
-                .as_seconds_f64());
-
-        //Calculate the integral (iteratively)
-        self.calc_integral_trap_approx();
-        let ierr = self.curr_integral;
-
-        //println!("KP - {}, KI - {}, KD - {}", err, ierr, derr);
-
-        let move_dist = if err > self.heaviside_val {
-            (self.hi_kp_gain * err) + (self.hi_ki_gain * ierr) + (self.hi_kd_gain * derr)
-        } else {
-            (self.lo_kp_gain * err) + (self.lo_ki_gain * ierr) + (self.lo_kd_gain * derr)
-        };
-
-        Ok(move_dist)
-    }
-
-    ///Approximate the integral area using the trapezium approximation
-    fn calc_integral_trap_approx(&mut self) -> f64 {
-        let new_area: f64;
-
-        let curr_err = self.errs[self.errs.len() - 1];
-        let prev_err = self.errs[self.errs.len() - 2];
-        let curr_time = self.timestamps[self.timestamps.len() - 1].timestamp();
-        let prev_time = self.timestamps[self.timestamps.len() - 2].timestamp();
-        let time_delta = curr_time - prev_time;
-
-        //Check the sign of the error and the previous error
-        //BOTH ERRS POS
-        if (curr_err >= 0.0) & (prev_err >= 0.0) {
-            new_area = (time_delta as f64) * ((prev_err + curr_err) / 2.0)
-        }
-        //BOTH ERRS NEGATIVE
-        else if (curr_err <= 0.0) & (prev_err <= 0.0) {
-            new_area = (time_delta as f64) * ((prev_err + curr_err) / 2.0)
-        } else {
-            //Calc the midpoint (where it crosses the polarity approx)
-
-            //WILL APPROXIMATE TO 0 HERE - if we are calculating the midpoint it will always have equal area on both sides
-            new_area = 0.0;
-        }
-
-        self.curr_integral += new_area;
-        self.curr_integral
     }
 }

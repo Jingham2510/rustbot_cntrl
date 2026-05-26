@@ -102,7 +102,7 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
                     centre.2,
                 ));
 
-                if (start_r <= stop_r) {
+                if start_r <= stop_r {
                     curr_r = start_r + ((stop_r - start_r).abs() * (i / (360 * loops)) as f64);
                 } else {
                     curr_r = start_r - ((stop_r - start_r).abs() * (i / (360 * loops)) as f64);
@@ -311,10 +311,7 @@ pub fn relative_traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Err
 
 ///Calculates the required xy speeds to achieve a desired trajectory based on a desired speed
 ///Return format (time of speed (s), (X speed (mm/s), Y speed (mm/s))
-pub fn calc_xy_timing(
-    traj: &mut Vec<(f64, f64, f64)>,
-    des_lat_speed: f64,
-) -> Vec<(f64, (f64, f64))> {
+pub fn calc_xy_timing(traj: &mut [(f64, f64, f64)], des_lat_speed: f64) -> Vec<(f64, (f64, f64))> {
     let mut timing_instructions: Vec<(f64, (f64, f64))> = vec![];
 
     let mut last_pnt = traj[0];

@@ -1,2 +1,2 @@
-pub mod force_control;
+pub mod controllers;
 pub mod force_function_generator;

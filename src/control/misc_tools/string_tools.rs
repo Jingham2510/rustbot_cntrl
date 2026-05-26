@@ -1,4 +1,4 @@
-///Tools to manipulate strings
+//!Tools to manipulate strings
 
 ///Removes the first and last character from a string
 pub fn rem_first_and_last(value: &str) -> &str {

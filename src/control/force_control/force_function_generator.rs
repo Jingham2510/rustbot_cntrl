@@ -1,21 +1,19 @@
-use anyhow::{Error, bail};
-use std::fmt;
+///This file contains functions required for creation of force function generators
+use anyhow::bail;
 use std::fs::OpenOptions;
 use std::io::{Write, stdin};
-///This file contains functions required for creation of force function generators
 
 ///Types of signal that can be generated
-
 #[derive(Debug)]
 enum SignalType {
     ///Held at one value
-    CONSTANT,
+    Constant,
     ///Change between two forces
-    STEP,
+    Step,
     ///Ramp between two values at a constant rate
-    RAMP,
+    Ramp,
     ///Custom function based on user input
-    CUSTOM,
+    Custom,
 }
 
 ///Function specification
@@ -122,7 +120,7 @@ impl ForceFunctionGenerator {
     ///Create a force function with a constant value
     pub fn constant_force(desired_force: f64) -> Result<Self, anyhow::Error> {
         Ok(ForceFunctionGenerator {
-            sig_type: SignalType::CONSTANT,
+            sig_type: SignalType::Constant,
             force_changes: 0,
             sig_vals: vec![desired_force],
             sig_time: vec![100.0],
@@ -161,7 +159,7 @@ impl ForceFunctionGenerator {
         verify_time_constraint(&sig_time)?;
 
         Ok(ForceFunctionGenerator {
-            sig_type: SignalType::STEP,
+            sig_type: SignalType::Step,
             force_changes: no_of_steps,
             sig_vals,
             sig_time,
@@ -194,7 +192,7 @@ impl ForceFunctionGenerator {
         verify_time_constraint(&sig_time)?;
 
         Ok(ForceFunctionGenerator {
-            sig_type: SignalType::RAMP,
+            sig_type: SignalType::Ramp,
             force_changes: RAMP_VAR,
             sig_vals,
             sig_time,
@@ -206,7 +204,7 @@ impl ForceFunctionGenerator {
         verify_time_constraint(&sig_time)?;
 
         Ok(ForceFunctionGenerator {
-            sig_type: SignalType::CUSTOM,
+            sig_type: SignalType::Custom,
             force_changes: sig_vals.len(),
             sig_vals,
             sig_time,
@@ -239,7 +237,7 @@ impl ForceFunctionGenerator {
             .open(filepath.trim())
             .unwrap();
 
-        let line: String = format!("Desired force profile");
+        let line: String = "Desired force profile".to_string();
 
         //Write to the file - indicating if writing failed (but don't worry about it!)
         if let Err(e) = writeln!(file, "{}", line) {
@@ -281,7 +279,7 @@ impl ForceFunctionGenerator {
 }
 
 ///Verify that the signal time adds up to 100%
-fn verify_time_constraint(sig_time: &Vec<f64>) -> Result<(), anyhow::Error> {
+fn verify_time_constraint(sig_time: &[f64]) -> Result<(), anyhow::Error> {
     let mut total = 0.0;
 
     for i in sig_time.iter() {

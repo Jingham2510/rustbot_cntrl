@@ -1,6 +1,5 @@
-///A set of tools to convert from Quaternions to ZYX Euler angles
-///Implementations/Calculations taken from
-///https://danceswithcode.net/engineeringnotes/quaternions/quaternions.html
+//!A set of tools to convert from Quaternions to ZYX Euler angles
+//!Implementations/Calculations taken from: https://danceswithcode.net/engineeringnotes/quaternions/quaternions.html
 
 ///The quaternion structure
 #[derive(Clone, Copy)]

@@ -2,7 +2,7 @@
 use crate::config::Config;
 use crate::control::egm_control::abb_egm::{EgmRobot, EgmSensor};
 use crate::control::egm_control::egm_udp::EgmServer;
-use crate::control::force_control::force_control::{PHPIDController, PIDController};
+use crate::control::force_control::controllers::PIDController;
 use crate::control::force_control::force_function_generator::ForceFunctionGenerator;
 use crate::control::misc_tools::angle_tools::Quaternion;
 use crate::control::misc_tools::misc::wait_for_enter;
@@ -11,14 +11,10 @@ use crate::control::trajectory_planner;
 use crate::control::trajectory_planner::calc_xy_timing;
 use crate::networking::tcp_sock;
 use anyhow::bail;
-use nalgebra::Matrix4;
+use std::fs;
 use std::fs::OpenOptions;
 use std::io::{prelude::*, stdin};
-use std::sync::mpsc;
-use std::sync::mpsc::Receiver;
-use std::thread::sleep;
 use std::time::{Duration, SystemTime};
-use std::{fs, thread};
 
 ///The robot controller and state tracker
 pub struct AbbRob<'a> {
@@ -89,7 +85,7 @@ impl TestData {
     }
 
     ///Lets the user pick a desired trajectory from a set of predetermined trajectories (or an earlier custom made one)
-    fn pick_trajectory(forcemode: bool) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
+    fn pick_trajectory(_forcemode: bool) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
         let mut traj;
         //Loop until command given
         loop {
@@ -330,7 +326,7 @@ impl AbbRob<'_> {
                     let mut des_z: Vec<f64> = vec![];
 
                     let mut cnt = 0.5;
-                    for inst in 0..speed_instructions.len() {
+                    for _inst in 0..speed_instructions.len() {
                         des_z.push(cnt);
                         cnt += 1.0;
                     }
@@ -349,12 +345,12 @@ impl AbbRob<'_> {
                         .recv_and_connect()
                         .expect("Failed to return connection");
 
-                    let init_pos = init_resp.get_pos_xyz().unwrap();
+                    let _init_pos = init_resp.get_pos_xyz().unwrap();
 
                     //Set desired z-speed
 
                     let mut seqno = 0;
-                    let mut cnt = 0;
+                    let cnt = 0;
                     //Move down until target z-force reached
                     for instruction in speed_instructions {
                         //Get the time limit
@@ -374,7 +370,7 @@ impl AbbRob<'_> {
                             let time = msg.get_time().expect("Failed to get egm time");
 
                             //Log the robot information gathered by the EGM using
-                            let info = self.egm_update_state(msg);
+                            let _info = self.egm_update_state(msg);
 
                             self.store_state(&test_data.data_filename, cnt);
 
@@ -392,11 +388,10 @@ impl AbbRob<'_> {
                             }
 
                             //Apply the controller
-                            let des_z_speed = 0.0;
+                            let _des_z_speed = 0.0;
 
                             //Send the EGM control
-                            desired_speed =
-                                [instruction.1 .0, instruction.1 .1, des_z[cnt as usize]];
+                            desired_speed = [instruction.1.0, instruction.1.1, des_z[cnt as usize]];
                             let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
                                 seqno,
                                 time,
@@ -417,22 +412,7 @@ impl AbbRob<'_> {
                 }
 
                 "test" => {
-                    //CURRENTLY TESTING - feature size depth measurements
-                    let xy_pos = [417.0, 2115.0];
-                    let small_indent = 252.0;
-                    let medium_indent = 237.0;
-                    let big_indent = 212.0;
-                    //Move to above
-                    self.set_pos((xy_pos[0], xy_pos[1], 275.0));
-
-                    //Move to indent
-                    self.set_pos((xy_pos[0], xy_pos[1], big_indent));
-
-                    //Move out
-                    self.set_pos((xy_pos[0], xy_pos[1], 275.0));
-
-                    //To home
-                    self.swap_tool();
+                    println!("No tests at the moment")
                 }
 
                 //Send the robot to the pre-defined home position above the sand bed
@@ -686,7 +666,7 @@ impl AbbRob<'_> {
 
         let mut seqno = 0;
 
-        let mut desired_speed: [f64; 3] = [0.0, 0.0, 0.0];
+        let mut desired_speed: [f64; 3];
 
         //SETUP COMPLETE-----------------------
 
@@ -781,16 +761,10 @@ impl AbbRob<'_> {
                 }
 
                 //Apply the controller
-                let mut des_z_speed = phase2_cntrl
+                let des_z_speed = phase2_cntrl
                     .calc_op(self.force_err)
-                    .expect("Failed to calculate desired z speed");
-
-                if des_z_speed < -MAX_SPEED {
-                    des_z_speed = -MAX_SPEED;
-                }
-                if des_z_speed > MAX_SPEED {
-                    des_z_speed = MAX_SPEED;
-                }
+                    .expect("Failed to calculate desired z speed")
+                    .clamp(-MAX_SPEED, MAX_SPEED);
 
                 desired_speed = [0.0, 0.0, des_z_speed];
 
@@ -911,21 +885,13 @@ impl AbbRob<'_> {
                 }
 
                 //Apply the controller
-                let mut force_speed = phase3_cntrl
+                let force_speed = phase3_cntrl
                     .calc_op(self.force_err)
-                    .expect("Failed to calculate desired z speed");
-
-                //println!("P3 - Force Error: {}", self.force_err);
-
-                if force_speed < -MAX_SPEED {
-                    force_speed = -MAX_SPEED;
-                }
-                if force_speed > MAX_SPEED {
-                    force_speed = MAX_SPEED;
-                }
+                    .expect("Failed to calculate desired z speed")
+                    .clamp(-MAX_SPEED, MAX_SPEED);
 
                 //Send the EGM control
-                desired_speed = [instruction.1 .0, instruction.1 .1, 0.0];
+                desired_speed = [instruction.1.0, instruction.1.1, 0.0];
 
                 desired_speed[self.force_axis] = force_speed;
 
@@ -1089,9 +1055,7 @@ impl AbbRob<'_> {
             return;
         }
 
-        if self.disconnected {
-            return;
-        }
+        if self.disconnected {}
     }
 
     ///Saves the robot state (i.e. the test data) in a given file
@@ -1283,7 +1247,7 @@ impl AbbRob<'_> {
 
         //Update current measured force
         if let Some(force) = msg.get_measured_force() {
-            self.force = force.into();
+            self.force = force;
         } else {
             bail!("Failed to update state - force");
         };

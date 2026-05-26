@@ -1,14 +1,9 @@
 #![allow(dead_code)]
-use nalgebra::Matrix4;
 ///rustbot control!
 ///A rust and headerless version of the robot controller designed to run tests in the soilbed
 ///Author(s) - Joe Ingham
 use std::collections::HashMap;
-use std::fs;
-use std::fs::File;
-use std::io::{Write, stdin};
-use std::thread;
-use std::time::{Duration, SystemTime};
+use std::io::stdin;
 mod config;
 mod control;
 mod networking;
@@ -94,7 +89,7 @@ fn core_cmd_handler(config: &mut Config) {
             "test" => {
                 let ffunc = ForceFunctionGenerator::user_interface().unwrap();
 
-                ffunc.save_to_file("funcgen_test.txt");
+                let _ = ffunc.save_to_file("funcgen_test.txt");
             }
 
             //Catch all else
@@ -156,6 +151,5 @@ fn rob_connect(config: &mut Config) {
     } else {
         //Robot failed to connect - go up back to core cmd handler
         println!("{TITLE} - {VER_NUM}");
-        return;
     }
 }
