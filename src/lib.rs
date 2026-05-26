@@ -3,6 +3,4 @@
 pub mod config;
 pub mod control;
 
-pub mod modelling;
-
 pub mod networking;

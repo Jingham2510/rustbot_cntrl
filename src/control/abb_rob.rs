@@ -9,7 +9,6 @@ use crate::control::misc_tools::misc::wait_for_enter;
 use crate::control::misc_tools::string_tools;
 use crate::control::trajectory_planner;
 use crate::control::trajectory_planner::calc_xy_timing;
-use crate::modelling::experiment_model::ExpModel;
 use crate::networking::tcp_sock;
 use anyhow::bail;
 use nalgebra::Matrix4;
@@ -396,7 +395,8 @@ impl AbbRob<'_> {
                             let des_z_speed = 0.0;
 
                             //Send the EGM control
-                            desired_speed = [instruction.1.0, instruction.1.1, des_z[cnt as usize]];
+                            desired_speed =
+                                [instruction.1 .0, instruction.1 .1, des_z[cnt as usize]];
                             let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
                                 seqno,
                                 time,
@@ -925,7 +925,7 @@ impl AbbRob<'_> {
                 }
 
                 //Send the EGM control
-                desired_speed = [instruction.1.0, instruction.1.1, 0.0];
+                desired_speed = [instruction.1 .0, instruction.1 .1, 0.0];
 
                 desired_speed[self.force_axis] = force_speed;
 
@@ -954,66 +954,6 @@ impl AbbRob<'_> {
         println!("Trajectory done!");
 
         self.write_marker(&test_data.data_filename, "TEST END");
-    }
-
-    ///A test regime for whether we can control the end effector linear speeds without EGM
-    fn end_eff_speed_set_test(&mut self) {
-        //Set up the test data
-        //Creates the test data and the filepaths
-        let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
-        //Store the desired trajectory
-        test_data.store_desired_trajectory(self.force_mode_flag);
-
-        //Log the config
-        self.log_config(&test_data.config_filename);
-
-        //Go to the start position
-        self.set_pos(test_data.traj[0]);
-
-        //Create the experiment model
-        let mut exp_model = ExpModel::create_exp_model(test_data.traj, 1.0).unwrap();
-
-        let (trig_tx, trig_rx): (mpsc::Sender<bool>, Receiver<bool>) = mpsc::channel();
-        let (jnt_send, jnt_recv): (mpsc::Sender<[f64; 6]>, Receiver<[f64; 6]>) = mpsc::channel();
-        let (z_pub, z_recv): (mpsc::Sender<f64>, Receiver<f64>) = mpsc::channel();
-
-        //Setup the experiment model test
-        self.req_jnt_angs();
-
-        let curr_jnt = self.jnt_angles;
-
-        thread::spawn(move || {
-            exp_model.run_model_traj(<[f64; 6]>::from(curr_jnt), trig_rx, jnt_send, z_recv)
-        });
-
-        let mut cnt = 0;
-
-        //log the info
-        self.update_rob_info();
-        self.store_state(&test_data.data_filename.clone(), cnt);
-        cnt += 1;
-
-        //Trigger the experiment model to start
-        trig_tx.send(true).unwrap();
-
-        let _ = z_pub.send(0.0);
-
-        while let Ok(jnt_angles) = jnt_recv.recv() {
-            //Get the joint angles and send to robot
-            self.set_joints(<(f64, f64, f64, f64, f64, f64)>::from(jnt_angles));
-
-            //Get all info from robot
-            self.update_rob_info();
-            self.store_state(&test_data.data_filename.clone(), cnt);
-
-            //Send the requested z heigt (0 for this)
-            let _ = z_pub.send(-1.0);
-
-            cnt += 1;
-        }
-
-        //Go to the home position
-        self.go_home_pos();
     }
 
     ///Requests the xyz position of the TCP from the robot and stores it in the robot info
