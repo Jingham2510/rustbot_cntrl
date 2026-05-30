@@ -7,8 +7,12 @@ use std::io::stdin;
 mod config;
 mod control;
 mod networking;
+mod cam_sys_cntrl;
 use crate::config::Config;
 use crate::control::force_control::force_function_generator::ForceFunctionGenerator;
+use cam_sys_cntrl::cam_sys_cntrl::CamSysCntrl;
+
+
 
 use control::abb_rob;
 
@@ -87,9 +91,18 @@ fn core_cmd_handler(config: &mut Config) {
             "connect" => rob_connect(config),
 
             "test" => {
-                let ffunc = ForceFunctionGenerator::user_interface().unwrap();
+                //Currently testing - subcam system control
 
-                let _ = ffunc.save_to_file("funcgen_test.txt");
+               
+                if let Ok(cam_sys) = CamSysCntrl::default_connect(){
+                    let t = cam_sys.start_system();
+
+                }else{
+                    println!("failed");
+                }
+
+
+
             }
 
             //Catch all else
