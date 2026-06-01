@@ -11,6 +11,9 @@ mod cam_sys_cntrl;
 use crate::config::Config;
 use crate::control::force_control::force_function_generator::ForceFunctionGenerator;
 use cam_sys_cntrl::cam_sys_cntrl::CamSysCntrl;
+use std::sync::mpsc;
+use rustgeomapping::data_types::heightmap::Heightmap;
+use tokio::sync::watch;
 
 
 
@@ -93,17 +96,22 @@ fn core_cmd_handler(config: &mut Config) {
             "test" => {
                 //Currently testing - subcam system control
 
+
+                let(pos_tx, pos_rx)  = watch::channel([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+
+                let (hmap_tx, hmap_rx) = mpsc::channel();
+
+                let (cntrl_tx, cntrl_rx) = watch::channel(0);
                
-                if let Ok(cam_sys) = CamSysCntrl::default_connect(){
-                    let t = cam_sys.start_system();
+                if let Ok(mut cam_sys) = CamSysCntrl::default_connect(pos_rx, hmap_tx, cntrl_rx){
+
+                    cam_sys.start_system();
 
                 }else{
                     println!("failed");
                 }
-
-
-
             }
+
 
             //Catch all else
             _ => println!("Unknown command - see CMDs for list of commands"),

@@ -8,29 +8,29 @@ use std::time::Duration;
 use std::thread::sleep;
 use std::sync::mpsc::{Receiver, Sender};
 use rustgeomapping::data_types::heightmap::Heightmap;
-
+use tokio::sync::watch;
 
 ///Subsystem control module using ssh and serial
 pub struct CamSysCntrl{
-    //Ip of subsystem device
+    ///Ip of subsystem device
     ip : String,
-    //User name of subsystem device
+    ///User name of subsystem device
     user : String,
-    //SSH control session of subsystem
+    ///SSH control session of subsystem
     ssh_sess : Session,
-    //Robot position/orientation reciever
-    pos_ori_rx : Receiver<[f32;7]>,
-    //Heightmap transmitter
+    ///Robot position/orientation reciever
+    pos_ori_rx : watch::Receiver<[f32;7]>,
+    ///Heightmap transmitter
     heightmap_tx : Sender<Heightmap>,
-    //Control reciever
-    cntrl_rx : Receiver<u32>
+    ///Control reciever
+    cntrl_rx : watch::Receiver<u32>
 
 }
 
 
 impl CamSysCntrl{
 
-    pub fn default_connect(pos_ori_rx : Receiver<[f32;7]>, heightmap_tx : Sender<Heightmap>, cntrl_rx : Receiver<u32>) -> Result<Self, anyhow::Error>{
+    pub fn default_connect(pos_ori_rx : watch::Receiver<[f32;7]>, heightmap_tx : Sender<Heightmap>, cntrl_rx : watch::Receiver<u32>) -> Result<Self, anyhow::Error>{
 
 
         const DEFAULT_IP : &str = "192.168.55.1";
@@ -50,8 +50,6 @@ impl CamSysCntrl{
 
                 //Confirm the ssh connection
                 ssh_sess.handshake()?;
-
-                println!("Connected!");
 
                 ssh_sess.userauth_password(DEFAULT_USER, DEFAULT_PASS)?;
 
@@ -100,15 +98,15 @@ impl CamSysCntrl{
     }
 
 
-    pub fn start_system(&self) -> Result<(), anyhow::Error>{
+    pub fn start_system(&mut self) -> Result<(), anyhow::Error>{
 
        
         //setup-------------
         
         //Create a channel session and turn on the shell
+       
         let mut ch_sess = self.ssh_sess.channel_session().unwrap();
         ch_sess.shell()?;
-
 
         //Go to the folder
         ch_sess.write(b"cd ../../media/trl/main/Programming/trl_cam_subsystem\n")?;
@@ -125,29 +123,33 @@ impl CamSysCntrl{
 
         //Sleep for 5 seconds to allow subsystem warmup
         sleep(Duration::from_secs(5));
+        
 
         //control loop-----------
-       self.run_system_stream();        
+       println!("subsytem UDP: {:?}", self.run_system_stream());       
 
-        
+
+
+       //Make sure to close the port
+       ch_sess.close();
+
+
+       Ok(())        
      
-            
-
-
-        Ok(())
-
+        
     }
 
     //Streams the data to and from the camera subsystem
-    fn run_system_stream(&self) -> Result<(), anyhow::Error>{
+    fn run_system_stream(&mut self) -> Result<(), anyhow::Error>{
 
         //UDP setup----------
-
         //Open the local socket
         let mut data_stream = UdpSocket::bind("0.0.0.0:8080")?;
 
         //Connect to the remote socket
         data_stream.connect("192.168.55.1:8080")?;
+
+        data_stream.set_read_timeout(Some(Duration::from_secs(10)))?;
 
         //Check the connection------------
         data_stream.send(b"CONNECT?")?;
@@ -159,29 +161,133 @@ impl CamSysCntrl{
         //If connection valid - do main loop
         if str::from_utf8(&udp_buf[..n])? == "YES"{
 
+            println!("UDP connection confirmed...");
+
             //Get the heightmap width and height
+            let hmap_size = Self::get_hmap_size(&data_stream)?;
 
             //Create the empty heightmap object with the specified size
+            let mut global_hmap = Heightmap::new(hmap_size[0], hmap_size[1]);
 
-            
+            println!("Global heightmap created - size W:{}-H:{}", global_hmap.width(), global_hmap.height());
+
+            let mut i : f32 = 0.0;
+
             //Main loop
+            loop{
+                
+                //Send the position/orientation
+                if !self.pos_ori_rx.has_changed()?{
+                    //let curr_pos_ori = *self.pos_ori_rx.borrow_and_update();
 
-            //Send the position/orientation
+                    let curr_pos_ori = [i, i, 0.0, 1.0, 0.0, 0.0, 0.0];
 
-            //Decode heightmap cell data -> update heightmap cells
+                    data_stream.send(format!("{},{},{},{},{},{},{}", curr_pos_ori[0], curr_pos_ori[1], curr_pos_ori[2], curr_pos_ori[3], curr_pos_ori[4], curr_pos_ori[5], curr_pos_ori[6]).as_bytes())?;
+
+                    //Set the heightmap
+                    self.set_heightmap(&data_stream, &mut global_hmap)?;
 
 
-            //Check cntrl (i.e. close connection?)
+                    global_hmap.save_to_file("test")?;
 
+                    //Clone the heightmap to the main thread
+                    self.heightmap_tx.send(global_hmap.clone())?;
 
+                    i += 0.01;
+
+                }               
+                
+                //Check cntrl (i.e. close connection)
+                if self.cntrl_rx.has_changed()? /*|| i > 1.0*/{
+                    data_stream.send(b"CLOSE")?;
+                    break;
+                }          
+            }
+
+        }else{
+            bail!("Failed to connect UDP stream");
         }
+
+
 
 
         Ok(())
     }
 
+
+        
+    
+
+    //Get and decode the heightmap size
+    fn get_hmap_size(data_stream : &UdpSocket) -> Result<[usize; 2], anyhow::Error>{
+
+
+        let mut hmap_size_buf : [u8;9] = [0;9];
+
+        data_stream.send(b"GLOBAL_SIZE?")?;
+
+        let n_recv = data_stream.recv(&mut hmap_size_buf)?;
+
+        let sz_tokens : Vec<&str> = str::from_utf8(&hmap_size_buf[..n_recv])?.split(",").collect();
+
+
+        Ok([sz_tokens[0].parse()?, sz_tokens[1].parse()?])
+    }
+
+
+    fn set_heightmap(&mut self, data_stream : &UdpSocket, global_hmap : &mut Heightmap) -> Result<(), anyhow::Error>{
+
+
+        let i_max = global_hmap.width();
+        let j_max = global_hmap.height();
+
+        let mut cells : Vec<f32>  = vec![];
+
+        let mut hmap_buf : [u8; 512] = [0;512];
+        
+        data_stream.recv(&mut hmap_buf)?;
+
+        //Guaranteed that the number string is small
+        let no_str = str::from_utf8(&hmap_buf[..4])?;
+        let no_of_packets = no_str.trim().parse::<u32>()?;
+
+        //Get the number of packets to recieve
+        for i in 0..no_of_packets{
+            //Receive the packet
+            data_stream.recv(&mut hmap_buf)?;
+            //Convert the array of float bytes into floats
+            cells.append(&mut hmap_buf.chunks(4).map(TryInto::try_into).map(Result::unwrap).map(f32::from_be_bytes).collect());
+            
+            if i != no_of_packets{
+                data_stream.send(b"NEXT")?;
+            }
+        }        
+
+        //Go through each cell and update
+        let mut total_cells = 0;
+        for i in 0..i_max{
+            for j in 0..j_max{ 
+
+            if total_cells == cells.len(){
+                break;
+            }
+            global_hmap.set_cell_height_no_check(i, j, cells[total_cells])?;  
+            total_cells += 1; 
+            }             
+            
+        }
+
+        println!("Heightmap recieved");
+        Ok(())
+
+    }
+
+
+
+
     //Closes the remote session and consumes self
     pub fn close_connection(&mut self) -> Result<(), ssh2::Error> {
+
         self.ssh_sess.disconnect(Option::from(DisconnectCode::AuthCancelledByUser), "Manually closed connection", None)
     }
 
