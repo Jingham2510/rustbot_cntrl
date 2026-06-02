@@ -14,6 +14,8 @@ use cam_sys_cntrl::cam_sys_cntrl::CamSysCntrl;
 use std::sync::mpsc;
 use rustgeomapping::data_types::heightmap::Heightmap;
 use tokio::sync::watch;
+use std::thread;
+use std::process::{Command, Stdio};
 
 
 
@@ -96,20 +98,45 @@ fn core_cmd_handler(config: &mut Config) {
             "test" => {
                 //Currently testing - subcam system control
 
+                let rust_filepath = "/home/joe/Documents/Data/test_dumps/hmap_stream/hmap";
+                let python_filepath = "Data/test_dumps/hmap_stream/hmap";
 
+                //Create the thread piping system
                 let(pos_tx, pos_rx)  = watch::channel([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
 
                 let (hmap_tx, hmap_rx) = mpsc::channel();
 
                 let (cntrl_tx, cntrl_rx) = watch::channel(0);
-               
-                if let Ok(mut cam_sys) = CamSysCntrl::default_connect(pos_rx, hmap_tx, cntrl_rx){
 
-                    cam_sys.start_system();
+                //Spawn the cam system thread
+                let cam_sys_thread = thread::spawn(|| {
+                    if let Ok(mut cam_sys) = CamSysCntrl::default_connect(pos_rx, hmap_tx, cntrl_rx){
+
+                        cam_sys.start_system().unwrap();
+
+                        println!("Thread closed...");
 
                 }else{
                     println!("failed");
+                }});
+
+                //Start "moving" the camera
+                for i in 0..100{
+                    pos_tx.send_replace([i as f32 * 0.01, i as f32 * 0.01, 0.0, 1.0, 0.0, 0.0, 0.0]);
+
+                    let hmap = hmap_rx.recv().expect("Failed to get heightmap");
+
+                    hmap.save_to_file(&format!("{}_{}",rust_filepath, i)).expect("Failed to write");
+
+                    //println!("{}",&format!("{}_{}.txt {}_{}", filepath, i, filepath, i));
+
+                    
                 }
+
+                //Close the connection
+                cntrl_tx.send_replace(1);
+               
+                
             }
 
 

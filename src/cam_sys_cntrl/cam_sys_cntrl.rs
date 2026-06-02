@@ -109,7 +109,7 @@ impl CamSysCntrl{
         ch_sess.shell()?;
 
         //Go to the folder
-        ch_sess.write(b"cd ../../media/trl/main/Programming/trl_cam_subsystem\n")?;
+        ch_sess.write(b"cd ../../media/ssd/Programming/trl_cam_subsystem\n")?;
         
    
         //Make sure the rust program is up to date
@@ -177,7 +177,7 @@ impl CamSysCntrl{
             loop{
                 
                 //Send the position/orientation
-                if !self.pos_ori_rx.has_changed()?{
+                if self.pos_ori_rx.has_changed()?{
                     //let curr_pos_ori = *self.pos_ori_rx.borrow_and_update();
 
                     let curr_pos_ori = [i, i, 0.0, 1.0, 0.0, 0.0, 0.0];
@@ -186,9 +186,6 @@ impl CamSysCntrl{
 
                     //Set the heightmap
                     self.set_heightmap(&data_stream, &mut global_hmap)?;
-
-
-                    global_hmap.save_to_file("test")?;
 
                     //Clone the heightmap to the main thread
                     self.heightmap_tx.send(global_hmap.clone())?;
