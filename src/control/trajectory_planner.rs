@@ -28,7 +28,7 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
         //Line trajectory
         "line" => {
             //Define all the starting points etc
-            let line_x = 500.0;
+            let line_x = 600.0;
             let line_z = DEFAULT_Z;
             let start_y = 1800.0;
             let end_y = 2000.0;
@@ -285,29 +285,7 @@ fn cust_traj_handler() -> Option<Vec<(f64, f64, f64)>> {
     }
 }
 
-///Calculates the relative distance between points of a desired trajectory
-pub fn relative_traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
-    //Check that the trajectory is valid
-    if let Ok(desired_traj) = traj_gen(traj) {
-        //The first value in the vector is the start position
-        let mut rel_traj: Vec<(f64, f64, f64)> = vec![desired_traj[0]];
 
-        //Calculate the relative difference between each point
-        for i in 1..desired_traj.len() {
-            rel_traj.push((
-                desired_traj[i].0 - desired_traj[i - 1].0,
-                desired_traj[i].1 - desired_traj[i - 1].1,
-                desired_traj[i].2 - desired_traj[i - 1].2,
-            ))
-        }
-
-        //println!("{:?}", rel_traj);
-        //Return the relative trajectory
-        Ok(rel_traj)
-    } else {
-        bail!("Invalid trajectory")
-    }
-}
 
 ///Calculates the required xy speeds to achieve a desired trajectory based on a desired speed
 ///Return format (time of speed (s), (X speed (mm/s), Y speed (mm/s))

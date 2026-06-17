@@ -122,7 +122,7 @@ impl PIDController {
                 .as_seconds_f64());
 
         //Calculate the integral (iteratively)
-        self.calc_integral_trap_approx();
+        self.calc_integral_reimann_approx();
         let ierr = self.curr_integral;
 
         //println!("KP - {}, KI - {}, KD - {}", err, ierr, derr);
@@ -135,22 +135,18 @@ impl PIDController {
     }
 
     ///Approximate the integral area using the trapezium approximation
-    fn calc_integral_trap_approx(&mut self) -> f64 {
+    fn calc_integral_reimann_approx(&mut self) -> f64 {
         let curr_err = self.errs[self.errs.len() - 1];
         let prev_err = self.errs[self.errs.len() - 2];
         let curr_time = self.timestamps[self.timestamps.len() - 1].timestamp();
         let prev_time = self.timestamps[self.timestamps.len() - 2].timestamp();
         let time_delta = curr_time - prev_time;
 
-        //Check the sign of the error and the previous error
-        //BOTH ERRS POS
+        //Check the magnitudes of the errors 
         let new_area =
-            if ((curr_err >= 0.0) & (prev_err >= 0.0)) || ((curr_err <= 0.0) & (prev_err <= 0.0)) {
+            if curr_err != -prev_err {
                 (time_delta as f64) * ((prev_err + curr_err) / 2.0)
             } else {
-                //Calc the midpoint (where it crosses the polarity approx)
-
-                //WILL APPROXIMATE TO 0 HERE - if we are calculating the midpoint it will always have equal area on both sides
                 0.0
             };
 

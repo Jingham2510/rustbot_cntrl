@@ -149,28 +149,12 @@ impl TestData {
             .open(traj_fp)
             .unwrap();
 
-        //If the trajectory is a relative one
-        if forcemode {
-            let mut point: (f64, f64, f64) = (0.0, 0.0, 0.0);
-
-            for (i, pnt) in self.traj.iter_mut().enumerate() {
-                if i == 0 {
-                    point = *pnt;
-                } else {
-                    point.0 += pnt.0;
-                    point.1 += pnt.1;
-                    point.2 += pnt.2;
-                }
-
-                let line = format!("{:?}", point);
-                writeln!(file, "{}", line).expect("FAILED TO WRITE TRAJ - CLOSING");
-            }
-        } else {
-            for pnt in self.traj.iter() {
-                let line = format!("{:?}", pnt);
-                writeln!(file, "{}", line).expect("FAILED TO WRITE TRAJ - CLOSING");
-            }
+    
+        for pnt in self.traj.iter() {
+            let line = format!("{:?}", pnt);
+            writeln!(file, "{}", line).expect("FAILED TO WRITE TRAJ - CLOSING");
         }
+        
     }
 }
 
@@ -602,11 +586,12 @@ impl AbbRob<'_> {
 
         //Calcualte the speed intructions
         let desired_lat_speed = 0.5;
+
         let speed_instructions = calc_xy_timing(&mut test_data.traj, desired_lat_speed);
 
         let mut total_time = 0.0;
-        for inst in speed_instructions.iter() {
-            total_time += inst.0;
+        for instruction in speed_instructions.iter() {
+            total_time += instruction.0;
         }
 
         //Calculate the associated force instructions
@@ -642,7 +627,7 @@ impl AbbRob<'_> {
         //Move to the starting point
         self.set_pos(start_pos);
 
-        //Embed self if doing horizontal loading
+        //Embed self if doing horizontal loading - simplistic  approach
         if self.force_axis != 2 {
             self.set_pos((start_pos.0, start_pos.1, start_pos.2 - 50.0))
         }
@@ -679,7 +664,7 @@ impl AbbRob<'_> {
 
             //Find the vert force------------------------------
 
-            //Set desired z-speed
+            //Set z-speed to move down into material
             desired_speed = [0.0, 0.0, -1.0];
 
             //Move down until target z-force reached
@@ -721,7 +706,6 @@ impl AbbRob<'_> {
         }
 
         //Phase 2 - force control until target force is stabilised (PID 1)
-
         if phase_2 {
             println!("PHASE 2: Stabilising vertical load");
             let mut force_stable = false;
@@ -825,10 +809,10 @@ impl AbbRob<'_> {
                     }
                 }
             }
-        }
 
-        println!("GEOTECH - PHASE 2 COMPLETE!");
-        self.write_marker(&test_data.data_filename, "PHASE 2 ENDED");
+            println!("GEOTECH - PHASE 2 COMPLETE!");
+            self.write_marker(&test_data.data_filename, "PHASE 2 ENDED");
+        }
 
         //Phase 3 - Complete trajectory whilst (PID)
 
@@ -836,6 +820,7 @@ impl AbbRob<'_> {
 
         println!("GEOTECH - PHASE 3");
         println!("Running time: {}", total_time);
+        println!("PID Settings: {}", phase3_cntrl);
 
         self.write_marker(&test_data.data_filename, "PHASE 3 STARTED");
 
@@ -887,13 +872,20 @@ impl AbbRob<'_> {
                 //Apply the controller
                 let force_speed = phase3_cntrl
                     .calc_op(self.force_err)
-                    .expect("Failed to calculate desired z speed")
+                    .expect("Failed to calculate desired axis speed")
                     .clamp(-MAX_SPEED, MAX_SPEED);
 
-                //Send the EGM control
+                //Load the lateral instructions - then set the force_controlled axis to the desired speed
                 desired_speed = [instruction.1.0, instruction.1.1, 0.0];
 
-                desired_speed[self.force_axis] = force_speed;
+                //UNKNOWN BUG IN Y FORCE CONTROL ----- NEEDS INVERTING?
+                if self.force_axis == 1{
+                    desired_speed[self.force_axis] = -force_speed;
+                }else{
+                    desired_speed[self.force_axis] = force_speed;
+                }
+
+
 
                 let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
                     seqno,
@@ -1178,7 +1170,6 @@ impl AbbRob<'_> {
         //Check that force mode is enabled (otherwise there's no point in calcing the error
         if self.force_mode_flag {
             //Extract the correct axis information
-
             //Return the error (not absed because we want to know if we are over or under)
 
             self.force_err = self.force[self.force_axis] - self.force_target;

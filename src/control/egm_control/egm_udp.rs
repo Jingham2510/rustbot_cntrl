@@ -97,7 +97,7 @@ impl EgmServer {
 
             egm_state = msg.mci_state.unwrap().state;
 
-            println!("EGM State: {}", egm_state);
+            //println!("EGM State: {}", egm_state);
 
             let time = msg.get_time().expect("Failed to get egm time");
             let curr_pos = msg.get_pos_xyz().expect("Failed to get egm coords");
