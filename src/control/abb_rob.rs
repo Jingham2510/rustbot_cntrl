@@ -601,12 +601,12 @@ impl AbbRob<'_> {
         let force_times = ffunc.as_time_f64(total_time);
 
         //Setup the seperate PID controllers
-        let mut phase2_cntrl = PIDController::create_PID(0.001, 0.0005, 0.001);
-        let mut phase3_cntrl = PIDController::create_PID(0.02, 0.003, 0.001);
+        let mut force_controller = PIDController::create_PID(0.001, 0.0005, 0.001);
+        let phase3_gains = [0.02, 0.003, 0.001];
 
         //Setup the config information
-        self.config.set_phase2_cntrl(phase2_cntrl.to_string());
-        self.config.set_phase3_cntrl(phase3_cntrl.to_string());
+        self.config.set_phase2_cntrl(force_controller.to_string());
+        self.config.set_phase3_cntrl(format!("P:{},I:{},D{}",phase3_gains[0], phase3_gains[1], phase3_gains[2]));
 
         //Log the config
         self.log_config(&test_data.config_filename);
@@ -745,7 +745,7 @@ impl AbbRob<'_> {
                 }
 
                 //Apply the controller
-                let des_z_speed = phase2_cntrl
+                let des_z_speed = force_controller
                     .calc_op(self.force_err)
                     .expect("Failed to calculate desired z speed")
                     .clamp(-MAX_SPEED, MAX_SPEED);
@@ -816,11 +816,14 @@ impl AbbRob<'_> {
 
         //Phase 3 - Complete trajectory whilst (PID)
 
+        //Update controller gains
+        force_controller.update_gains(phase3_gains[0], phase3_gains[1], phase3_gains[2]);
+
         //Start the trajectory
 
         println!("GEOTECH - PHASE 3");
         println!("Running time: {}", total_time);
-        println!("PID Settings: {}", phase3_cntrl);
+        println!("PID Settings: {}", force_controller);
 
         self.write_marker(&test_data.data_filename, "PHASE 3 STARTED");
 
@@ -870,7 +873,7 @@ impl AbbRob<'_> {
                 }
 
                 //Apply the controller
-                let force_speed = phase3_cntrl
+                let force_speed = force_controller
                     .calc_op(self.force_err)
                     .expect("Failed to calculate desired axis speed")
                     .clamp(-MAX_SPEED, MAX_SPEED);
@@ -884,8 +887,6 @@ impl AbbRob<'_> {
                 }else{
                     desired_speed[self.force_axis] = force_speed;
                 }
-
-
 
                 let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
                     seqno,

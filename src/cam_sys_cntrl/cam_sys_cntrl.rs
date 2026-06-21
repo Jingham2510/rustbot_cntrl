@@ -98,6 +98,11 @@ impl CamSysCntrl{
     }
 
 
+
+
+
+
+
     pub fn start_system(&mut self) -> Result<(), anyhow::Error>{
 
        

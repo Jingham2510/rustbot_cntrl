@@ -153,6 +153,16 @@ impl PIDController {
         self.curr_integral += new_area;
         self.curr_integral
     }
+
+    ///Update the current gain values of the controller
+    pub fn update_gains(&mut self, prop_gain : f64, int_gain : f64, deri_gain : f64){
+
+        self.kp_gain = prop_gain;
+        self.ki_gain = int_gain;
+        self.kd_gain = deri_gain;
+
+    }
+
 }
 
 ///Proportional Heaviside PID Controller (basically two PID controllers)
