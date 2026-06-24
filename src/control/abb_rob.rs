@@ -3,12 +3,13 @@ use crate::config::Config;
 use crate::control::egm_control::abb_egm::{EgmRobot, EgmSensor};
 use crate::control::egm_control::egm_udp::EgmServer;
 use crate::control::force_control::controllers::PIDController;
+use crate::control::force_control::controllers::PHPIDController;
 use crate::control::force_control::force_function_generator::ForceFunctionGenerator;
 use crate::control::misc_tools::angle_tools::Quaternion;
 use crate::control::misc_tools::misc::wait_for_enter;
 use crate::control::misc_tools::string_tools;
 use crate::control::trajectory_planner;
-use crate::control::trajectory_planner::calc_xy_timing;
+use crate::control::trajectory_planner::{calc_lateral_timing, calc_xyz_timing};
 use crate::networking::tcp_sock;
 use anyhow::bail;
 use std::fs;
@@ -156,6 +157,7 @@ impl TestData {
         }
         
     }
+
 }
 
 ///A list of implemented user commands
@@ -287,8 +289,13 @@ impl AbbRob<'_> {
                     self.geo_test_regime();
                 }
 
+                //Trajectory with no logging
                 "dumbtraj" => {
                     self.dumb_trajectory();
+                }
+                //Trajectory with logging
+                "traj" =>{
+                    self.speed_trajectory();
                 }
 
                 //Placeholder for when testing new functions
@@ -300,7 +307,7 @@ impl AbbRob<'_> {
                         TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
                     //Calcualte the speed intructions
                     let desired_lat_speed = 50.0;
-                    let speed_instructions = calc_xy_timing(&mut test_data.traj, desired_lat_speed);
+                    let speed_instructions = calc_lateral_timing(&mut test_data.traj, desired_lat_speed);
 
                     println!("{:?}", speed_instructions);
 
@@ -531,15 +538,13 @@ impl AbbRob<'_> {
     ///A trajectory run that stores no information other than the desired trajectory
     fn dumb_trajectory(&mut self) {
         //Create the test data and the filepaths
-        let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
-        //Store the desired trajectory
-        test_data.store_desired_trajectory(self.force_mode_flag);
+        let traj = TestData::pick_trajectory(false).unwrap();  
 
         //Star tin the home position
         self.go_home_pos();
 
         //For each trajectory point
-        for pnt in test_data.traj {
+        for pnt in traj {
             //Tell the robot to move to the trajectory points
             self.set_pos(pnt);
         }
@@ -547,7 +552,102 @@ impl AbbRob<'_> {
         //Go back home and announce completion
         self.go_home_pos();
 
-        println!("Test complete");
+        println!("Trajectory complete");
+    }
+
+
+    ///Run a trajectory at a desired speed that also stores the data using EGM
+    fn speed_trajectory(&mut self) {
+        //Create the test data and the filepaths
+        let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
+        //Store the desired trajectory
+        test_data.store_desired_trajectory(self.force_mode_flag);
+
+        //Calculate the speed instructions
+        let desired_speed = 0.1;
+        let speed_instructions = calc_xyz_timing(&mut test_data.traj, desired_speed);
+        
+
+        //Move to starting position
+         let start_pos = (
+            test_data.traj[0].0,
+            test_data.traj[0].1,
+            test_data.traj[0].2,
+        );
+        println!("START height: {}", test_data.traj[0].2);
+        self.write_marker(&test_data.data_filename, "TEST STARTED");
+        self.set_pos(start_pos);
+
+        //Setup and connect EGM
+        let egm_client = self.connect_egm_pose().expect("Failed to connect to EGM");
+
+        if self.start_egm_stream_speed().is_err() {
+            println!("Failed to start the egm stream")
+        } else {
+            println!("EGM stream started");
+        };
+        egm_client
+            .recv_and_connect()
+            .expect("Failed to return connection");
+
+        let mut seqno = 0;
+        let mut cnt = 0;
+        let mut desired_speed: [f64; 3];
+
+        //Run the trajectory 
+        for instruction in speed_instructions.iter() {
+            //Get the time limit
+            let time_lim = instruction.0;
+
+            //Start the timer
+            let local_time = SystemTime::now();
+
+            //While the timer is running
+            while local_time.elapsed().unwrap().as_secs_f64() < time_lim {
+                //Get the egm message
+                let msg = egm_client.recv_egm().expect("Failed to get egm message");
+
+                let time = msg.get_time().expect("Failed to get egm time");
+
+                //Log the robot information gathered by the EGM using
+                let _ = self.egm_update_state(msg);
+                self.store_state(&test_data.data_filename, cnt);
+
+                if self.limit_check() {
+                    println!("Out of bounds");
+                    egm_client.egm_end();
+                    self.go_home_pos();
+                    self.write_marker(&test_data.data_filename, "TEST OUT OF  SAFETY BOUNDS");
+                    return;
+                }
+
+                //Load the lateral instructions - then set the force_controlled axis to the desired speed
+                desired_speed = [instruction.1.0, instruction.1.1, instruction.1.2];
+
+
+                let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
+                    seqno,
+                    time,
+                    [0.0, 0.0, 0.0],
+                    self.ori.into(),
+                    desired_speed,
+                );
+                egm_client
+                    .send_egm(sensor)
+                    .expect("Failed to send sensor info");
+                seqno += 1;
+                cnt += 1;
+            }
+        }
+        self.write_marker(&test_data.data_filename, "TEST ENDED");
+
+        //End the EGM client
+        egm_client.egm_end();
+
+        //Go to the home position
+        self.go_home_pos();
+        println!("Trajectory complete");
+
     }
 
     ///A geo test that consists of three phases and aims to impart a desired force in the sand
@@ -585,9 +685,9 @@ impl AbbRob<'_> {
         let _ = ffunc.save_to_file(&ffunc_fp);
 
         //Calcualte the speed intructions
-        let desired_lat_speed = 0.5;
+        let desired_lat_speed = 0.1;
 
-        let speed_instructions = calc_xy_timing(&mut test_data.traj, desired_lat_speed);
+        let speed_instructions = calc_lateral_timing(&mut test_data.traj, desired_lat_speed);
 
         let mut total_time = 0.0;
         for instruction in speed_instructions.iter() {
@@ -602,16 +702,23 @@ impl AbbRob<'_> {
 
         //Setup the seperate PID controllers
         let mut force_controller = PIDController::create_PID(0.001, 0.0005, 0.001);
+
+        let ku = 0.18;
+        let tu = 0.275;
+        //Classic ZN rule (modded i.e. hand optimised)
+        //let phase3_gains = [0.6 * ku/4.5, (0.6*ku/tu)/160.0 , (0.075 * ku * tu) / 150.0];   
+
+        //Original
         let phase3_gains = [0.02, 0.003, 0.001];
 
         //Setup the config information
         self.config.set_phase2_cntrl(force_controller.to_string());
-        self.config.set_phase3_cntrl(format!("P:{},I:{},D{}",phase3_gains[0], phase3_gains[1], phase3_gains[2]));
+        self.config.set_phase3_cntrl(format!("PID - P:{},I:{},D:{}",phase3_gains[0], phase3_gains[1], phase3_gains[2]));
 
         //Log the config
         self.log_config(&test_data.config_filename);
 
-        //Move the robot out of the way of the camera
+        
         self.go_home_pos();
 
         let start_pos = (

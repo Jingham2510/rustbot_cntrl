@@ -17,7 +17,7 @@ const IMPL_TRAJS: [&str; 7] = [
 ];
 
 //120
-const DEFAULT_Z: f64 = 180.0;
+const DEFAULT_Z: f64 = 190.0;
 
 ///Generates a trajectory bsaed on string input from user
 pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
@@ -31,7 +31,7 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
             let line_x = 600.0;
             let line_z = DEFAULT_Z;
             let start_y = 1800.0;
-            let end_y = 2000.0;
+            let end_y = 1900.0;
             let start_pos = (line_x, start_y, line_z);
             let end_pos = (line_x, end_y, line_z);
 
@@ -289,7 +289,7 @@ fn cust_traj_handler() -> Option<Vec<(f64, f64, f64)>> {
 
 ///Calculates the required xy speeds to achieve a desired trajectory based on a desired speed
 ///Return format (time of speed (s), (X speed (mm/s), Y speed (mm/s))
-pub fn calc_xy_timing(traj: &mut [(f64, f64, f64)], des_lat_speed: f64) -> Vec<(f64, (f64, f64))> {
+pub fn calc_lateral_timing(traj: &mut [(f64, f64, f64)], des_lat_speed: f64) -> Vec<(f64, (f64, f64))> {
     let mut timing_instructions: Vec<(f64, (f64, f64))> = vec![];
 
     let mut last_pnt = traj[0];
@@ -339,4 +339,36 @@ pub fn calc_xy_timing(traj: &mut [(f64, f64, f64)], des_lat_speed: f64) -> Vec<(
     }
 
     timing_instructions
+}
+
+///Calculate the orthogonal speeds of the axis to achieve a desired trajectory
+pub fn calc_xyz_timing(traj: &mut [(f64, f64, f64)], desired_speed : f64) -> Vec<(f64, (f64, f64, f64))>{
+ let mut timing_instructions: Vec<(f64, (f64, f64, f64))> = vec![];
+
+    let mut last_pnt = traj[0];
+
+    //Iterate through the trajectory of the robot
+    for (i, pnt) in traj.iter_mut().enumerate() {
+        //Skip the first point
+        if i == 0 {
+            continue;
+        }
+        //Get the total distance required to move
+        let (del_x, del_y, del_z) = (pnt.0 - last_pnt.0, pnt.1 - last_pnt.1, pnt.2 - last_pnt.2);
+
+        let total_distance = (del_x.powi(2) + del_y.powi(2) + del_z.powi(2)).sqrt();
+
+        let time = total_distance / desired_speed;
+
+        let speeds = (del_x/time, del_y/time, del_z/time);
+
+
+        //Add the instruction
+        timing_instructions.push((time, speeds));
+
+        //Update the last point
+        last_pnt = *pnt;
+    }
+    timing_instructions
+
 }
