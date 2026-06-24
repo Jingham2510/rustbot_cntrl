@@ -564,8 +564,10 @@ impl AbbRob<'_> {
         test_data.store_desired_trajectory(self.force_mode_flag);
 
         //Calculate the speed instructions
-        let desired_speed = 0.1;
+        let desired_speed = 0.2;
         let speed_instructions = calc_xyz_timing(&mut test_data.traj, desired_speed);
+
+        println!("Speed: {:?}", speed_instructions);
         
 
         //Move to starting position
@@ -1445,4 +1447,144 @@ impl AbbRob<'_> {
 
         self.write_marker(&test_data.data_filename, "Test end");
     }
-}
+
+
+    ///Runs a load unload cycle with increasing force targets
+    fn stiffness_test(&mut self){
+
+        const MAX_SPEED : f64 = 10.0;
+
+        //Create the test data and the filepaths
+        let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
+
+
+        //Determine the target load forces
+        let target_forces = [20.0, 30.0, 50.0];
+
+        //Determine the controller
+        let mut force_controller = PIDController::create_PID(0.001, 0.0005, 0.001);
+
+        //Move to start position (determined by trajectory choice)
+        self.set_pos(test_data.traj[0]);
+
+        //Setup and connect EGM
+        let egm_client = self.connect_egm_pose().expect("Failed to connect to EGM");
+
+        if self.start_egm_stream_speed().is_err() {
+            println!("Failed to start the egm stream")
+        } else {
+            println!("EGM stream started");
+        };
+        egm_client
+            .recv_and_connect()
+            .expect("Failed to return connection");
+
+        let mut seqno = 0;
+        let mut cnt = 0;
+
+        let mut desired_speed: [f64; 3];
+
+        //For each load target
+        for target in target_forces{
+
+            //Set the setpoint and load
+            self.force_target = target;
+            while self.force[2] < target{
+                //Send the speed instruction to the robot via EGM
+                let mut desired_speed: [f64; 3];
+
+                //Get the egm message
+                let msg = egm_client.recv_egm().expect("Failed to get egm message");
+
+                let time = msg.get_time().expect("Failed to get egm time");
+
+                //Log the robot information gathered by the EGM using
+                let _ = self.egm_update_state(msg);
+                self.store_state(&test_data.data_filename, cnt);
+
+                if self.limit_check() {
+                    println!("Out of bounds");
+                    egm_client.egm_end();
+                    self.go_home_pos();
+                    self.write_marker(&test_data.data_filename, "TEST OUT OF  SAFETY BOUNDS");
+                    return;
+                }
+
+                //Apply the controller
+                let mut force_speed = force_controller
+                    .calc_op(self.force_err)
+                    .expect("Failed to calculate desired axis speed")
+                    .clamp(-MAX_SPEED, MAX_SPEED);
+
+                //Load the lateral instructions - then set the force_controlled axis to the desired speed
+                desired_speed = [0.0, 0.0, force_speed];
+
+                let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
+                    seqno,
+                    time,
+                    [0.0, 0.0, 0.0],
+                    self.ori.into(),
+                    desired_speed,
+                );
+                egm_client
+                    .send_egm(sensor)
+                    .expect("Failed to send sensor info");
+                seqno += 1;
+                cnt += 1;
+                }
+            
+
+            //Unload to 0 
+            self.force_target = 0.0;
+            while self.force[2] > 0.0{
+                //Send the speed instruction to the robot via EGM
+                let mut desired_speed: [f64; 3];
+
+                //Get the egm message
+                let msg = egm_client.recv_egm().expect("Failed to get egm message");
+
+                let time = msg.get_time().expect("Failed to get egm time");
+
+                //Log the robot information gathered by the EGM using
+                let _ = self.egm_update_state(msg);
+                self.store_state(&test_data.data_filename, cnt);
+
+                if self.limit_check() {
+                    println!("Out of bounds");
+                    egm_client.egm_end();
+                    self.go_home_pos();
+                    self.write_marker(&test_data.data_filename, "TEST OUT OF  SAFETY BOUNDS");
+                    return;
+                }
+
+                //Apply the controller
+                let mut force_speed = force_controller
+                    .calc_op(self.force_err)
+                    .expect("Failed to calculate desired axis speed")
+                    .clamp(-MAX_SPEED, MAX_SPEED);
+
+                //Load the lateral instructions - then set the force_controlled axis to the desired speed
+                desired_speed = [0.0, 0.0, force_speed];
+
+                let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
+                    seqno,
+                    time,
+                    [0.0, 0.0, 0.0],
+                    self.ori.into(),
+                    desired_speed,
+                );
+                egm_client
+                    .send_egm(sensor)
+                    .expect("Failed to send sensor info");
+                seqno += 1;
+                cnt += 1;
+                }
+            
+            }
+
+
+        }
+        
+    }
+
+

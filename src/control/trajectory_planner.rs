@@ -179,6 +179,20 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
             }
         }
 
+        "pushdown" =>{
+            //Define all the starting points etc
+            let line_x = 500.0;
+            let line_y = 1900.0;
+
+            let start_z = DEFAULT_Z;
+            let end_z = start_z - 80.0;
+
+            let start_pos = (line_x, line_y, start_z);
+            let end_pos = (line_x, line_y, end_z);
+
+            trajectory = vec![start_pos, end_pos];
+        }
+
         //Draw a trajectory from a custom file
         "custom" => {
             if let Some(traj) = cust_traj_handler() {
