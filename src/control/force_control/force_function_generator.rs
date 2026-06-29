@@ -12,6 +12,10 @@ enum SignalType {
     Step,
     ///Ramp between two values at a constant rate
     Ramp,
+    ///Ramp up to a peak value then ramp back down
+    Triangle,
+    ///Step up to a value then step down
+    StepUpDown,
     ///Custom function based on user input
     Custom,
 }
@@ -40,7 +44,7 @@ impl ForceFunctionGenerator {
                 .expect("Failed to read line");
 
             match user_inp.to_lowercase().trim() {
-                "ramp" | "step" => {
+                "ramp" | "step" | "triangle" | "stepupdown" => {
                     let min_force: f64;
                     let max_force: f64;
 
@@ -76,7 +80,10 @@ impl ForceFunctionGenerator {
 
                     if user_inp.to_lowercase().trim() == "ramp" {
                         return ForceFunctionGenerator::ramp_force(min_force, max_force);
-                    } else {
+                    }else if user_inp.to_lowercase().trim() == "triangle"{
+                        return ForceFunctionGenerator::triangle_force(min_force, max_force)
+                    }                    
+                     else {
                         println!("Type how many steps are required");
                         //Get user input
                         let mut val_sel = String::new();
@@ -84,8 +91,12 @@ impl ForceFunctionGenerator {
                             .read_line(&mut val_sel)
                             .expect("Failed to read line");
 
-                        if let Ok(val) = val_sel.trim().parse::<usize>() {
-                            return ForceFunctionGenerator::step_force(min_force, max_force, val);
+                        if let Ok(val) = val_sel.trim().parse::<usize>(){
+                            if user_inp.to_lowercase().trim() == "step"{
+                                return ForceFunctionGenerator::step_force(min_force, max_force, val);
+                            }else{
+                                return ForceFunctionGenerator::step_up_down_force(min_force, max_force, val);
+                            }
                         } else {
                             println!("Invalid value");
                             continue;
@@ -118,7 +129,7 @@ impl ForceFunctionGenerator {
     }
 
     ///Create a force function with a constant value
-    pub fn constant_force(desired_force: f64) -> Result<Self, anyhow::Error> {
+    fn constant_force(desired_force: f64) -> Result<Self, anyhow::Error> {
         Ok(ForceFunctionGenerator {
             sig_type: SignalType::Constant,
             force_changes: 0,
@@ -128,7 +139,7 @@ impl ForceFunctionGenerator {
     }
 
     ///Create a force function with a stepped value between two values
-    pub fn step_force(
+    fn step_force(
         min_force: f64,
         max_force: f64,
         no_of_steps: usize,
@@ -166,9 +177,57 @@ impl ForceFunctionGenerator {
         })
     }
 
+     ///Create a force function with a stepped value between two values
+    fn step_up_down_force(
+        min_force: f64,
+        max_force: f64,
+        no_of_steps: usize,
+    ) -> Result<Self, anyhow::Error> {
+        //Ensure valid force profile
+        if no_of_steps == 0 || min_force == max_force {
+            println!("Too few steps! Generating constant force");
+            return ForceFunctionGenerator::constant_force(min_force);
+        }
+        if no_of_steps >= 100000 {
+            println!("Too many steps! Generating ramp");
+            return ForceFunctionGenerator::ramp_force(min_force, max_force);
+        }
+
+        let mut sig_vals: Vec<f64> = vec![];
+        let mut sig_time: Vec<f64> = vec![];
+
+        let step_size = (max_force - min_force) / (2.0 * no_of_steps as f64);
+
+        for i in 0..=no_of_steps {
+            let force_val = min_force + i as f64 * step_size;
+
+            sig_vals.push(force_val);
+
+            sig_time.push(100.0 / (1.0 + no_of_steps as f64));
+        }
+
+        for i in 0..=no_of_steps {
+            let force_val = max_force - i as f64 * step_size;
+
+            sig_vals.push(force_val);
+
+            sig_time.push(100.0 / (1.0 + no_of_steps as f64));
+        }
+
+        verify_time_constraint(&sig_time)?;
+
+        Ok(ForceFunctionGenerator {
+            sig_type: SignalType::StepUpDown,
+            force_changes: no_of_steps,
+            sig_vals,
+            sig_time,
+        })
+    }
+
+
     ///Create a force function that ramps between two values
     ///Essentially a very fine step function
-    pub fn ramp_force(min_force: f64, max_force: f64) -> Result<Self, anyhow::Error> {
+    fn ramp_force(min_force: f64, max_force: f64) -> Result<Self, anyhow::Error> {
         if min_force == max_force {
             println!("No change! Generating constant force");
             return ForceFunctionGenerator::constant_force(min_force);
@@ -197,6 +256,48 @@ impl ForceFunctionGenerator {
             sig_vals,
             sig_time,
         })
+    }
+
+    ///Create a force function that ramps up to a peak then ramps down
+    fn triangle_force(min_force: f64, max_force : f64) -> Result<Self, anyhow::Error>{ 
+        if min_force == max_force {
+            println!("No change! Generating constant force");
+            return ForceFunctionGenerator::constant_force(min_force);
+        }
+
+        const RAMP_VAR: usize = 100000;
+
+        let mut sig_vals: Vec<f64> = vec![];
+        let mut sig_time: Vec<f64> = vec![];
+
+        let step_size = (max_force - min_force) / (RAMP_VAR as f64);
+
+        for i in 0..RAMP_VAR/2 {
+            let force_val = min_force + (i as f64 * step_size);
+
+            sig_vals.push(force_val);
+
+            sig_time.push(100.0 / RAMP_VAR as f64);
+        }
+
+        for i in 0..RAMP_VAR/2 {
+            let force_val = max_force - (i as f64 * step_size);
+
+            sig_vals.push(force_val);
+
+            sig_time.push(100.0 / RAMP_VAR as f64);
+        }
+
+        verify_time_constraint(&sig_time)?;
+
+        Ok(ForceFunctionGenerator {
+            sig_type: SignalType::Triangle,
+            force_changes: RAMP_VAR,
+            sig_vals,
+            sig_time,
+        })
+
+
     }
 
     ///Create a force function that follows a custom pattern

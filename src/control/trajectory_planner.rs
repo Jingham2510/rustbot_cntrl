@@ -16,8 +16,8 @@ const IMPL_TRAJS: [&str; 7] = [
     "custom",
 ];
 
-//120
-const DEFAULT_Z: f64 = 190.0;
+//190
+const DEFAULT_Z : f64 = 190.0;
 
 ///Generates a trajectory bsaed on string input from user
 pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
@@ -36,6 +36,19 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
             let end_pos = (line_x, end_y, line_z);
 
             trajectory = vec![start_pos, end_pos];
+        }
+
+        //Backwards line
+        "bline" =>{
+            //Define all the starting points etc
+            let line_x = 600.0;
+            let line_z = DEFAULT_Z;
+            let start_y = 1800.0;
+            let end_y = 1900.0;
+            let start_pos = (line_x, start_y, line_z);
+            let end_pos = (line_x, end_y, line_z);
+
+            trajectory = vec![end_pos, start_pos];
         }
 
         //Straight line trajectory - discretised into multiple points
@@ -192,6 +205,7 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
 
             trajectory = vec![start_pos, end_pos];
         }
+
 
         //Draw a trajectory from a custom file
         "custom" => {
