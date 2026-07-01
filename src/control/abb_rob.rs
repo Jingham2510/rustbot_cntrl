@@ -3,7 +3,6 @@ use crate::config::Config;
 use crate::control::egm_control::abb_egm::{EgmRobot, EgmSensor};
 use crate::control::egm_control::egm_udp::EgmServer;
 use crate::control::force_control::controllers::PIDController;
-use crate::control::force_control::controllers::PHPIDController;
 use crate::control::force_control::force_function_generator::ForceFunctionGenerator;
 use crate::control::misc_tools::angle_tools::Quaternion;
 use crate::control::misc_tools::misc::wait_for_enter;

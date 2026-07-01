@@ -19,3 +19,4 @@ scirs2 = "0.4.1"
 rustgeomapping = "0.2.1"
 ssh2 = "0.9.5"
 tokio = {version = "1.52.3", features = ["sync"]}
+tch = "0.24.0"

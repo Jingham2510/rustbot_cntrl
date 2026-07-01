@@ -4,6 +4,8 @@
 use chrono;
 use chrono::{DateTime, Local};
 use std::fmt::Display;
+use tch::{nn, nn::Module, nn::OptimizerConfig, Device, Tensor};
+
 
 ///Provides a constant step up/down based only on the polarity of the error
 pub fn polarity_step_control(err: f32) -> Result<f32, anyhow::Error> {
@@ -164,130 +166,73 @@ impl PIDController {
 
 }
 
-///Proportional Heaviside PID Controller (basically two PID controllers)
-pub struct PHPIDController {
-    ///Error history
-    errs: Vec<f64>,
-    ///Timestamp of the errors
-    timestamps: Vec<DateTime<Local>>,
-    ///The current integral value
-    curr_integral: f64,
-    ///Positive error proportional gain
-    hi_kp_gain: f64,
-    ///Positive error integral gain
-    hi_ki_gain: f64,
-    ///Positive error derivative gain
-    hi_kd_gain: f64,
-    ///Value that determines error polarity
-    heaviside_val: f64,
-    ///Low error proportional gain
-    lo_kp_gain: f64,
-    ///Low error integral gain
-    lo_ki_gain: f64,
-    ///Low error derivative gain
-    lo_kd_gain: f64,
-}
-
-impl Display for PHPIDController {
-    ///Print the PHPID information
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let string = format!(
-            "PHPID - HP:{},HI:{},HD:{},LP:{},LI:{},LD:{}",
-            self.hi_kp_gain,
-            self.hi_ki_gain,
-            self.hi_kd_gain,
-            self.lo_kp_gain,
-            self.lo_ki_gain,
-            self.lo_kd_gain
-        );
-
-        write!(f, "{}", string)
-    }
-}
-
-impl PHPIDController{
-    #![allow(nonstandard_style)]
-    ///Create a PHPID controller
-    pub fn create_PHPID(
-        Hi_KP_gain: f64,
-        Hi_KI_gain: f64,
-        Hi_KD_gain: f64,
-        heaviside_val: f64,
-        Lo_KP_gain: f64,
-        Lo_KI_gain: f64,
-        Lo_KD_gain: f64,
-    ) -> PHPIDController {
-        PHPIDController {
-            errs: vec![0.0],
-            timestamps: vec![Local::now()],
-            curr_integral: 0.0,
-            hi_kp_gain: Hi_KP_gain,
-            hi_ki_gain: Hi_KI_gain,
-            hi_kd_gain: Hi_KD_gain,
-            heaviside_val,
-            lo_kp_gain: Lo_KP_gain,
-            lo_ki_gain: Lo_KI_gain,
-            lo_kd_gain: Lo_KD_gain,
-        }
-    }
-
-    ///Calculate the output of the controller
-    pub fn calc_op(&mut self, err: f64) -> Result<f64, anyhow::Error> {
-        self.timestamps.push(Local::now());
-        self.errs.push(err);
-
-        //Calculate the derivative - also converting s to ms
-        let derr = (err - self.errs[self.errs.len() - 2])
-            / ((self.timestamps[self.timestamps.len() - 1]
-                - self.timestamps[self.timestamps.len() - 2])
-                .as_seconds_f64());
-
-        //Calculate the integral (iteratively)
-        self.calc_integral_trap_approx();
-        let ierr = self.curr_integral;
-
-        let move_dist = if err > self.heaviside_val {
-            (self.hi_kp_gain * err) + (self.hi_ki_gain * ierr) + (self.hi_kd_gain * derr)
-        } else {
-            (self.lo_kp_gain * err) + (self.lo_ki_gain * ierr) + (self.lo_kd_gain * derr)
-        };
-
-        Ok(move_dist)
-    }
-
-    ///Approximate the integral area using the trapezium approximation
-    fn calc_integral_trap_approx(&mut self) -> f64 {
-         let curr_err = self.errs[self.errs.len() - 1];
-        let prev_err = self.errs[self.errs.len() - 2];
-        let curr_time = self.timestamps[self.timestamps.len() - 1].timestamp();
-        let prev_time = self.timestamps[self.timestamps.len() - 2].timestamp();
-        let time_delta = curr_time - prev_time;
-
-        //Check the magnitudes of the errors 
-        let new_area =
-            if curr_err != -prev_err {
-                (time_delta as f64) * ((prev_err + curr_err) / 2.0)
-            } else {
-                0.0
-            };
-
-        self.curr_integral += new_area;
-        self.curr_integral
-    }
 
 
-     ///Update the current gain values of the controller
-    pub fn update_gains(&mut self, HI_prop_gain : f64, HI_int_gain : f64, HI_deri_gain : f64,LO_prop_gain : f64, LO_int_gain : f64, LO_deri_gain : f64){
-
-        self.hi_kp_gain = HI_prop_gain;
-        self.hi_ki_gain = HI_int_gain;
-        self.hi_kd_gain = HI_deri_gain;
-
-        self.lo_kp_gain = LO_prop_gain;
-        self.lo_ki_gain = LO_int_gain;
-        self.lo_kd_gain = LO_deri_gain;
-
-    }
+///EXPERIMENTAL - Self tuning PID controller
+pub struct PIDWithNNTuner{
+    controller : PIDController,
+    net_tuner : nn::Sequential,
+    opt : nn::Optimizer
 }
 
 
+impl PIDWithNNTuner{
+    ///Create the pid controller and tuning network with initial values
+    pub fn create(KP_gain : f64, KI_gain : f64, KD_gain : f64, no_of_hidden_layers : u32) -> Self{
+
+        //check if cuda can be used
+        let vs = nn::VarStore::new(Device::cuda_if_available());
+        const IN : i64 = 4;
+        const HIDDEN_NODES : i64 = 128;
+        const OUT : i64 = 3;
+
+        //Create the 
+        let net_tuner: nn::Sequential = {
+            //Create the network and add the input layer
+            let net = nn::seq().add(nn::linear(&vs.root() / "layer1", 4, HIDDEN_NODES, Default::default())).add_fn(|xs| xs.relu());
+
+
+            //Add the hidden layers
+            for i in 0..no_of_hidden_layers{
+
+                if i == no_of_hidden_layers - 1{
+                     &net.add(nn::linear(&vs.root(), HIDDEN_NODES, OUT , Default::default())).add_fn(|xs| xs.relu());
+                }else{
+                     &net.add(nn::linear(&vs.root(), HIDDEN_NODES, HIDDEN_NODES , Default::default())).add_fn(|xs| xs.relu());
+                }
+            };          
+
+            net 
+            
+
+        };        
+
+        let opt = nn::Adam::default().build(&vs, 1e-3).unwrap();
+
+        PIDWithNNTuner { controller: PIDController::create_PID(KP_gain, KI_gain, KD_gain) , net_tuner, opt}
+
+    }
+
+    ///Calculate the output from the PID and tune the parameters at the same time
+    pub fn calc_op_and_tune(&mut self, err : f64, target : f64){
+        //Update the neural net
+        let net_out = self.net_tuner.forward(&Tensor::from_slice(&[self.controller.kp_gain, self.controller.ki_gain, self.controller.kd_gain, err]));      
+
+        //Optimise the PID 
+        self.opt.backward_step(&Tensor::from(err));      
+
+        println!("Loss: {}", err);
+
+        //Update the PID values
+        self.controller.update_gains(<f64>::from(net_out.i(0)), net_out.i(1), net_out.i(2));
+
+        //Calculate the output
+        self.controller.calc_op(err);
+    }
+    ///Calculate the output without running a tuning step
+    pub fn calc_op(&mut self, err : f64){
+        self.controller.calc_op(err);
+    }
+
+
+}
