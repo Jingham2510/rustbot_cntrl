@@ -196,23 +196,24 @@ impl ForceFunctionGenerator {
         let mut sig_vals: Vec<f64> = vec![];
         let mut sig_time: Vec<f64> = vec![];
 
-        let step_size = (max_force - min_force) / (2.0 * no_of_steps as f64);
+        let step_size = (max_force - min_force) / (no_of_steps as f64);
 
-        for i in 0..=no_of_steps {
-            let force_val = min_force + i as f64 * step_size;
-
-            sig_vals.push(force_val);
-
-            sig_time.push(100.0 / (1.0 + no_of_steps as f64));
-        }
-
-        for i in 0..=no_of_steps {
-            let force_val = max_force - i as f64 * step_size;
+        for i in 0..no_of_steps {
+            let force_val = min_force + (i as f64 * step_size);
 
             sig_vals.push(force_val);
 
-            sig_time.push(100.0 / (1.0 + no_of_steps as f64));
+            sig_time.push(100.0 / ((no_of_steps as f64 * 2.0)));
         }
+
+        for i in 0..no_of_steps {
+            let force_val = max_force - (i as f64 * step_size);
+
+            sig_vals.push(force_val);
+
+            sig_time.push(100.0 / ((no_of_steps as f64 * 2.0)));
+        }
+
 
         verify_time_constraint(&sig_time)?;
 
@@ -273,7 +274,7 @@ impl ForceFunctionGenerator {
         let step_size = (max_force - min_force) / (RAMP_VAR as f64);
 
         for i in 0..RAMP_VAR/2 {
-            let force_val = min_force + (i as f64 * step_size);
+            let force_val = min_force + (i as f64 * step_size * 2.0);
 
             sig_vals.push(force_val);
 
@@ -281,7 +282,7 @@ impl ForceFunctionGenerator {
         }
 
         for i in 0..RAMP_VAR/2 {
-            let force_val = max_force - (i as f64 * step_size);
+            let force_val = max_force - (i as f64 * step_size * 2.0);
 
             sig_vals.push(force_val);
 
@@ -387,9 +388,13 @@ fn verify_time_constraint(sig_time: &[f64]) -> Result<(), anyhow::Error> {
         total += i;
     }
 
+
+
+
     if total.round() == 100.0 {
         Ok(())
     } else {
-        bail!("Invalid time constraints")
+
+        bail!("Invalid time constraints - Sum: {}", total)
     }
 }

@@ -614,7 +614,11 @@ impl AbbRob<'_> {
         //let phase3_gains = [0.6 * ku/4.5, (0.6*ku/tu)/160.0 , (0.075 * ku * tu) / 150.0];   
 
         //Original
-        let phase3_gains = [0.02, 0.003, 0.002];
+        let phase3_gains = [0.02, 0.003, 0.001];
+        //Gains for when the tool contact area is at a maximum
+        let mut gain_changed : bool = false;
+        let full_contact_height = 40.0;
+        let full_contact_gains = [0.01, 0.003, 0.0001];
 
         //Setup the config information
         self.config.set_phase2_cntrl(force_controller.to_string());
@@ -840,11 +844,6 @@ impl AbbRob<'_> {
         self.write_marker(&test_data.data_filename, "PHASE 3 STARTED");
 
 
-        //250Hz is the default
-        const DEPTH_FREQ: i32 = 100;
-        //The number of milliseconds required to use the controller
-        let depth_tick = (1/DEPTH_FREQ * 1000) as u128;
-
         let mut curr_force_val: usize = 0;
 
         let global_start = SystemTime::now();
@@ -868,7 +867,14 @@ impl AbbRob<'_> {
                 {
                     curr_force_val += 1;
                     self.force_target = force_vals[curr_force_val];
-                    println!("New force target: {}", self.force_target);
+                    //println!("New force target: {}", self.force_target);
+                }
+
+                //check if the controller gains need to be changed based on the embedment height
+                if start_pos.2 - self.pos.2 > full_contact_height && !gain_changed{
+                    println!("Contact max reached! Changing gains");
+                    force_controller.update_gains(full_contact_gains[0], full_contact_gains[1], full_contact_gains[2]);
+                    gain_changed = true;
                 }
 
                 //Get the egm message
@@ -904,7 +910,7 @@ impl AbbRob<'_> {
                 }else{
                     desired_speed[self.force_axis] = force_speed;
                 }
-                
+
             
 
                 let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
@@ -1369,7 +1375,7 @@ impl AbbRob<'_> {
 
 
         //Determine the target load forces
-        let target_forces = [10.0, 25.0, 50.0, 100.0, 200.0, 400.0, 500.0];
+        let target_forces = [10.0, 25.0, 50.0, 100.0, 200.0, 400.0, 500.0, 1000.0];
 
         //Determine the controller
         let mut force_controller = PIDController::create_PID(0.02, 0.003, 0.001);

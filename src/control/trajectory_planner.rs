@@ -27,13 +27,16 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
     match traj.to_lowercase().as_str() {
         //Line trajectory
         "line" => {
+
+            let offset = 0.0;
+
             //Define all the starting points etc
             let line_x = 600.0;
             let line_z = DEFAULT_Z;
             let start_y = 1800.0;
             let end_y = 1900.0;
-            let start_pos = (line_x, start_y, line_z);
-            let end_pos = (line_x, end_y, line_z);
+            let start_pos = (line_x, start_y + offset, line_z);
+            let end_pos = (line_x, end_y + offset, line_z);
 
             trajectory = vec![start_pos, end_pos];
         }
