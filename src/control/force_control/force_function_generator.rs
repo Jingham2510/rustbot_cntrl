@@ -16,6 +16,8 @@ enum SignalType {
     Triangle,
     ///Step up to a value then step down
     StepUpDown,
+    ///
+    Sinusoid,
     ///Custom function based on user input
     Custom,
 }
@@ -119,6 +121,41 @@ impl ForceFunctionGenerator {
                         println!("Invalid value");
                         continue;
                     }
+                }
+
+                "sinusoid" =>{
+                   
+                     //Get user input
+                    println!("Set the amplitude:");
+                    let mut amplitude = String::new();
+                    stdin()
+                        .read_line(&mut val_sel)
+                        .expect("Failed to read line");
+
+                     //Get user input
+                     println!("Set the frequency (Hz):");
+                    let mut freq = String::new();
+                    stdin()
+                        .read_line(&mut val_sel)
+                        .expect("Failed to read line");
+
+                     //Get user input
+                    println!("Set the phase (degs):");
+                    let mut phase = String::new();
+                    stdin()
+                        .read_line(&mut val_sel)
+                        .expect("Failed to read line");
+
+                     //Get user input
+                     println!("Set the offset:");
+                    let mut offset = String::new();
+                    stdin()
+                        .read_line(&mut val_sel)
+                        .expect("Failed to read line");
+
+
+                    return ForceFunctionGenerator::sinusoid(amplitude.into(), frequency_hz.into(), phase_degs.into(), offset.into())
+
                 }
 
                 _ => {
@@ -297,8 +334,28 @@ impl ForceFunctionGenerator {
             sig_vals,
             sig_time,
         })
+    }
 
 
+
+    fn sinusoid(amplitude : f64, frequency_hz : f64, phase_degs : f64, offset : f64) -> Result<Self, anyhow::Error>{
+
+        let mut force_changes = 0;
+        let mut sig_vals = vec![];
+        let mut sig_time = vec![];
+
+        //Do the sinusoid for 100 ticks (i.e. 100 % of the whole signal)
+        for i in 0..100{
+            sig_vals.push(amplitude * (2*f64::PI * frequency_hz * i + 2*f64::PI * phase_degs).sin() + offset);
+            sig_time.push(1.0);
+            force_changes += 1;
+        }
+
+
+        verify_time_constraint(&sig_time);
+
+
+        Ok(ForceFunctionGenerator { sig_type: SignalType::Sinusoid, force_changes, sig_vals, sig_time})
     }
 
     ///Create a force function that follows a custom pattern
@@ -387,8 +444,6 @@ fn verify_time_constraint(sig_time: &[f64]) -> Result<(), anyhow::Error> {
     for i in sig_time.iter() {
         total += i;
     }
-
-
 
 
     if total.round() == 100.0 {

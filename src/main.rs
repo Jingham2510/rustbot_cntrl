@@ -95,7 +95,7 @@ fn core_cmd_handler(config: &mut Config) {
 
             "connect" => rob_connect(config),
 
-            "test" => {
+            "_" => {
                 //Currently testing - subcam system control
 
                 let rust_filepath = "/home/joe/Documents/Data/test_dumps/hmap_stream/hmap";
@@ -138,6 +138,7 @@ fn core_cmd_handler(config: &mut Config) {
                
                 
             }
+
 
 
             //Catch all else
