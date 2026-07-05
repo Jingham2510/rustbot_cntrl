@@ -3,6 +3,7 @@ use crate::config::Config;
 use crate::control::egm_control::abb_egm::{EgmRobot, EgmSensor};
 use crate::control::egm_control::egm_udp::EgmServer;
 use crate::control::force_control::controllers::PIDController;
+use crate::control::force_control::controllers::PIDWithNNTuner;
 use crate::control::force_control::force_function_generator::ForceFunctionGenerator;
 use crate::control::misc_tools::angle_tools::Quaternion;
 use crate::control::misc_tools::misc::wait_for_enter;
@@ -138,7 +139,7 @@ impl TestData {
 
     ///Create a text file that contains the desired trajectory for the test
     ///Useful for comparing with performed trajectories generated via speed control
-    fn store_desired_trajectory(&mut self, forcemode: bool) {
+    fn store_desired_trajectory(&mut self) {
         //Store the desired trajectory in the filepath
         let traj_fp = format!("{}/des_traj_{}.txt", self.filepath, self.test_name);
         //Store a copy of the desired trajectory
@@ -463,7 +464,7 @@ impl AbbRob<'_> {
         //Create the test data and the filepaths
         let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
         //Store the desired trajectory
-        test_data.store_desired_trajectory(self.force_mode_flag);
+        test_data.store_desired_trajectory();
 
         //Calculate the speed instructions
         let desired_speed = 0.1;
@@ -582,7 +583,7 @@ impl AbbRob<'_> {
         let test_name_copy = test_data.test_name.clone();
 
         //Store the desired trajectory
-        test_data.store_desired_trajectory(self.force_mode_flag);
+        test_data.store_desired_trajectory();
 
         //Store the desired force profile
         let ffunc_fp = format!("{}/forcefunc_{}.txt", fp_copy, test_name_copy);
@@ -605,7 +606,9 @@ impl AbbRob<'_> {
         let force_times = ffunc.as_time_f64(total_time);
 
         //Setup the seperate PID controllers
-        let mut force_controller = PIDController::create_PID(0.001, 0.0005, 0.001);
+        let mut force_controller = PIDWithNNTuner::create(0.001, 0.0005, 0.001);
+        //Indicates whether to start tuning the NN
+        let mut stable : bool = false;
 
         let ku = 0.18;
         let tu = 0.275;
@@ -620,7 +623,7 @@ impl AbbRob<'_> {
         let full_contact_gains = [0.01, 0.003, 0.0001];
 
         //Setup the config information
-        self.config.set_phase2_cntrl(force_controller.to_string());
+        self.config.set_phase2_cntrl(force_controller.controller().to_string());
         self.config.set_phase3_cntrl(format!("PID - P:{},I:{},D:{}",phase3_gains[0], phase3_gains[1], phase3_gains[2]));
 
         //Log the config
@@ -838,7 +841,7 @@ impl AbbRob<'_> {
 
         println!("GEOTECH - PHASE 3");
         println!("Running time: {}", total_time);
-        println!("PID Settings: {}", force_controller);
+        println!("PID Settings: {}", force_controller.controller());
 
         self.write_marker(&test_data.data_filename, "PHASE 3 STARTED");
 
@@ -846,6 +849,10 @@ impl AbbRob<'_> {
         let mut curr_force_val: usize = 0;
 
         let global_start = SystemTime::now();
+
+        const OPT_STEP_CNT : usize = 250;
+        let mut optim_tick = 0;
+        let mut err_hist : [f64; OPT_STEP_CNT] = [0.0;OPT_STEP_CNT];
 
 
         let mut desired_speed : [f64; 3] = [0.0, 0.0, 0.0];
@@ -870,10 +877,8 @@ impl AbbRob<'_> {
                 }
 
                 //check if the controller gains need to be changed based on the embedment height
-                if start_pos.2 - self.pos.2 > full_contact_height && !gain_changed{
-                    println!("Contact max reached! Changing gains");
-                    force_controller.update_gains(full_contact_gains[0], full_contact_gains[1], full_contact_gains[2]);
-                    gain_changed = true;
+                if self.force_err < 5.0{
+                    stable = true;
                 }
 
                 //Get the egm message
@@ -895,10 +900,27 @@ impl AbbRob<'_> {
              
 
                 //Apply the controller
-                let force_speed = force_controller
+                let force_speed : f64 = if (!stable  || optim_tick != OPT_STEP_CNT){
+                    //Save the error history
+                    err_hist[optim_tick] = self.force_err;
+                    optim_tick += 1;
+
+                    force_controller
                     .calc_op(self.force_err)
                     .expect("Failed to calculate desired axis speed")
-                    .clamp(-MAX_SPEED, MAX_SPEED);
+                    .clamp(-MAX_SPEED, MAX_SPEED)                    
+                }else{ //If the robot is in a stable position tune it also
+                    optim_tick = 0;
+
+                    force_controller.calc_op_and_tune(self.force_err, &err_hist)
+                    .expect("Failed to calculate desired axis speed")
+                    .clamp(-MAX_SPEED, MAX_SPEED) 
+                };
+
+                if force_speed.is_nan(){
+                    panic!("Invalid speed!")
+                }
+
 
                 //Load the lateral instructions - then set the force_controlled axis to the desired speed
                 desired_speed = [instruction.1.0, instruction.1.1, 0.0];

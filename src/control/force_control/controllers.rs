@@ -4,7 +4,7 @@
 use chrono;
 use chrono::{DateTime, Local};
 use std::fmt::Display;
-use tch::{nn, nn::Module, nn::OptimizerConfig, Device, Tensor};
+use tch::{Tensor, nn ,Device, nn::OptimizerConfig, nn::Module};
 
 
 ///Provides a constant step up/down based only on the polarity of the error
@@ -168,70 +168,106 @@ impl PIDController {
 
 
 
-///EXPERIMENTAL - Self tuning PID controller
+
+
+
+
+
+///EXPERIMENTAL - Self tuning PID controller using a neural network
 pub struct PIDWithNNTuner{
     controller : PIDController,
     net_tuner : nn::Sequential,
-    opt : nn::Optimizer
+    opt : nn::Optimizer,
+    loss : Tensor,
+    prev_err : f64,
+    prev_u : f64,
 }
 
 
 impl PIDWithNNTuner{
     ///Create the pid controller and tuning network with initial values
-    pub fn create(KP_gain : f64, KI_gain : f64, KD_gain : f64, no_of_hidden_layers : u32) -> Self{
+    pub fn create(KP_gain : f64, KI_gain : f64, KD_gain : f64) -> Self{
 
-        //check if cuda can be used
+        println!("Creating controller with NN tuner");
+
+        //check if cuda can be used and create the variable storage
         let vs = nn::VarStore::new(Device::cuda_if_available());
+
+
         const IN : i64 = 4;
         const HIDDEN_NODES : i64 = 128;
         const OUT : i64 = 3;
 
-        //Create the 
-        let net_tuner: nn::Sequential = {
-            //Create the network and add the input layer
-            let net = nn::seq().add(nn::linear(&vs.root() / "layer1", 4, HIDDEN_NODES, Default::default())).add_fn(|xs| xs.relu());
+        //Create the neural network 4 -> 128 -> 128 -> 3 (all relu)
+        let net_tuner : nn::Sequential = nn::seq()
+            .add(nn::linear(&vs.root() / "layer1", IN, HIDDEN_NODES, Default::default())).add_fn(|xs| xs.relu())
+            .add(nn::linear(&vs.root(), HIDDEN_NODES, HIDDEN_NODES/2 , Default::default())).add_fn(|xs| xs.relu())
+            .add(nn::linear(&vs.root(), HIDDEN_NODES/2, HIDDEN_NODES/4 , Default::default())).add_fn(|xs| xs.relu())
+            .add(nn::linear(&vs.root(), HIDDEN_NODES/4, OUT , Default::default())).add_fn(|xs| xs.relu());
+                
 
-
-            //Add the hidden layers
-            for i in 0..no_of_hidden_layers{
-
-                if i == no_of_hidden_layers - 1{
-                     &net.add(nn::linear(&vs.root(), HIDDEN_NODES, OUT , Default::default())).add_fn(|xs| xs.relu());
-                }else{
-                     &net.add(nn::linear(&vs.root(), HIDDEN_NODES, HIDDEN_NODES , Default::default())).add_fn(|xs| xs.relu());
-                }
-            };          
-
-            net 
-            
-
-        };        
-
+        //Create the optimiser and link it to the vs
         let opt = nn::Adam::default().build(&vs, 1e-3).unwrap();
 
-        PIDWithNNTuner { controller: PIDController::create_PID(KP_gain, KI_gain, KD_gain) , net_tuner, opt}
+        //Add the "error" to the graph and turn on the gradient tracking
+        let mut loss = vs.root().add("err", Tensor::from_slice(&[9999.0]), false);
+        let loss = loss.requires_grad_(true);
+        
+
+        println!("Controller created");
+
+        PIDWithNNTuner { controller: PIDController::create_PID(KP_gain, KI_gain, KD_gain) , net_tuner, opt,  loss, prev_err : 0.0, prev_u : 0.0}
 
     }
 
     ///Calculate the output from the PID and tune the parameters at the same time
-    pub fn calc_op_and_tune(&mut self, err : f64, target : f64){
-        //Update the neural net
-        let net_out = self.net_tuner.forward(&Tensor::from_slice(&[self.controller.kp_gain, self.controller.ki_gain, self.controller.kd_gain, err]));      
-
-        //Optimise the PID 
-        self.opt.backward_step(&Tensor::from(err));      
-
-        println!("Loss: {}", err);
-
-        //Update the PID values
-        self.controller.update_gains(<f64>::from(net_out.i(0)), net_out.i(1), net_out.i(2));
+    pub fn calc_op_and_tune(&mut self, err : f64 , err_hist : &[f64]) -> Result<f64, anyhow::Error> {
 
         //Calculate the output
-        self.controller.calc_op(err);
+        let prev_u = self.prev_u;
+        let u = self.controller.calc_op(err)?;
+
+        //Update the neural net
+        let net_out = self.net_tuner.forward(&Tensor::from_slice(&[err as f32, self.prev_err as f32, u as f32, prev_u as f32]));        
+
+        //Backpropogate the network using the past 100 error measurements
+        let new_loss = Tensor::zeros(1, (tch::Kind::Double, Device::cuda_if_available()));
+        //Take the square of every error and sum them
+        let mut err_hist_sum : f64 = err_hist.iter().fold(0.0, |acc, x| acc + (x.powi(2)));
+        //err_hist_sum += self.controller.kp_gain.powi(2) + self.controller.ki_gain.powi(2) + self.controller.kd_gain.powi(2);
+        self.loss.set_data(&new_loss.fill( err_hist_sum/err_hist.len() as f64));
+        self.opt.backward_step(&self.loss);
+
+        //Update the PID values
+        self.controller.update_gains(net_out.f_double_value(&[0]).unwrap(), net_out.f_double_value(&[1]).unwrap(), net_out.f_double_value(&[2]).unwrap());
+
+        println!("Controller: {} - Loss: {}", self.controller, err_hist_sum);
+
+        self.prev_err = err;
+
+        return Ok(u)
+
+
     }
     ///Calculate the output without running a tuning step
-    pub fn calc_op(&mut self, err : f64){
-        self.controller.calc_op(err);
+    pub fn calc_op(&mut self, err : f64) -> Result<f64, anyhow::Error> {
+
+        let u = self.controller.calc_op(err)?;
+        
+        self.prev_u = u;
+
+        return Ok(u)
+    }
+
+    ///Get the controller object
+    pub fn controller(&mut self) -> &PIDController{
+        &self.controller
+    }
+
+    ///Update the gains
+    pub fn update_gains(&mut self, prop_gain : f64, int_gain : f64, deri_gain : f64){
+
+        self.controller.update_gains(prop_gain, int_gain, deri_gain);
     }
 
 
