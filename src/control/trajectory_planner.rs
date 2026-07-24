@@ -16,8 +16,8 @@ const IMPL_TRAJS: [&str; 7] = [
     "custom",
 ];
 
-//190
-const DEFAULT_Z : f64 = 158.0;
+//for no tool
+const DEFAULT_Z : f64 = 80.0;
 
 ///Generates a trajectory bsaed on string input from user
 pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
@@ -207,6 +207,14 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
             let end_pos = (line_x, line_y, end_z);
 
             trajectory = vec![start_pos, end_pos];
+        }
+
+        //Trajectory that hovers above the entire terrain to map out the whole thing
+        "map" =>{
+
+            trajectory = vec![(25.37, 1786.00, DEFAULT_Z), (25.33, 2554.89, DEFAULT_Z), (387.91, 2554.93, DEFAULT_Z), (387.93, 1814.03, DEFAULT_Z), (785.68, 1819.25, DEFAULT_Z), (785.64, 2504.83, DEFAULT_Z)]
+
+
         }
 
 

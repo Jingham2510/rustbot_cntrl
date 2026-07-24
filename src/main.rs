@@ -95,9 +95,8 @@ fn core_cmd_handler(config: &mut Config) {
 
             "connect" => rob_connect(config),
 
-            "_" => {
+            /*            "_" => {
                 //Currently testing - subcam system control
-
                 let rust_filepath = "/home/joe/Documents/Data/test_dumps/hmap_stream/hmap";
                 let python_filepath = "Data/test_dumps/hmap_stream/hmap";
 
@@ -110,7 +109,7 @@ fn core_cmd_handler(config: &mut Config) {
 
                 //Spawn the cam system thread
                 let cam_sys_thread = thread::spawn(|| {
-                    if let Ok(mut cam_sys) = CamSysCntrl::default_connect(pos_rx, hmap_tx, cntrl_rx){
+                    if let Ok(mut cam_sys) = CamSysCntrl::default_connect(pos_rx, hmap_tx, cntrl_rx, rust_filepath){
 
                         cam_sys.start_system().unwrap();
 
@@ -138,6 +137,7 @@ fn core_cmd_handler(config: &mut Config) {
                
                 
             }
+            */
 
 
 

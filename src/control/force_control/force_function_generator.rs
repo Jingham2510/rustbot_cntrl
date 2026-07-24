@@ -1,5 +1,6 @@
 ///This file contains functions required for creation of force function generators
 use anyhow::bail;
+use std::f64::consts::PI;
 use std::fs::OpenOptions;
 use std::io::{Write, stdin};
 
@@ -129,32 +130,32 @@ impl ForceFunctionGenerator {
                     println!("Set the amplitude:");
                     let mut amplitude = String::new();
                     stdin()
-                        .read_line(&mut val_sel)
+                        .read_line(&mut amplitude)
                         .expect("Failed to read line");
 
                      //Get user input
                      println!("Set the frequency (Hz):");
                     let mut freq = String::new();
                     stdin()
-                        .read_line(&mut val_sel)
+                        .read_line(&mut freq)
                         .expect("Failed to read line");
 
                      //Get user input
                     println!("Set the phase (degs):");
                     let mut phase = String::new();
                     stdin()
-                        .read_line(&mut val_sel)
+                        .read_line(&mut phase)
                         .expect("Failed to read line");
 
                      //Get user input
                      println!("Set the offset:");
                     let mut offset = String::new();
                     stdin()
-                        .read_line(&mut val_sel)
+                        .read_line(&mut offset)
                         .expect("Failed to read line");
 
 
-                    return ForceFunctionGenerator::sinusoid(amplitude.into(), frequency_hz.into(), phase_degs.into(), offset.into())
+                    return ForceFunctionGenerator::sinusoid(amplitude.trim().parse()?, freq.trim().parse()?, phase.trim().parse()?, offset.trim().parse()?)
 
                 }
 
@@ -345,9 +346,9 @@ impl ForceFunctionGenerator {
         let mut sig_time = vec![];
 
         //Do the sinusoid for 100 ticks (i.e. 100 % of the whole signal)
-        for i in 0..100{
-            sig_vals.push(amplitude * (2*f64::PI * frequency_hz * i + 2*f64::PI * phase_degs).sin() + offset);
-            sig_time.push(1.0);
+        for i in 0..1000{
+            sig_vals.push(amplitude * (2.0* PI * frequency_hz * i as f64 + 2.0*PI * phase_degs).sin() + offset);
+            sig_time.push(0.1);
             force_changes += 1;
         }
 

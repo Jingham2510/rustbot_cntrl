@@ -11,11 +11,17 @@ use crate::control::misc_tools::string_tools;
 use crate::control::trajectory_planner;
 use crate::control::trajectory_planner::{calc_lateral_timing, calc_xyz_timing};
 use crate::networking::tcp_sock;
+use crate::CamSysCntrl;
 use anyhow::bail;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::{prelude::*, stdin};
 use std::time::{Duration, SystemTime};
+
+
+use tokio::sync::watch;
+use std::thread;
+use std::sync::mpsc;
 
 ///The robot controller and state tracker
 pub struct AbbRob<'a> {
@@ -302,6 +308,9 @@ impl AbbRob<'_> {
                     self.force_mode_flag = true;
                     self.force_axis = 2;
                     self.stiffness_test();
+                }
+                "map"=>{
+                    self.map_terrain();
                 }
 
 
@@ -606,7 +615,7 @@ impl AbbRob<'_> {
         let force_times = ffunc.as_time_f64(total_time);
 
         //Setup the seperate PID controllers
-        let mut force_controller = PIDWithNNTuner::create(0.001, 0.0005, 0.001);
+        let mut force_controller = PIDController::create_PID(0.001, 0.0005, 0.001);
         //Indicates whether to start tuning the NN
         let mut stable : bool = false;
 
@@ -623,7 +632,7 @@ impl AbbRob<'_> {
         let full_contact_gains = [0.01, 0.003, 0.0001];
 
         //Setup the config information
-        self.config.set_phase2_cntrl(force_controller.controller().to_string());
+        self.config.set_phase2_cntrl(force_controller.to_string());
         self.config.set_phase3_cntrl(format!("PID - P:{},I:{},D:{}",phase3_gains[0], phase3_gains[1], phase3_gains[2]));
 
         //Log the config
@@ -841,7 +850,7 @@ impl AbbRob<'_> {
 
         println!("GEOTECH - PHASE 3");
         println!("Running time: {}", total_time);
-        println!("PID Settings: {}", force_controller.controller());
+        //println!("PID Settings: {}", force_controller.controller());
 
         self.write_marker(&test_data.data_filename, "PHASE 3 STARTED");
 
@@ -900,7 +909,7 @@ impl AbbRob<'_> {
              
 
                 //Apply the controller
-                let force_speed : f64 = if (!stable  || optim_tick != OPT_STEP_CNT){
+                let force_speed : f64 = /*if (!stable  || optim_tick != OPT_STEP_CNT || true)*/{
                     //Save the error history
                     err_hist[optim_tick] = self.force_err;
                     optim_tick += 1;
@@ -909,13 +918,13 @@ impl AbbRob<'_> {
                     .calc_op(self.force_err)
                     .expect("Failed to calculate desired axis speed")
                     .clamp(-MAX_SPEED, MAX_SPEED)                    
-                }else{ //If the robot is in a stable position tune it also
+                };/*else{ //If the robot is in a stable position tune it also
                     optim_tick = 0;
 
                     force_controller.calc_op_and_tune(self.force_err, &err_hist)
                     .expect("Failed to calculate desired axis speed")
                     .clamp(-MAX_SPEED, MAX_SPEED) 
-                };
+                }*/
 
                 if force_speed.is_nan(){
                     panic!("Invalid speed!")
@@ -1300,9 +1309,9 @@ impl AbbRob<'_> {
 
     ///Checks whether the robot is within the specified allowed cartesian limits
     fn limit_check(&mut self) -> bool {
-        let min_x = -425.0;
+        let min_x = 22.0;
         let min_y = 1350.0;
-        let min_z = 95.0;
+        let min_z = -50;
         let max_x = 650.0;
         let max_y = 2650.0;
         let max_z = 2000.0;
@@ -1588,6 +1597,122 @@ impl AbbRob<'_> {
 
 
         }
+
+
+        ///Maps the terrain using the trl mapping subsystem 
+        fn map_terrain(&mut self){
+
+            //Create the test data
+            let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
+            
+            //Create the set of speed instructions
+            let desired_lat_speed = 10.0;
+
+            let speed_instructions = calc_lateral_timing(&mut test_data.traj, desired_lat_speed);
+            //Move to the start position
+            self.set_pos(test_data.traj[0]);
+            self.update_rob_info();
+
+
+            //Spin up the depth cam subsystem thread
+            let rust_filepath = test_data.filepath;
+
+            //Create the thread piping system
+            let(pos_tx, pos_rx)  = watch::channel([self.pos.0 as f32, self.pos.1 as f32, self.pos.2 as f32, self.ori.0 as f32, self.ori.1 as f32, self.ori.2 as f32, self.ori.3 as f32]);
+
+            let (hmap_tx, hmap_rx) = mpsc::channel();
+
+            let (cntrl_tx, cntrl_rx) = watch::channel(0);
+
+            //Spawn the cam system thread
+            println!("Spinning up camera control thread....");
+            let cam_sys_thread = thread::spawn(|| {
+                if let Ok(mut cam_sys) = CamSysCntrl::default_connect(pos_rx, hmap_tx, cntrl_rx, rust_filepath){
+
+                    cam_sys.start_system().unwrap();
+
+                    println!("Thread closed...");
+
+            }else{
+                println!("failed");
+            }});
+
+
+        //Spin up EGM
+        let mut cnt = 0;
+
+        //Setup and connect EGM
+        let egm_client = self.connect_egm_pose().expect("Failed to connect to EGM");
+
+        if self.start_egm_stream_speed().is_err() {
+            println!("Failed to start the egm stream")
+        } else {
+            println!("EGM stream started");
+        };
+        egm_client
+            .recv_and_connect()
+            .expect("Failed to return connection");
+
+        let mut seqno = 0;
+
+        let mut desired_speed: [f64; 3];
+
+        for instruction in speed_instructions.iter() {
+            //Get the time limit
+            let time_lim = instruction.0;
+
+            //Start the timer
+            let local_time = SystemTime::now();
+
+            //While the timer is running
+
+            while local_time.elapsed().unwrap().as_secs_f64() < time_lim {                   
+
+                //Get the egm message
+                let msg = egm_client.recv_egm().expect("Failed to get egm message");
+
+                let time = msg.get_time().expect("Failed to get egm time");
+
+                //Log the robot information gathered by the EGM using
+                let _ = self.egm_update_state(msg);
+                self.store_state(&test_data.data_filename, cnt);
+
+                //Update the mapping tool
+                pos_tx.send_replace([self.pos.0 as f32, self.pos.1 as f32, self.pos.2 as f32, self.ori.0 as f32, self.ori.1 as f32, self.ori.2 as f32, self.ori.3 as f32]);
+
+                if self.limit_check() {
+                    println!("Out of bounds");
+                    egm_client.egm_end();
+                    self.go_home_pos();
+                    self.write_marker(&test_data.data_filename, "TEST OUT OF  SAFETY BOUNDS");
+                    return;
+                }               
+
+                //Load the lateral instructions 
+                desired_speed = [instruction.1.0, instruction.1.1, 0.0];
+                            
+
+                let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
+                    seqno,
+                    time,
+                    [0.0, 0.0, 0.0],
+                    self.ori.into(),
+                    desired_speed,
+                );
+                egm_client
+                    .send_egm(sensor)
+                    .expect("Failed to send sensor info");
+                seqno += 1;
+                cnt += 1;
+            }
+        }
+
+    
+        cntrl_tx.send_replace(1);
+        println!("Mapping complete");
+
+
+    }
         
     }
 

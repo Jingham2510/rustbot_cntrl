@@ -23,14 +23,17 @@ pub struct CamSysCntrl{
     ///Heightmap transmitter
     heightmap_tx : Sender<Heightmap>,
     ///Control reciever
-    cntrl_rx : watch::Receiver<u32>
+    cntrl_rx : watch::Receiver<u32>,
+
+    ///Filepath to save the heightmaps
+    hmap_fp : String
 
 }
 
 
 impl CamSysCntrl{
 
-    pub fn default_connect(pos_ori_rx : watch::Receiver<[f32;7]>, heightmap_tx : Sender<Heightmap>, cntrl_rx : watch::Receiver<u32>) -> Result<Self, anyhow::Error>{
+    pub fn default_connect(pos_ori_rx : watch::Receiver<[f32;7]>, heightmap_tx : Sender<Heightmap>, cntrl_rx : watch::Receiver<u32>, hmap_fp :String) -> Result<Self, anyhow::Error>{
 
 
         const DEFAULT_IP : &str = "192.168.55.1";
@@ -63,7 +66,8 @@ impl CamSysCntrl{
                         ssh_sess,
                         pos_ori_rx,
                         heightmap_tx,
-                        cntrl_rx
+                        cntrl_rx,
+                        hmap_fp
                     })
                 }else{
                     bail!("Failed to authenticate ssh");
@@ -96,8 +100,6 @@ impl CamSysCntrl{
 
         s
     }
-
-
 
 
 
@@ -147,6 +149,10 @@ impl CamSysCntrl{
     //Streams the data to and from the camera subsystem
     fn run_system_stream(&mut self) -> Result<(), anyhow::Error>{
 
+        //Heightmap counter for saving the heightmaps
+        let mut hmap_cnt = 0;
+
+
         //UDP setup----------
         //Open the local socket
         let mut data_stream = UdpSocket::bind("0.0.0.0:8080")?;
@@ -176,8 +182,7 @@ impl CamSysCntrl{
 
             println!("Global heightmap created - size W:{}-H:{}", global_hmap.width(), global_hmap.height());
 
-            let mut i : f32 = 0.0;
-
+        
             //Main loop
             loop{
                 
@@ -185,17 +190,23 @@ impl CamSysCntrl{
                 if self.pos_ori_rx.has_changed()?{
                     //let curr_pos_ori = *self.pos_ori_rx.borrow_and_update();
 
-                    let curr_pos_ori = [i, i, 0.0, 1.0, 0.0, 0.0, 0.0];
+                    let curr_pos_ori = *self.pos_ori_rx.borrow_and_update();
 
                     data_stream.send(format!("{},{},{},{},{},{},{}", curr_pos_ori[0], curr_pos_ori[1], curr_pos_ori[2], curr_pos_ori[3], curr_pos_ori[4], curr_pos_ori[5], curr_pos_ori[6]).as_bytes())?;
 
                     //Set the heightmap
                     self.set_heightmap(&data_stream, &mut global_hmap)?;
 
+
+                    //Save the heightmap to the test file - means the main thread can focus on controlling the robot
+                    let fp = format!("{}/hmap_{}", self.hmap_fp, hmap_cnt);
+                    global_hmap.save_to_file(&fp);
+
                     //Clone the heightmap to the main thread
                     self.heightmap_tx.send(global_hmap.clone())?;
 
-                    i += 0.01;
+                    hmap_cnt += 1;
+
 
                 }               
                 
