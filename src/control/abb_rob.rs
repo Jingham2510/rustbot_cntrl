@@ -1311,7 +1311,7 @@ impl AbbRob<'_> {
     fn limit_check(&mut self) -> bool {
         let min_x = 22.0;
         let min_y = 1350.0;
-        let min_z = -50;
+        let min_z = -50.0;
         let max_x = 650.0;
         let max_y = 2650.0;
         let max_z = 2000.0;
