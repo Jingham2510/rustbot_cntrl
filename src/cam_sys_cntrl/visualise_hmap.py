@@ -96,8 +96,8 @@ def heightmap_from_file(file, skip_first):
 if __name__ == "__main__":
   
 
-    load_filename = "../../../../Data/test_dumps/map6_notool/hmap_29.txt"
-    save_filename = "../../../../Data/test_dumps/map6_notool/hmap_29"
+    load_filename = "../../../../Data/test_dumps/map8notool/hmap_39.txt"
+    save_filename = "../../../../Data/test_dumps/map8_notool/hmap_39"
 
 
     hmap = heightmap_from_file(open(load_filename), False)

@@ -1712,8 +1712,7 @@ impl AbbRob<'_> {
 
         //End the egm running
         egm_client.egm_end();
-
-        
+                
         cntrl_tx.send_replace(1);
 
         println!("Mapping complete");

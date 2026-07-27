@@ -208,6 +208,11 @@ impl CamSysCntrl{
                     global_hmap.save_to_file(&fp);
 
                     //Clone the heightmap to the main thread
+                     if self.cntrl_rx.has_changed()? /*|| i > 1.0*/{
+                        println!("Closing data stream...");
+                        data_stream.send(b"CLOSE")?;
+                        break;
+                    }   
                     self.heightmap_tx.send(global_hmap.clone())?;
 
                     hmap_cnt += 1;
@@ -217,7 +222,8 @@ impl CamSysCntrl{
                 
                 //Check cntrl (i.e. close connection)
                 if self.cntrl_rx.has_changed()? /*|| i > 1.0*/{
-                    data_stream.send(b"CLOSE")?;
+                    println!("Closing data stream...");
+                    data_stream.send(b"CLOSE")?;        
                     break;
                 }          
             }
