@@ -129,7 +129,7 @@ impl CamSysCntrl{
 
 
         //Sleep for 5 seconds to allow subsystem warmup
-        sleep(Duration::from_secs(5));
+        sleep(Duration::from_secs(8));
         
 
         //control loop-----------
@@ -182,6 +182,9 @@ impl CamSysCntrl{
 
             println!("Global heightmap created - size W:{}-H:{}", global_hmap.width(), global_hmap.height());
 
+            //Send the first empty heightmap to signal readiness
+            self.heightmap_tx.send(global_hmap.clone());
+
         
             //Main loop
             loop{
@@ -193,6 +196,8 @@ impl CamSysCntrl{
                     let curr_pos_ori = *self.pos_ori_rx.borrow_and_update();
 
                     data_stream.send(format!("{},{},{},{},{},{},{}", curr_pos_ori[0], curr_pos_ori[1], curr_pos_ori[2], curr_pos_ori[3], curr_pos_ori[4], curr_pos_ori[5], curr_pos_ori[6]).as_bytes())?;
+
+                    println!("Pos updated");
 
                     //Set the heightmap
                     self.set_heightmap(&data_stream, &mut global_hmap)?;
@@ -258,6 +263,7 @@ impl CamSysCntrl{
 
         let mut hmap_buf : [u8; 512] = [0;512];
         
+        println!("Waiting to recieve the heightmap");
         data_stream.recv(&mut hmap_buf)?;
 
         //Guaranteed that the number string is small

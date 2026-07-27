@@ -1312,7 +1312,7 @@ impl AbbRob<'_> {
         let min_x = 22.0;
         let min_y = 1350.0;
         let min_z = -50.0;
-        let max_x = 650.0;
+        let max_x = 790.0;
         let max_y = 2650.0;
         let max_z = 2000.0;
 
@@ -1657,6 +1657,9 @@ impl AbbRob<'_> {
 
         let mut desired_speed: [f64; 3];
 
+        //Wait for the first heightmap to be recieved before starting the run
+        hmap_rx.recv().expect("Failed to get original heightmap");
+
         for instruction in speed_instructions.iter() {
             //Get the time limit
             let time_lim = instruction.0;
@@ -1707,8 +1710,12 @@ impl AbbRob<'_> {
             }
         }
 
-    
+        //End the egm running
+        egm_client.egm_end();
+
+        
         cntrl_tx.send_replace(1);
+
         println!("Mapping complete");
 
 
