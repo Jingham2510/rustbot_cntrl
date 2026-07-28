@@ -615,7 +615,7 @@ impl AbbRob<'_> {
         let force_times = ffunc.as_time_f64(total_time);
 
         //Setup the seperate PID controllers
-        let mut force_controller = PIDController::create_PID(0.001, 0.0005, 0.001);
+        let mut force_controller = PIDController::create_PID(0.002, 0.0003, 0.001);
         //Indicates whether to start tuning the NN
         let mut stable : bool = false;
 
@@ -662,6 +662,30 @@ impl AbbRob<'_> {
         //Read the values once
         self.update_rob_info();
 
+         //Spin up the depth cam subsystem thread
+        let rust_filepath = test_data.filepath;
+
+        //Create the thread piping system
+        let(pos_tx, pos_rx)  = watch::channel([self.pos.0 as f32, self.pos.1 as f32, self.pos.2 as f32, self.ori.0 as f32, self.ori.1 as f32, self.ori.2 as f32, self.ori.3 as f32]);
+
+        let (hmap_tx, hmap_rx) = mpsc::channel();
+
+        let (cntrl_tx, cntrl_rx) = watch::channel(0);
+
+        //Spawn the cam system thread
+        println!("Spinning up camera control thread....");
+        let cam_sys_thread = thread::spawn(|| {
+            if let Ok(mut cam_sys) = CamSysCntrl::default_connect(pos_rx, hmap_tx, cntrl_rx, rust_filepath){
+
+                cam_sys.start_system().unwrap();
+
+                println!("Thread closed...");
+
+        }else{
+            println!("failed");
+        }});
+
+
         let mut cnt = 0;
 
         //Setup and connect EGM
@@ -704,6 +728,10 @@ impl AbbRob<'_> {
                 self.store_state(&test_data.data_filename, cnt);
 
                 // println!("Z force diff:{}", self.force_target - self.force.2);
+
+                 //Update the mapping tool
+                pos_tx.send_replace([self.pos.0 as f32, self.pos.1 as f32, self.pos.2 as f32, self.ori.0 as f32, self.ori.1 as f32, self.ori.2 as f32, self.ori.3 as f32]);
+
 
                 if self.limit_check() {
                     println!("Out of bounds");
@@ -762,6 +790,10 @@ impl AbbRob<'_> {
                 //Log the robot information gathered by the EGM using
                 let _ = self.egm_update_state(recv_msg);
                 self.store_state(&test_data.data_filename, cnt);
+
+                 //Update the mapping tool
+                pos_tx.send_replace([self.pos.0 as f32, self.pos.1 as f32, self.pos.2 as f32, self.ori.0 as f32, self.ori.1 as f32, self.ori.2 as f32, self.ori.3 as f32]);
+
 
                 if self.limit_check() {
                     println!("Out of bounds");
@@ -899,6 +931,11 @@ impl AbbRob<'_> {
                 let _ = self.egm_update_state(msg);
                 self.store_state(&test_data.data_filename, cnt);
 
+
+                 //Update the mapping tool
+                pos_tx.send_replace([self.pos.0 as f32, self.pos.1 as f32, self.pos.2 as f32, self.ori.0 as f32, self.ori.1 as f32, self.ori.2 as f32, self.ori.3 as f32]);
+
+
                 if self.limit_check() {
                     println!("Out of bounds");
                     egm_client.egm_end();
@@ -958,6 +995,9 @@ impl AbbRob<'_> {
             }
         }
         self.write_marker(&test_data.data_filename, "PHASE 3 ENDED");
+
+        //Send the off signal to the mapping thread
+        cntrl_tx.send_replace(1);
 
         //End the EGM client
         egm_client.egm_end();
@@ -1710,10 +1750,11 @@ impl AbbRob<'_> {
             }
         }
 
+        //Send the off signal to the mapping thread
+        cntrl_tx.send_replace(1);
+
         //End the egm running
         egm_client.egm_end();
-                
-        cntrl_tx.send_replace(1);
 
         println!("Mapping complete");
 
