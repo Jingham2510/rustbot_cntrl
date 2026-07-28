@@ -95,49 +95,16 @@ fn core_cmd_handler(config: &mut Config) {
 
             "connect" => rob_connect(config),
 
-            /*            "_" => {
-                //Currently testing - subcam system control
-                let rust_filepath = "/home/joe/Documents/Data/test_dumps/hmap_stream/hmap";
-                let python_filepath = "Data/test_dumps/hmap_stream/hmap";
+            //Currently testing how to create sinusoid force signals
+            "test" => {
 
-                //Create the thread piping system
-                let(pos_tx, pos_rx)  = watch::channel([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]);
+                let sig = ForceFunctionGenerator::user_interface().unwrap();
 
-                let (hmap_tx, hmap_rx) = mpsc::channel();
+                sig.save_vals("test.txt");
 
-                let (cntrl_tx, cntrl_rx) = watch::channel(0);
-
-                //Spawn the cam system thread
-                let cam_sys_thread = thread::spawn(|| {
-                    if let Ok(mut cam_sys) = CamSysCntrl::default_connect(pos_rx, hmap_tx, cntrl_rx, rust_filepath){
-
-                        cam_sys.start_system().unwrap();
-
-                        println!("Thread closed...");
-
-                }else{
-                    println!("failed");
-                }});
-
-                //Start "moving" the camera
-                for i in 0..100{
-                    pos_tx.send_replace([i as f32 * 0.01, i as f32 * 0.01, 0.0, 1.0, 0.0, 0.0, 0.0]);
-
-                    let hmap = hmap_rx.recv().expect("Failed to get heightmap");
-
-                    hmap.save_to_file(&format!("{}_{}",rust_filepath, i)).expect("Failed to write");
-
-                    //println!("{}",&format!("{}_{}.txt {}_{}", filepath, i, filepath, i));
-
-                    
-                }
-
-                //Close the connection
-                cntrl_tx.send_replace(1);
-               
                 
+
             }
-            */
 
 
 

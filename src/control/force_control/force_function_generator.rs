@@ -1,5 +1,6 @@
 ///This file contains functions required for creation of force function generators
 use anyhow::bail;
+use std::char::MAX;
 use std::f64::consts::PI;
 use std::fs::OpenOptions;
 use std::io::{Write, stdin};
@@ -346,9 +347,10 @@ impl ForceFunctionGenerator {
         let mut sig_time = vec![];
 
         //Do the sinusoid for 100 ticks (i.e. 100 % of the whole signal)
-        for i in 0..1000{
+        const MAX_TICKS : i32 = 100000;
+        for i in 0..MAX_TICKS{
             sig_vals.push(amplitude * (2.0* PI * frequency_hz * i as f64 + 2.0*PI * phase_degs).sin() + offset);
-            sig_time.push(0.1);
+            sig_time.push(frequency_hz/MAX_TICKS as f64);
             force_changes += 1;
         }
 
@@ -422,6 +424,39 @@ impl ForceFunctionGenerator {
 
         Ok(())
     }
+
+    pub fn save_vals(&self, filepath: &str) -> Result<(), anyhow::Error> {
+        //Open the file (or create if it doesn't exist)
+        let mut file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(filepath.trim())
+            .unwrap();
+
+        let line: String = "Desired force profile".to_string();
+
+        //Write to the file - indicating if writing failed (but don't worry about it!)
+        if let Err(e) = writeln!(file, "{}", line) {
+            bail!("Couldn't write to file: {}", e);
+        }
+
+        //See whether to transofmr the data by the
+        let line: String =
+            //Format the line to write
+            format!(
+                "VALS:{:?}",
+                self.sig_vals,
+            );
+
+        //Write to the file - indicating if writing failed (but don't worry about it!)
+        if let Err(e) = writeln!(file, "{}", line) {
+            bail!("Couldn't write to file: {}", e);
+        }
+
+        Ok(())
+    }
+
 
     pub fn force_changes(&self) -> usize {
         self.force_changes

@@ -21,18 +21,18 @@ class HeightMap:
 
         fig, ax = plt.subplots()
 
-        im = plt.imshow(self.cells, cmap="plasma")
+        im = plt.imshow(self.cells, cmap="plasma", vmin = 0.35)
 
         # Colorbar settings
         cbar = fig.colorbar(im)
-        cbar.set_label("Height (m)", size=16)
+        cbar.set_label("Depth (m)", size=16)
         cbar.ax.tick_params(labelsize=16)
 
         # Tick settings
         plt.yticks([])
         plt.xticks([])
 
-        plt.savefig(f"{title}.png")
+        plt.savefig(f"{title}.png", dpi =200)
 
 
 """
@@ -94,11 +94,19 @@ def heightmap_from_file(file, skip_first):
 
 
 if __name__ == "__main__":
-  
 
-    load_filename = "../../../../Data/test_dumps/map10_notool/hmap_39.txt"
-    save_filename = "../../../../Data/test_dumps/map10_notool/hmap_39"
+    plt.plot()
+    plt.savefig("../test")
+
+    exit()
+
+    hmaps = ["0", "10", "50", "100", "144"]
+
+    for no in hmaps:
+
+        load_filename = f"../../../../Data/test_dumps/tri_varigain_softer/hmap_{no}.txt"
+        save_filename = f"../../../../Data/test_dumps/tri_varigain_softer/hmap_{no}"
 
 
-    hmap = heightmap_from_file(open(load_filename), False)
-    hmap.save(save_filename)
+        hmap = heightmap_from_file(open(load_filename), False)
+        hmap.save(save_filename)

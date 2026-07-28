@@ -615,21 +615,17 @@ impl AbbRob<'_> {
         let force_times = ffunc.as_time_f64(total_time);
 
         //Setup the seperate PID controllers
-        let mut force_controller = PIDController::create_PID(0.002, 0.0003, 0.001);
-        //Indicates whether to start tuning the NN
-        let mut stable : bool = false;
-
-        let ku = 0.18;
-        let tu = 0.275;
-        //Classic ZN rule (modded i.e. hand optimised)
-        //let phase3_gains = [0.6 * ku/4.5, (0.6*ku/tu)/160.0 , (0.075 * ku * tu) / 150.0];   
+        let mut force_controller = PIDController::create_PID(0.001, 0.0005, 0.001);
+    
+        
 
         //Original
         let phase3_gains = [0.02, 0.003, 0.001];
-        //Gains for when the tool contact area is at a maximum
-        let mut gain_changed : bool = false;
-        let full_contact_height = 40.0;
-        let full_contact_gains = [0.01, 0.003, 0.0001];
+
+        //Softer gains for lower force threshold   
+        let mut max_targ = 0.0;
+        let softer_gains = [0.01, 0.003, 0.0005];
+        
 
         //Setup the config information
         self.config.set_phase2_cntrl(force_controller.to_string());
@@ -891,9 +887,9 @@ impl AbbRob<'_> {
 
         let global_start = SystemTime::now();
 
-        const OPT_STEP_CNT : usize = 250;
-        let mut optim_tick = 0;
-        let mut err_hist : [f64; OPT_STEP_CNT] = [0.0;OPT_STEP_CNT];
+        //const OPT_STEP_CNT : usize = 250;
+        //let mut optim_tick = 0;
+        //let mut err_hist : [f64; OPT_STEP_CNT] = [0.0;OPT_STEP_CNT];
 
 
         let mut desired_speed : [f64; 3] = [0.0, 0.0, 0.0];
@@ -914,13 +910,17 @@ impl AbbRob<'_> {
                 {
                     curr_force_val += 1;
                     self.force_target = force_vals[curr_force_val];
+
+                    if self.force_target > max_targ{
+                        max_targ = self.force_target;   
+                        force_controller.update_gains(phase3_gains[0], phase3_gains[1], phase3_gains[2]);                     
+                    }else if self.force_target < max_targ{ //If the target is lower than the maximum seen target
+                        force_controller.update_gains(softer_gains[0], softer_gains[1], softer_gains[2]);
+                    }
                     //println!("New force target: {}", self.force_target);
                 }
 
-                //check if the controller gains need to be changed based on the embedment height
-                if self.force_err < 5.0{
-                    stable = true;
-                }
+           
 
                 //Get the egm message
                 let msg = egm_client.recv_egm().expect("Failed to get egm message");
@@ -948,8 +948,8 @@ impl AbbRob<'_> {
                 //Apply the controller
                 let force_speed : f64 = /*if (!stable  || optim_tick != OPT_STEP_CNT || true)*/{
                     //Save the error history
-                    err_hist[optim_tick] = self.force_err;
-                    optim_tick += 1;
+                    //err_hist[optim_tick] = self.force_err;
+                    //optim_tick += 1;
 
                     force_controller
                     .calc_op(self.force_err)
