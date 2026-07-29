@@ -911,12 +911,16 @@ impl AbbRob<'_> {
                     curr_force_val += 1;
                     self.force_target = force_vals[curr_force_val];
 
-                    if self.force_target > max_targ{
-                        max_targ = self.force_target;   
-                        force_controller.update_gains(phase3_gains[0], phase3_gains[1], phase3_gains[2]);                     
-                    }else if self.force_target < max_targ{ //If the target is lower than the maximum seen target
-                        force_controller.update_gains(softer_gains[0], softer_gains[1], softer_gains[2]);
-                    }
+                    //Stiffness aware force control 
+                    if self.force_axis == 2{
+
+                        if self.force_target > max_targ{
+                            max_targ = self.force_target;   
+                            force_controller.update_gains(phase3_gains[0], phase3_gains[1], phase3_gains[2]);                     
+                        }else if self.force_target < max_targ{ //If the target is lower than the maximum seen target
+                            force_controller.update_gains(softer_gains[0], softer_gains[1], softer_gains[2]);
+                        }
+                     }
                     //println!("New force target: {}", self.force_target);
                 }
 

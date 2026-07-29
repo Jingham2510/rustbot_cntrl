@@ -81,7 +81,7 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
         //A circular trajectory
         "circle" => {
             //Define all characteristics of the circle
-            let centre = (400.0, 2160.0, DEFAULT_Z + 200.0);
+            let centre = (400.0, 2160.0, DEFAULT_Z);
             //Number of times the circle goes round
             let loops = 1;
             //"size" of circle

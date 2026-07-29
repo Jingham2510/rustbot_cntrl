@@ -34,6 +34,8 @@ class HeightMap:
 
         plt.savefig(f"{title}.png", dpi =200)
 
+        plt.close()
+
 
 """
 Returns a hmap as a numpy matrix from a given file
@@ -95,17 +97,16 @@ def heightmap_from_file(file, skip_first):
 
 if __name__ == "__main__":
 
-    plt.plot()
-    plt.savefig("../test")
+   
 
-    exit()
+    hmaps = [i for i in range(139)]
 
-    hmaps = ["0", "10", "50", "100", "144"]
+    test_name = "triangle_x_line"
 
     for no in hmaps:
 
-        load_filename = f"../../../../Data/test_dumps/tri_varigain_softer/hmap_{no}.txt"
-        save_filename = f"../../../../Data/test_dumps/tri_varigain_softer/hmap_{no}"
+        load_filename = f"../../../../Data/test_dumps/{test_name}/hmap_{no}.txt"
+        save_filename = f"../../../../Data/test_dumps/{test_name}/hmap_{no}"
 
 
         hmap = heightmap_from_file(open(load_filename), False)
