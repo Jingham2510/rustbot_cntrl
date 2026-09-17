@@ -21,8 +21,9 @@ class HeightMap:
 
         fig, ax = plt.subplots()
 
-        im = plt.imshow(self.cells, cmap="plasma", vmin = 0.35)
-
+        #Transpose so the correct way around
+        im = plt.imshow(self.cells, cmap="plasma", vmin = 0.35, vmax = 0.5)
+     
         # Colorbar settings
         cbar = fig.colorbar(im)
         cbar.set_label("Depth (m)", size=16)
@@ -99,9 +100,13 @@ if __name__ == "__main__":
 
    
 
-    hmaps = [i for i in range(139)]
+    LOCAL = True
 
-    test_name = "triangle_x_line"
+
+    hmaps = [i for i in range(1000)]
+
+
+    test_name = "flood_fill"
 
     for no in hmaps:
 

@@ -577,8 +577,9 @@ impl AbbRob<'_> {
         }
 
         let mut phase_1: bool = false;
-        let mut phase_2: bool = false;
 
+        let mut phase_2: bool = true;        
+        
         if self.force_axis == 2 {
             phase_1 = true;
             phase_2 = true;
@@ -678,7 +679,7 @@ impl AbbRob<'_> {
                 println!("Thread closed...");
 
         }else{
-            println!("failed");
+            println!("failed to connect to cams...");
         }});
 
 
@@ -756,9 +757,19 @@ impl AbbRob<'_> {
             self.write_marker(&test_data.data_filename, "PHASE 1 END");
         }
 
+        let mut desired_speed : [f64; 3] = [0.0, 0.0, 0.0];
+
         //Phase 2 - force control until target force is stabilised (PID 1)
         if phase_2 {
-            println!("PHASE 2: Stabilising vertical load");
+            println!("PHASE 2: Stabilising load");
+
+            
+        if self.force_axis != 2{
+            println!("Horizontal gain set!");
+            force_controller.update_gains(phase3_gains[0], phase3_gains[1], phase3_gains[2]);
+        }
+
+
             let mut force_stable = false;
             let mut force_errs: Vec<f64> = vec![];
             //Minimum of 500 measurements taken - just to prove its stable
@@ -800,12 +811,16 @@ impl AbbRob<'_> {
                 }
 
                 //Apply the controller
-                let des_z_speed = force_controller
+                let force_speed = force_controller
                     .calc_op(self.force_err)
                     .expect("Failed to calculate desired z speed")
-                    .clamp(-MAX_SPEED, MAX_SPEED);
+                    .clamp(-MAX_SPEED, MAX_SPEED);                
 
-                desired_speed = [0.0, 0.0, des_z_speed];
+                if self.force_axis == 1{
+                    desired_speed[self.force_axis] = -force_speed;
+                }else{
+                    desired_speed[self.force_axis] = force_speed;
+                }
 
                 //Update the robot EGM requirements
                 egm_client
@@ -892,7 +907,7 @@ impl AbbRob<'_> {
         //let mut err_hist : [f64; OPT_STEP_CNT] = [0.0;OPT_STEP_CNT];
 
 
-        let mut desired_speed : [f64; 3] = [0.0, 0.0, 0.0];
+       
 
         for instruction in speed_instructions.iter() {
             //Get the time limit

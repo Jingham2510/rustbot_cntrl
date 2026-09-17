@@ -107,20 +107,20 @@ impl CamSysCntrl{
 
     pub fn start_system(&mut self) -> Result<(), anyhow::Error>{
 
-       
+        
         //setup-------------
         
         //Create a channel session and turn on the shell
-       
+        
         let mut ch_sess = self.ssh_sess.channel_session().unwrap();
         ch_sess.shell()?;
 
         //Go to the folder
         ch_sess.write(b"cd ../../media/ssd/Programming/trl_cam_subsystem\n")?;
         
-   
-        //Make sure the rust program is up to date
-        ch_sess.write(b"cargo build --release\n")?;
+
+        //Make sure the rust program is up to date (this takes a while)
+        //ch_sess.write(b"cargo build --release\n")?;
         ch_sess.write(b"cd target/release\n")?;
         //start the rust program
         ch_sess.write(b"./trl_cam_subsystem -auto\n")?;
@@ -133,15 +133,23 @@ impl CamSysCntrl{
         
 
         //control loop-----------
-       println!("subsytem UDP: {:?}", self.run_system_stream());       
+        println!("subsytem UDP: {:?}", self.run_system_stream());       
 
 
 
-       //Make sure to close the port
-       ch_sess.close();
+        //Make sure to close the port
+        ch_sess.close();
 
+        /*
+        
+        let mut out : Vec<u8> = vec![];
 
-       Ok(())        
+        ch_sess.read_to_end(&mut out)?;
+
+        println!("{}", str::from_utf8(&out)?);
+        */
+
+        Ok(())        
      
         
     }
@@ -180,6 +188,11 @@ impl CamSysCntrl{
             //Create the empty heightmap object with the specified size
             let mut global_hmap = Heightmap::new(hmap_size[0], hmap_size[1]);
 
+            //These match the bounds on the subsystem itself
+            global_hmap.set_lower_coord_bounds([-0.17, -0.09]);
+            global_hmap.set_upper_coord_bounds([0.90, 0.92]);
+        
+
             println!("Global heightmap created - size W:{}-H:{}", global_hmap.width(), global_hmap.height());
 
             //Send the first empty heightmap to signal readiness
@@ -197,7 +210,7 @@ impl CamSysCntrl{
 
                     data_stream.send(format!("{},{},{},{},{},{},{}", curr_pos_ori[0], curr_pos_ori[1], curr_pos_ori[2], curr_pos_ori[3], curr_pos_ori[4], curr_pos_ori[5], curr_pos_ori[6]).as_bytes())?;
 
-                    println!("Pos updated");
+                    //println!("Pos updated");
 
                     //Set the heightmap
                     self.set_heightmap(&data_stream, &mut global_hmap)?;
@@ -205,6 +218,7 @@ impl CamSysCntrl{
 
                     //Save the heightmap to the test file - means the main thread can focus on controlling the robot
                     let fp = format!("{}/hmap_{}", self.hmap_fp, hmap_cnt);
+                    println!("hmap saved: {}", fp);
                     global_hmap.save_to_file(&fp);
 
                     //Clone the heightmap to the main thread
@@ -270,7 +284,16 @@ impl CamSysCntrl{
         let mut hmap_buf : [u8; 512] = [0;512];
         
         println!("Waiting to recieve the heightmap");
-        data_stream.recv(&mut hmap_buf)?;
+        
+        //Should have a timeout that stops really
+        while true{
+            //Read until packet recieved
+            if data_stream.recv(&mut hmap_buf).is_ok(){
+                break;
+            };
+
+        }
+        
 
         //Guaranteed that the number string is small
         let no_str = str::from_utf8(&hmap_buf[..4])?;
@@ -278,8 +301,14 @@ impl CamSysCntrl{
 
         //Get the number of packets to recieve
         for i in 0..no_of_packets{
-            //Receive the packet
-            data_stream.recv(&mut hmap_buf)?;
+
+            while true{
+                //Read until packet recieved
+                if data_stream.recv(&mut hmap_buf).is_ok(){
+                    break;
+                };
+
+            }
             //Convert the array of float bytes into floats
             cells.append(&mut hmap_buf.chunks(4).map(TryInto::try_into).map(Result::unwrap).map(f32::from_be_bytes).collect());
             
