@@ -88,6 +88,19 @@ impl TestData {
         //Create all the directories that the test needs
         fs::create_dir(t_data.filepath.clone()).expect("FAILED TO CREATE NEW DIRECTORY");
 
+        //Create the data file with the csv header
+        let mut data_file = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(&t_data.data_filename)
+            .unwrap();
+
+        data_file.write_all(
+            "line_no,timestamp,pos_x,pos_y,pos_z,ori_w,ori_x,ori_y,ori_z,fx,fy,fz,tx,ty,tz,ferr"
+            .as_bytes()).expect("Failed to write csv headers");
+
+
+
         t_data
     }
 
@@ -476,10 +489,10 @@ impl AbbRob<'_> {
         test_data.store_desired_trajectory();
 
         //Calculate the speed instructions
-        let desired_speed = 0.1;
+        let desired_speed = 10.0;
         let speed_instructions = calc_xyz_timing(&mut test_data.traj, desired_speed);
 
-        println!("Speed: {:?}", speed_instructions);
+        //println!("Speed: {:?}", speed_instructions);
         
 
         //Move to starting position
@@ -490,6 +503,7 @@ impl AbbRob<'_> {
         );
         println!("START height: {}", test_data.traj[0].2);
         self.write_marker(&test_data.data_filename, "TEST STARTED");
+        println!("Moving to startpos : {:?}", start_pos);
         self.set_pos(start_pos);
 
         //Setup and connect EGM
@@ -1170,7 +1184,6 @@ impl AbbRob<'_> {
         //Open the file (or create if it doesn't exist)
         let mut file = OpenOptions::new()
             .append(true)
-            .create(true)
             .open(filename.trim())
             .unwrap();
 
@@ -1178,7 +1191,7 @@ impl AbbRob<'_> {
         let line: String =
             //Format the line to write
             format!(
-                "{},{:?},[{},{},{}],[{},{},{},{}],[{},{},{},{},{},{}],{}",
+                "{},{:?},{},{},{},{},{},{},{},{},{},{},{},{},{},{}",
                 i,
                 SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)

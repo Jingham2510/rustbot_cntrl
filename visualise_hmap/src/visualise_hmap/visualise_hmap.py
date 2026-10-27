@@ -22,7 +22,7 @@ class HeightMap:
         fig, ax = plt.subplots()
 
         #Transpose so the correct way around
-        im = plt.imshow(self.cells, cmap="plasma", vmin = 0.35, vmax = 0.5)
+        im = plt.imshow(self.cells.T, cmap="plasma", vmin=-0.15, vmax=0.15)
      
         # Colorbar settings
         cbar = fig.colorbar(im)
@@ -97,21 +97,20 @@ def heightmap_from_file(file, skip_first):
 
 
 if __name__ == "__main__":
+  
 
-   
-
-    LOCAL = True
+    
 
 
     hmaps = [i for i in range(1000)]
 
 
-    test_name = "flood_fill"
+    test_name = "flat_map_serial"
 
     for no in hmaps:
 
-        load_filename = f"../../../../Data/test_dumps/{test_name}/hmap_{no}.txt"
-        save_filename = f"../../../../Data/test_dumps/{test_name}/hmap_{no}"
+        load_filename = f"../../../Data/test_dumps/{test_name}/hmap_{no}.txt"
+        save_filename = f"../../../Data/test_dumps/{test_name}/hmap_{no}"
 
 
         hmap = heightmap_from_file(open(load_filename), False)

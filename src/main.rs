@@ -57,14 +57,11 @@ fn main() -> Result<(), anyhow::Error> {
 ///Handles commands given by the user - robot not required!
 fn core_cmd_handler(config: &mut Config) {
     //Array of implemented commands
-    const VALID_CMDS: [&str; 7] = [
+    const VALID_CMDS: [&str; 4] = [
         "info - get title and version number",
         "quit - close the program",
         "cmds - list the currently implemented commands",
-        "ping - TEST - connect to and ping the robot studio",
         "connect - connect to a robot on a given ip and port (if successful unlocks robot specific commands",
-        "analyse - analyse a previous tests data",
-        "snsdpth - Take N heightmap measurements",
     ];
 
     println!("{TITLE} - {VER_NUM}");

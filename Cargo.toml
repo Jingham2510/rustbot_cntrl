@@ -8,7 +8,6 @@ version = "0.9.0"
 edition = "2024"
 
 [dependencies]
-raylib = { version = "5.5", features = ["custom_frame_control"] }
 rand = "0.10.0"
 anyhow = "1.0.99"
 chrono = "0.4.41"

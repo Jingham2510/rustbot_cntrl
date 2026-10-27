@@ -284,40 +284,32 @@ fn cust_traj_handler() -> Option<Vec<(f64, f64, f64)>> {
         //Create an empty vector
         let mut traj: Vec<(f64, f64, f64)> = vec![];
 
-        //Extract the line containing the trajectory info
+        //Extract each line containing the trajectory info
         let mut traj_str = String::new();
 
         for line in io::BufReader::new(file).lines() {
-            traj_str = line.unwrap();
-        }
+            traj_str = line.unwrap();        
 
-        //Parse each trajectory coordinate via comma
-        let split_traj = traj_str.split(",");
+            //Parse each trajectory coordinate via comma
+            let mut split_traj : Vec<&str> = traj_str.split(",").collect();
 
-        //Place each trajectory coordinate into the trajectory vector (with a default height)
-        for coord in split_traj {
-            if coord.is_empty() {
-                println!("Empty line");
-            } else {
-                //trim the parantheses (using a pattern)
-                let coord = coord.replace(&['(', ')'][..], "");
+            let split_traj : Vec<String> = split_traj.iter().map(|str| {
+                str.replace(&['(', ')'][..], "")
+            }).collect();
+            
+    
+            //Vectoried parsing into floats
+            let x : f64 = split_traj[0].parse().unwrap();
+            let y : f64 = split_traj[1].parse().unwrap();
+            let z : f64 = split_traj[2].parse().unwrap();
 
-                println!("{coord}");
-
-                //split via space
-                let coord_split: Vec<_> = coord.split(" ").collect();
-
-                //Place in a tuple and add to the trajectory
-                let default_height: f64 = 125.0;
-                traj.push((
-                    coord_split[0].parse().unwrap(),
-                    coord_split[1].parse().unwrap(),
-                    default_height,
-                ))
-            }
+            //Plac  
+            traj.push((x, y, z));
+        
         }
 
         Option::from(traj)
+
     } else {
         println!("Custom trajectory not found!");
         None
