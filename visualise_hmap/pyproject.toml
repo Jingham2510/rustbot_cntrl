@@ -7,7 +7,9 @@ authors = [
     { name = "Jingham2510", email = "jsphingham@gmail.com" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "pandas>=3.1.0",
+]
 
 [project.scripts]
 visualise-hmap = "visualise_hmap:main"

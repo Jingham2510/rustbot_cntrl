@@ -96,7 +96,7 @@ impl TestData {
             .unwrap();
 
         data_file.write_all(
-            "line_no,timestamp,pos_x,pos_y,pos_z,ori_w,ori_x,ori_y,ori_z,fx,fy,fz,tx,ty,tz,ferr"
+            "line_no,timestamp,pos_x,pos_y,pos_z,ori_w,ori_x,ori_y,ori_z,fx,fy,fz,tx,ty,tz,ferr\n"
             .as_bytes()).expect("Failed to write csv headers");
 
 
@@ -340,6 +340,8 @@ impl AbbRob<'_> {
                     self.req_force();
                     println!("{:?}", self.force);
                 }
+
+
 
                 _ => println!("Unknown command - see CMDs for list of commands"),
             }
@@ -1474,7 +1476,6 @@ impl AbbRob<'_> {
 
         //Create the test data and the filepaths
         let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
-
 
         //Determine the target load forces
         let target_forces = [10.0, 25.0, 50.0, 100.0, 200.0, 400.0, 500.0, 1000.0];
