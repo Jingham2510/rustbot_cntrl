@@ -17,7 +17,7 @@ class HeightMap:
     def save(self, title):
         """Save the heightmap as an image using imshow."""
         fig, ax = plt.subplots()
-        im = ax.imshow(self.cells.T, cmap="plasma")  # transpose so it's the right way round
+        im = ax.imshow(self.cells.T, cmap="plasma", vmin = -0.1, vmax = 0.1)  # transpose so it's the right way round
         cbar = fig.colorbar(im)
         cbar.set_label("Depth (m)", size=16)
         cbar.ax.tick_params(labelsize=16)
@@ -66,4 +66,4 @@ def process(no, base="../../../Data/test_dumps/contact_map"):
 
 if __name__ == "__main__":
     with Pool() as pool:
-        pool.map(process, range(1, 28), chunksize=8)
+        pool.map(process, range(1, 135), chunksize=8)
