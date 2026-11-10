@@ -7,6 +7,7 @@ from multiprocessing import Pool
 from pathlib import Path
 import pandas as pd
 
+cnt = 0
 
 class HeightMap:
     def __init__(self, lower_bounds, upper_bounds, cells):
@@ -17,7 +18,7 @@ class HeightMap:
     def save(self, title):
         """Save the heightmap as an image using imshow."""
         fig, ax = plt.subplots()
-        im = ax.imshow(self.cells.T, cmap="plasma", vmin = -0.1, vmax = 0.1)  # transpose so it's the right way round
+        im = ax.imshow(self.cells.T, cmap="plasma", vmin = -0.15, vmax = 0.15)  # transpose so it's the right way round
         cbar = fig.colorbar(im)
         cbar.set_label("Depth (m)", size=16)
         cbar.ax.tick_params(labelsize=16)
@@ -55,15 +56,22 @@ def heightmap_from_file(path):
         cells = pd.read_csv(f, header=None).dropna(axis=1, how="all").to_numpy(dtype=np.float64)
 
     # Original code treated "0.0" as missing
-    cells[cells == 0.0] = np.nan
+    #cells[cells == 0.0] = np.nan
     return HeightMap(low[:2], high[:2], cells)
 
 
-def process(no, base="../../../Data/test_dumps/contact_map"):
+def process(no, base="../../../Data/test_dumps/line_parametric_k/line_inter_0"):
+
+    #Account for no float on text
+    if no == 0.0:
+        no = "0"
+
     hmap = heightmap_from_file(f"{base}/hmap_{no}.txt")
     hmap.save(f"{base}/hmap_{no}")
 
 
 if __name__ == "__main__":
+
     with Pool() as pool:
-        pool.map(process, range(1, 135), chunksize=8)
+        pool.map(process, [x/100 for x in range(0, 60, 5)], chunksize=8)
+

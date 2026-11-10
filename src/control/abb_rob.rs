@@ -470,6 +470,7 @@ impl AbbRob<'_> {
         //Star tin the home position
         self.go_home_pos();
 
+
         //For each trajectory point
         for pnt in traj {
             //Tell the robot to move to the trajectory points
