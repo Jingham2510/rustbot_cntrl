@@ -1,8 +1,7 @@
 ///A collection of controller implementations used for force control
 ///NOTE - all control functions must have a footprint of fn function_name(err: f32)->Result<f32, anyhow::Error>
 ///This is to comply with the callback function used in the main test procedure
-use chrono;
-use chrono::{DateTime, Local};
+use std::time::Instant;
 use std::fmt::Display;
 use tch::{Tensor, nn ,Device, nn::OptimizerConfig, nn::Module};
 
@@ -35,7 +34,7 @@ pub struct PDController {
     ///The error
     prev_err: f64,
     ///The time when the error was reported
-    prev_time: DateTime<Local>,
+    prev_time: Instant,
     ///Proportional gain
     kp_gain: f64,
     ///Derivative gain
@@ -48,7 +47,7 @@ impl PDController {
     pub fn create_PD(KP_gain: f64, KD_gain: f64) -> PDController {
         PDController {
             prev_err: 0.0,
-            prev_time: chrono::offset::Local::now(),
+            prev_time: Instant::now(),
             kp_gain: KP_gain,
             kd_gain: KD_gain,
         }
@@ -57,10 +56,10 @@ impl PDController {
     ///Calculate the output of the controller
     pub fn calc_op(&mut self, err: f64) -> Result<f64, anyhow::Error> {
         //Get current time
-        let now = chrono::offset::Local::now();
+        let now = Instant::now();
 
         //Calculate the derivative of the current slope
-        let derr = (err - self.prev_err) / ((now - self.prev_time).as_seconds_f64());
+        let derr = (err - self.prev_err) / ((now - self.prev_time).as_secs_f64());
 
         //Update the previous values
         self.prev_time = now;
@@ -75,7 +74,7 @@ pub struct PIDController {
     ///Error history
     errs: Vec<f64>,
     ///Timestamps of the errors
-    timestamps: Vec<DateTime<Local>>,
+    timestamps: Vec<Instant>,
     ///The current calculated integral error
     curr_integral: f64,
     ///Proportional gain
@@ -104,7 +103,7 @@ impl PIDController {
     pub fn create_PID(KP_gain: f64, KI_gain: f64, KD_gain: f64) -> PIDController {
         PIDController {
             errs: vec![0.0],
-            timestamps: vec![Local::now()],
+            timestamps: vec![Instant::now()],
             curr_integral: 0.0,
             kp_gain: KP_gain,
             ki_gain: KI_gain,
@@ -114,14 +113,14 @@ impl PIDController {
 
     ///Calulcate the output of the controller
     pub fn calc_op(&mut self, err: f64) -> Result<f64, anyhow::Error> {
-        self.timestamps.push(Local::now());
+        self.timestamps.push(Instant::now());
         self.errs.push(err);
 
         //Calculate the derivative in seconds
         let derr = (err - self.errs[self.errs.len() - 2])
             / ((self.timestamps[self.timestamps.len() - 1]
                 - self.timestamps[self.timestamps.len() - 2])
-                .as_seconds_f64());
+                .as_secs_f64());
 
         //Calculate the integral 
         let ierr = self.calc_integral_reimann_approx();
@@ -139,14 +138,14 @@ impl PIDController {
     fn calc_integral_reimann_approx(&mut self) -> f64 {
         let curr_err = self.errs[self.errs.len() - 1];
         let prev_err = self.errs[self.errs.len() - 2];
-        let curr_time = self.timestamps[self.timestamps.len() - 1].timestamp();
-        let prev_time = self.timestamps[self.timestamps.len() - 2].timestamp();
-        let time_delta = curr_time - prev_time;
+        let curr_time = self.timestamps[self.timestamps.len() - 1];
+        let prev_time = self.timestamps[self.timestamps.len() - 2];
+        let time_delta = (curr_time - prev_time).as_secs_f64();
 
         //Check the magnitudes of the errors 
         let new_area =
             if curr_err != -prev_err {
-                (time_delta as f64) * ((prev_err + curr_err) / 2.0)
+                (time_delta) * ((prev_err + curr_err) / 2.0)
             } else {
                 0.0
             };
@@ -272,3 +271,78 @@ impl PIDWithNNTuner{
 
 
 }
+
+
+///Admittance controller
+struct AdmittanceController{
+
+    /*
+    Based on standard admittance controller function
+        F = M*(double dot x) + B*(dot x) * K*(x)
+        F - Force
+        M - Stiffness Matrix (diagonal - Positive semi-definite)
+        B - Damping (diagonal - Positive semi-definite)
+        K - Spring constants(?)
+        x - position of robot
+     */
+
+    //For now implementing M,B,K as singular values
+    //Potential for expansion into 3 dimensions?
+
+    ///Stiffness
+    M : f32,
+    
+    ///Damping
+    B : f32,
+
+    ///Spring constant
+    K : f32,
+
+    //Rest position
+    target_pos : f32,
+
+    ///Last timestep
+    prev_time : Instant
+
+}
+
+impl AdmittanceController{
+
+    ///Create the admittance controller
+    pub fn create(M : f32, B : f32, K : f32, target_pos : f32) -> Self{
+        Self { M, B, K, target_pos, prev_time: Instant::now() }
+    }
+
+
+    ///Start the timer (i.e. set it off when the controller begins, not when it is created)
+    pub fn start(&mut self) {
+        self.prev_time = Instant::now()
+    }
+
+
+    ///Use the current force error to calculate the error
+    pub fn calc_op(&mut self, force_err : f32, position : f32, velocity : f32) -> f32{
+        
+        //Compute acceleration
+        //(double-dot x) = 1/M(force_err - B(previous dot x) - K (previous x - x nominal))
+        let acc = (force_err - self.B * velocity - self.K*(position - self.target_pos))/(self.M);
+
+
+        //Push the time into a buffer and save the "new previous time"
+        let prev_prev_time = self.prev_time;
+        self.prev_time = Instant::now();
+        let time_delta = self.prev_time - prev_prev_time;
+
+
+        return velocity + (acc * time_delta.as_secs_f32());
+    }
+
+
+}
+
+
+
+
+//Use this to update the target velocity
+//(dot x) = (previous speed) + (accel * delta_t)
+
