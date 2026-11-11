@@ -4,6 +4,7 @@ use crate::control::egm_control::abb_egm::{EgmRobot, EgmSensor};
 use crate::control::egm_control::egm_udp::EgmServer;
 use crate::control::force_control::controllers::PIDController;
 use crate::control::force_control::controllers::PIDWithNNTuner;
+use crate::control::force_control::controllers::AdmittanceController;
 use crate::control::force_control::force_function_generator::ForceFunctionGenerator;
 use crate::control::misc_tools::angle_tools::Quaternion;
 use crate::control::misc_tools::misc::wait_for_enter;
@@ -307,6 +308,33 @@ impl AbbRob<'_> {
 
                     self.geo_test_regime();
                 }
+
+                //Start a force test with only 1 phase
+                "force test" => {
+                    self.force_mode_flag = true;
+
+                    println!("Please type the axis wished to be controlled");
+
+                    let mut user_inp = String::new();
+                    stdin()
+                        .read_line(&mut user_inp)
+                        .expect("Failed to read line");
+
+                    match user_inp.to_ascii_lowercase().trim() {
+                        "x" => self.force_axis = 0,
+                        "y" => self.force_axis = 1,
+                        "z" => self.force_axis = 2,
+                        _ => {
+                            println!("Invalid axis - returning to cmd line");
+                            return;
+                        }
+                    };
+
+                    self.force_cntrl_no_phase();
+                }
+
+
+
 
                 //Trajectory with no logging
                 "dumbtraj" => {
@@ -632,9 +660,8 @@ impl AbbRob<'_> {
 
         let force_times = ffunc.as_time_f64(total_time);
 
-        //Setup the seperate PID controllers
-        let mut force_controller = PIDController::create_PID(0.001, 0.0005, 0.001);
-    
+        //Setup the force controller
+        let mut force_controller = PIDController::create_PID(0.001, 0.0005, 0.001);    
         
 
         //Original
@@ -1045,6 +1072,249 @@ impl AbbRob<'_> {
 
         self.write_marker(&test_data.data_filename, "TEST END");
     }
+
+
+
+      ///A geo test that consists of three phases and aims to impart a desired force in the sand
+    fn force_cntrl_no_phase(&mut self) {
+        //Get the user to input a force function
+        let ffunc = ForceFunctionGenerator::user_interface().unwrap();
+
+        const MAX_SPEED: f64 = 10.0;
+
+        if !self.force_mode_flag {
+            println!("Force mode not set! Returning!");
+            return;
+        }
+
+        //Create the test data and the filepaths
+        let mut test_data = TestData::create_test_data(self.config.test_fp(), self.force_mode_flag);
+
+        //Create copys of the config for the threads
+        let fp_copy = test_data.filepath.clone();
+        let test_name_copy = test_data.test_name.clone();
+
+        //Store the desired trajectory
+        test_data.store_desired_trajectory();
+
+        //Store the desired force profile
+        let ffunc_fp = format!("{}/forcefunc_{}.txt", fp_copy, test_name_copy);
+        let _ = ffunc.save_to_file(&ffunc_fp);
+
+        //Calcualte the speed intructions
+        let desired_lat_speed = 0.1;
+
+        let speed_instructions = calc_lateral_timing(&mut test_data.traj, desired_lat_speed);
+
+        let mut total_time = 0.0;
+        for instruction in speed_instructions.iter() {
+            total_time += instruction.0;
+        }
+
+        //Calculate the associated force instructions
+        let force_vals = ffunc.sig_vals();
+        self.force_target = force_vals[0];
+
+        let force_times = ffunc.as_time_f64(total_time);
+
+        //Setup the force controller
+        let mut force_controller = AdmittanceController::create(5.0, 125.0, 0.0, 0.0);
+        
+
+        //Log the config
+        self.log_config(&test_data.config_filename);
+
+        
+        self.go_home_pos();
+
+        let start_pos = (
+            test_data.traj[0].0,
+            test_data.traj[0].1,
+            test_data.traj[0].2,
+        );
+
+        println!("START height: {}", test_data.traj[0].2);
+
+        self.write_marker(&test_data.data_filename, "TEST STARTED");
+
+        //Move to the starting point
+        self.set_pos(start_pos);
+
+        //Embed self if doing horizontal loading - simplistic  approach
+        if self.force_axis != 2 {
+            self.set_pos((start_pos.0, start_pos.1, start_pos.2 - 50.0))
+        }
+
+        //Read the values once
+        self.update_rob_info();
+
+         //Spin up the depth cam subsystem thread
+        let rust_filepath = test_data.filepath;
+
+        //Create the thread piping system
+        let(pos_tx, pos_rx)  = watch::channel([self.pos.0 as f32, self.pos.1 as f32, self.pos.2 as f32, self.ori.0 as f32, self.ori.1 as f32, self.ori.2 as f32, self.ori.3 as f32]);
+
+        let (hmap_tx, hmap_rx) = mpsc::channel();
+
+        let (cntrl_tx, cntrl_rx) = watch::channel(0);
+
+        //Spawn the cam system thread
+        println!("Spinning up camera control thread....");
+        let cam_sys_thread = thread::spawn(|| {
+            if let Ok(mut cam_sys) = CamSysCntrl::default_connect(pos_rx, hmap_tx, cntrl_rx, rust_filepath){
+
+                cam_sys.start_system().unwrap();
+
+                println!("Thread closed...");
+
+        }else{
+            println!("failed to connect to cams...");
+        }});
+
+
+        let mut cnt = 0;
+
+        //Setup and connect EGM
+        let egm_client = self.connect_egm_pose().expect("Failed to connect to EGM");
+
+        if self.start_egm_stream_speed().is_err() {
+            println!("Failed to start the egm stream")
+        } else {
+            println!("EGM stream started");
+        };
+        egm_client
+            .recv_and_connect()
+            .expect("Failed to return connection");
+
+        let mut seqno = 0;
+
+        let mut desired_speed: [f64; 3] = [0.0, 0.0, 0.0];
+
+        //SETUP COMPLETE-----------------------
+
+        //Phase 3 - Complete trajectory whilst moving
+        //Start the trajectory
+
+        println!("GEOTECH - PHASE 3");
+        println!("Running time: {}", total_time);
+        //println!("PID Settings: {}", force_controller.controller());
+
+        self.write_marker(&test_data.data_filename, "PHASE 3 STARTED");
+
+
+        let mut curr_force_val: usize = 0;
+
+        let global_start = SystemTime::now();
+
+        //const OPT_STEP_CNT : usize = 250;
+        //let mut optim_tick = 0;
+        //let mut err_hist : [f64; OPT_STEP_CNT] = [0.0;OPT_STEP_CNT];
+
+
+       
+
+        for instruction in speed_instructions.iter() {
+            //Get the time limit
+            let time_lim = instruction.0;
+
+            //Start the timer
+            let local_time = SystemTime::now();
+
+            //While the timer is running
+
+            while local_time.elapsed().unwrap().as_secs_f64() < time_lim {
+                //Check if the desired force value needs to be updated
+                if global_start.elapsed().unwrap().as_secs_f64() >= force_times[curr_force_val]
+                    && curr_force_val <= ffunc.force_changes()
+                {
+                    curr_force_val += 1;
+                    self.force_target = force_vals[curr_force_val];
+                }
+
+           
+
+                //Get the egm message
+                let msg = egm_client.recv_egm().expect("Failed to get egm message");
+
+                let time = msg.get_time().expect("Failed to get egm time");
+
+                //Log the robot information gathered by the EGM using
+                let _ = self.egm_update_state(msg);
+                self.store_state(&test_data.data_filename, cnt);
+
+
+                 //Update the mapping tool
+                pos_tx.send_replace([self.pos.0 as f32, self.pos.1 as f32, self.pos.2 as f32, self.ori.0 as f32, self.ori.1 as f32, self.ori.2 as f32, self.ori.3 as f32]);
+
+
+                if self.limit_check() {
+                    println!("Out of bounds");
+                    egm_client.egm_end();
+                    self.go_home_pos();
+                    self.write_marker(&test_data.data_filename, "TEST OUT OF  SAFETY BOUNDS");
+                    return;
+                }
+             
+
+                //Apply the controller
+                let force_speed : f64 ={                  
+                    //Set to 2 which is vertical
+                    force_controller
+                    .calc_op(self.force_err, self.pos.2, desired_speed[2])
+                    .clamp(-MAX_SPEED, MAX_SPEED)                    
+                };
+
+                if force_speed.is_nan(){
+                    panic!("Invalid speed!")
+                }
+
+
+                //Load the lateral instructions - then set the force_controlled axis to the desired speed
+                desired_speed = [instruction.1.0, instruction.1.1, 0.0];
+
+                //Invert direction for compenstation with force acis
+                if self.force_axis == 1{
+                    desired_speed[self.force_axis] = -force_speed;
+                }else{
+                    desired_speed[self.force_axis] = force_speed;
+                }
+
+            
+
+                let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
+                    seqno,
+                    time,
+                    [0.0, 0.0, 0.0],
+                    self.ori.into(),
+                    desired_speed,
+                );
+                egm_client
+                    .send_egm(sensor)
+                    .expect("Failed to send sensor info");
+                seqno += 1;
+                cnt += 1;
+            }
+        }
+        self.write_marker(&test_data.data_filename, "PHASE 3 ENDED");
+
+        //Send the off signal to the mapping thread
+        cntrl_tx.send_replace(1);
+
+        //End the EGM client
+        egm_client.egm_end();
+
+        //Go back to home pos
+        self.go_home_pos();
+
+        println!("Trajectory done!");
+
+        self.write_marker(&test_data.data_filename, "TEST END");
+    }
+
+
+
+
+
 
     ///Requests the xyz position of the TCP from the robot and stores it in the robot info
     fn req_xyz(&mut self) {

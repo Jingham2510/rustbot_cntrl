@@ -275,7 +275,7 @@ impl PIDWithNNTuner{
 
 
 ///Admittance controller
-struct AdmittanceController{
+pub struct AdmittanceController{
 
     /*
     Based on standard admittance controller function
@@ -291,16 +291,16 @@ struct AdmittanceController{
     //Potential for expansion into 3 dimensions?
 
     ///Virtual mass (inertia)
-    mass : f32,
+    mass : f64,
     
     ///Damping (Velocity resistance)
-    damping : f32,
+    damping : f64,
 
     ///Stiffness constant (pull to target position)
-    stiffness : f32,
+    stiffness : f64,
 
     //Rest position
-    target_pos : f32,
+    target_pos : f64,
 
     ///Last timestep
     prev_time : Option<Instant>
@@ -310,7 +310,7 @@ struct AdmittanceController{
 impl AdmittanceController{
 
     ///Create the admittance controller
-    pub fn create(mass : f32, damping : f32, stiffness : f32, target_pos : f32) -> Self{
+    pub fn create(mass : f64, damping : f64, stiffness : f64, target_pos : f64) -> Self{
 
         //Stop running if there is no stiffness!
         assert!(mass != 0.0);
@@ -320,7 +320,7 @@ impl AdmittanceController{
 
 
     ///Use the current force error to calculate the updated velocity
-    pub fn calc_op(&mut self, force_err : f32, position : f32, velocity : f32) -> f32{
+    pub fn calc_op(&mut self, force_err : f64, position : f64, velocity : f64) -> f64{
         
         //Compute acceleration
         //(double-dot x) = 1/M(force_err - B(previous dot x) - K (previous x - x nominal))
@@ -332,7 +332,7 @@ impl AdmittanceController{
         let time_delta = if self.prev_time == None{
             0.0
         }else{
-            (now - self.prev_time.unwrap()).as_secs_f32()
+            (now - self.prev_time.unwrap()).as_secs_f64()
         };
 
         self.prev_time = Option::from(now);
