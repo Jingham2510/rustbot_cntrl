@@ -273,6 +273,7 @@ impl PIDWithNNTuner{
 }
 
 
+
 ///Admittance controller
 struct AdmittanceController{
 
@@ -289,60 +290,59 @@ struct AdmittanceController{
     //For now implementing M,B,K as singular values
     //Potential for expansion into 3 dimensions?
 
-    ///Stiffness
-    M : f32,
+    ///Virtual mass (inertia)
+    mass : f32,
     
-    ///Damping
-    B : f32,
+    ///Damping (Velocity resistance)
+    damping : f32,
 
-    ///Spring constant
-    K : f32,
+    ///Stiffness constant (pull to target position)
+    stiffness : f32,
 
     //Rest position
     target_pos : f32,
 
     ///Last timestep
-    prev_time : Instant
+    prev_time : Option<Instant>
 
 }
 
 impl AdmittanceController{
 
     ///Create the admittance controller
-    pub fn create(M : f32, B : f32, K : f32, target_pos : f32) -> Self{
-        Self { M, B, K, target_pos, prev_time: Instant::now() }
+    pub fn create(mass : f32, damping : f32, stiffness : f32, target_pos : f32) -> Self{
+
+        //Stop running if there is no stiffness!
+        assert!(mass != 0.0);
+
+        Self { mass, damping, stiffness, target_pos, prev_time: None }
     }
 
 
-    ///Start the timer (i.e. set it off when the controller begins, not when it is created)
-    pub fn start(&mut self) {
-        self.prev_time = Instant::now()
-    }
-
-
-    ///Use the current force error to calculate the error
+    ///Use the current force error to calculate the updated velocity
     pub fn calc_op(&mut self, force_err : f32, position : f32, velocity : f32) -> f32{
         
         //Compute acceleration
         //(double-dot x) = 1/M(force_err - B(previous dot x) - K (previous x - x nominal))
-        let acc = (force_err - self.B * velocity - self.K*(position - self.target_pos))/(self.M);
+        let acc = (force_err - self.damping * velocity - self.stiffness*(position - self.target_pos))/(self.mass);
 
 
-        //Push the time into a buffer and save the "new previous time"
-        let prev_prev_time = self.prev_time;
-        self.prev_time = Instant::now();
-        let time_delta = self.prev_time - prev_prev_time;
+        //Calculate the time delta - if the first instance assume no time delta
+        let now = Instant::now();
+        let time_delta = if self.prev_time == None{
+            0.0
+        }else{
+            (now - self.prev_time.unwrap()).as_secs_f32()
+        };
 
+        self.prev_time = Option::from(now);
 
-        return velocity + (acc * time_delta.as_secs_f32());
+        //Use this to update the target velocity
+        //(dot x) = (previous speed) + (accel * delta_t)
+        return velocity + (acc * time_delta);
     }
 
 
 }
 
-
-
-
-//Use this to update the target velocity
-//(dot x) = (previous speed) + (accel * delta_t)
 
