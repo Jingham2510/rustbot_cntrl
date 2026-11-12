@@ -275,7 +275,7 @@ impl PIDWithNNTuner{
 
 
 ///Admittance controller
-pub struct AdmittanceController{
+pub struct AdmittanceAndIntegralController{
 
     /*
     Based on standard admittance controller function
@@ -299,28 +299,43 @@ pub struct AdmittanceController{
     ///Stiffness constant (pull to target position)
     stiffness : f64,
 
+    ///Integral gain
+    integral_gain : f64,
+
     //Rest position
     target_pos : f64,
 
     ///Last timestep
-    prev_time : Option<Instant>
+    prev_time : Option<Instant>,
+
+     ///Error history
+    errs: Vec<f64>,
+    ///Timestamps of the errors
+    timestamps: Vec<Instant>,
+
+    ///The current integral value
+    curr_integral : f64
 
 }
 
-impl AdmittanceController{
+impl AdmittanceAndIntegralController{
 
     ///Create the admittance controller
-    pub fn create(mass : f64, damping : f64, stiffness : f64, target_pos : f64) -> Self{
+    pub fn create(mass : f64, damping : f64, stiffness : f64, integral_gain : f64,target_pos : f64) -> Self{
 
         //Stop running if there is no stiffness!
         assert!(mass != 0.0);
 
-        Self { mass, damping, stiffness, target_pos, prev_time: None }
+        Self { mass, damping, stiffness, target_pos, integral_gain,prev_time: None , errs : vec![], timestamps : vec![], curr_integral : 0.0}
     }
 
 
     ///Use the current force error to calculate the updated velocity
     pub fn calc_op(&mut self, force_err : f64, position : f64, velocity : f64) -> f64{
+
+
+        self.timestamps.push(Instant::now());
+        self.errs.push(force_err);
         
         //Compute acceleration
         //(double-dot x) = 1/M(force_err - B(previous dot x) - K (previous x - x nominal))
@@ -328,18 +343,38 @@ impl AdmittanceController{
 
 
         //Calculate the time delta - if the first instance assume no time delta
-        let now = Instant::now();
+        let now = self.timestamps.last().unwrap();
         let time_delta = if self.prev_time == None{
             0.0
         }else{
-            (now - self.prev_time.unwrap()).as_secs_f64()
+            (*now - self.prev_time.unwrap()).as_secs_f64()
         };
 
-        self.prev_time = Option::from(now);
+        self.prev_time = Option::from(*now);
 
         //Use this to update the target velocity
         //(dot x) = (previous speed) + (accel * delta_t)
-        return velocity + (acc * time_delta);
+        return velocity + (acc * time_delta) + (self.integral_gain*self.calc_integral_reimann_approx())
+    }
+
+    //Approximate the integral area using the trapezium approximation
+    fn calc_integral_reimann_approx(&mut self) -> f64 {
+        let curr_err = self.errs[self.errs.len() - 1];
+        let prev_err = self.errs[self.errs.len() - 2];
+        let curr_time = self.timestamps[self.timestamps.len() - 1];
+        let prev_time = self.timestamps[self.timestamps.len() - 2];
+        let time_delta = (curr_time - prev_time).as_secs_f64();
+
+        //Check the magnitudes of the errors 
+        let new_area =
+            if curr_err != -prev_err {
+                (time_delta) * ((prev_err + curr_err) / 2.0)
+            } else {
+                0.0
+            };
+
+        self.curr_integral += new_area;
+        self.curr_integral
     }
 
 

@@ -60,7 +60,7 @@ def heightmap_from_file(path):
     return HeightMap(low[:2], high[:2], cells)
 
 
-def process(no, base="../../../Data/test_dumps/line_parametric_k/line_inter_0"):
+def process(no, base="../../../Data/test_dumps/line_parametric_k/line_inter_15"):
 
     #Account for no float on text
     if no == 0.0:

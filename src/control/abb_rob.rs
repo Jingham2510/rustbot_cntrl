@@ -4,7 +4,7 @@ use crate::control::egm_control::abb_egm::{EgmRobot, EgmSensor};
 use crate::control::egm_control::egm_udp::EgmServer;
 use crate::control::force_control::controllers::PIDController;
 use crate::control::force_control::controllers::PIDWithNNTuner;
-use crate::control::force_control::controllers::AdmittanceController;
+use crate::control::force_control::controllers::AdmittanceAndIntegralController;
 use crate::control::force_control::force_function_generator::ForceFunctionGenerator;
 use crate::control::misc_tools::angle_tools::Quaternion;
 use crate::control::misc_tools::misc::wait_for_enter;
@@ -31,11 +31,11 @@ pub struct AbbRob<'a> {
     ///Indicates if the robot is simulated on the local device
     local: bool,
     ///The current xyz position of the TCP
-    pos: (f64, f64, f64),
+    pos: [f64; 3],
     ///The current wxyz quaternion orientation of the TCP
-    ori: (f64, f64, f64, f64),
+    ori: [f64; 4],
     ///The current joint angles
-    jnt_angles: (f64, f64, f64, f64, f64, f64),
+    jnt_angles: [f64; 6],
     ///The currently measured force information
     force: [f64; 6],
     ///State value that indicates if the robot has disconnected
@@ -220,10 +220,10 @@ impl AbbRob<'_> {
             let new_rob = AbbRob {
                 socket: rob_sock,
                 local,
-                pos: (f64::NAN, f64::NAN, f64::NAN),
-                ori: (f64::NAN, f64::NAN, f64::NAN, f64::NAN),
-                jnt_angles: (f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN),
-                force: [f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN],
+                pos: [f64::NAN;3],
+                ori: [f64::NAN;4],
+                jnt_angles: [f64::NAN; 6],
+                force: [f64::NAN; 6],
                 disconnected: false,
                 force_mode_flag: false,
                 force_axis: 3,
@@ -277,7 +277,7 @@ impl AbbRob<'_> {
                 //Update and print the robots TCP position
                 "req xyz" => {
                     self.req_xyz();
-                    println!("X:{}, Y:{}, Z:{}", self.pos.0, self.pos.1, self.pos.2);
+                    println!("X:{}, Y:{}, Z:{}", self.pos[0], self.pos[1], self.pos[2]);
                 }
 
                 //Update the robots orientatoin
@@ -697,7 +697,7 @@ impl AbbRob<'_> {
 
         //Embed self if doing horizontal loading - simplistic  approach
         if self.force_axis != 2 {
-            self.set_pos((start_pos.0, start_pos.1, start_pos.2 - 50.0))
+            self.set_pos((start_pos.0, start_pos.1, start_pos.2 - 525.0))
         }
 
         //Read the values once
@@ -707,7 +707,7 @@ impl AbbRob<'_> {
         let rust_filepath = test_data.filepath;
 
         //Create the thread piping system
-        let(pos_tx, pos_rx)  = watch::channel([self.pos.0 as f32, self.pos.1 as f32, self.pos.2 as f32, self.ori.0 as f32, self.ori.1 as f32, self.ori.2 as f32, self.ori.3 as f32]);
+        let(pos_tx, pos_rx)  = watch::channel([self.pos[0] as f32, self.pos[1] as f32, self.pos[2] as f32, self.ori[0] as f32, self.ori[1] as f32, self.ori[2] as f32, self.ori[3] as f32]);
 
         let (hmap_tx, hmap_rx) = mpsc::channel();
 
@@ -771,7 +771,7 @@ impl AbbRob<'_> {
                 // println!("Z force diff:{}", self.force_target - self.force.2);
 
                  //Update the mapping tool
-                pos_tx.send_replace([self.pos.0 as f32, self.pos.1 as f32, self.pos.2 as f32, self.ori.0 as f32, self.ori.1 as f32, self.ori.2 as f32, self.ori.3 as f32]);
+                pos_tx.send_replace([self.pos[0] as f32, self.pos[1] as f32, self.pos[2] as f32, self.ori[0] as f32, self.ori[1] as f32, self.ori[2] as f32, self.ori[3] as f32]);
 
 
                 if self.limit_check() {
@@ -843,7 +843,7 @@ impl AbbRob<'_> {
                 self.store_state(&test_data.data_filename, cnt);
 
                  //Update the mapping tool
-                pos_tx.send_replace([self.pos.0 as f32, self.pos.1 as f32, self.pos.2 as f32, self.ori.0 as f32, self.ori.1 as f32, self.ori.2 as f32, self.ori.3 as f32]);
+                pos_tx.send_replace([self.pos[0] as f32, self.pos[1] as f32, self.pos[2] as f32, self.ori[0] as f32, self.ori[1] as f32, self.ori[2] as f32, self.ori[3] as f32]);
 
 
                 if self.limit_check() {
@@ -996,7 +996,7 @@ impl AbbRob<'_> {
 
 
                  //Update the mapping tool
-                pos_tx.send_replace([self.pos.0 as f32, self.pos.1 as f32, self.pos.2 as f32, self.ori.0 as f32, self.ori.1 as f32, self.ori.2 as f32, self.ori.3 as f32]);
+                pos_tx.send_replace([self.pos[0] as f32, self.pos[1] as f32, self.pos[2] as f32, self.ori[0] as f32, self.ori[1] as f32, self.ori[2] as f32, self.ori[3] as f32]);
 
 
                 if self.limit_check() {
@@ -1118,7 +1118,7 @@ impl AbbRob<'_> {
         let force_times = ffunc.as_time_f64(total_time);
 
         //Setup the force controller
-        let mut force_controller = AdmittanceController::create(5.0, 125.0, 0.0, 0.0);
+        let mut force_controller = AdmittanceAndIntegralController::create(5.0, 75.0, 0.0, 0.001,0.0);
         
 
         //Log the config
@@ -1142,7 +1142,7 @@ impl AbbRob<'_> {
 
         //Embed self if doing horizontal loading - simplistic  approach
         if self.force_axis != 2 {
-            self.set_pos((start_pos.0, start_pos.1, start_pos.2 - 50.0))
+            self.set_pos((start_pos.0, start_pos.1, start_pos.2 - 25.0))
         }
 
         //Read the values once
@@ -1152,7 +1152,7 @@ impl AbbRob<'_> {
         let rust_filepath = test_data.filepath;
 
         //Create the thread piping system
-        let(pos_tx, pos_rx)  = watch::channel([self.pos.0 as f32, self.pos.1 as f32, self.pos.2 as f32, self.ori.0 as f32, self.ori.1 as f32, self.ori.2 as f32, self.ori.3 as f32]);
+        let(pos_tx, pos_rx)  = watch::channel([self.pos[0] as f32, self.pos[1] as f32, self.pos[2] as f32, self.ori[0] as f32, self.ori[1] as f32, self.ori[2] as f32, self.ori[3] as f32]);
 
         let (hmap_tx, hmap_rx) = mpsc::channel();
 
@@ -1197,7 +1197,6 @@ impl AbbRob<'_> {
 
         println!("GEOTECH - PHASE 3");
         println!("Running time: {}", total_time);
-        //println!("PID Settings: {}", force_controller.controller());
 
         self.write_marker(&test_data.data_filename, "PHASE 3 STARTED");
 
@@ -1205,11 +1204,6 @@ impl AbbRob<'_> {
         let mut curr_force_val: usize = 0;
 
         let global_start = SystemTime::now();
-
-        //const OPT_STEP_CNT : usize = 250;
-        //let mut optim_tick = 0;
-        //let mut err_hist : [f64; OPT_STEP_CNT] = [0.0;OPT_STEP_CNT];
-
 
        
 
@@ -1244,7 +1238,7 @@ impl AbbRob<'_> {
 
 
                  //Update the mapping tool
-                pos_tx.send_replace([self.pos.0 as f32, self.pos.1 as f32, self.pos.2 as f32, self.ori.0 as f32, self.ori.1 as f32, self.ori.2 as f32, self.ori.3 as f32]);
+                pos_tx.send_replace([self.pos[0] as f32, self.pos[1] as f32, self.pos[2] as f32, self.ori[0] as f32, self.ori[1] as f32, self.ori[2] as f32, self.ori[3] as f32]);
 
 
                 if self.limit_check() {
@@ -1258,9 +1252,9 @@ impl AbbRob<'_> {
 
                 //Apply the controller
                 let force_speed : f64 ={                  
-                    //Set to 2 which is vertical
+                    //Set to 2 which is vertical -- the current desired speed is assumed to be the robot velocity
                     force_controller
-                    .calc_op(self.force_err, self.pos.2, desired_speed[2])
+                    .calc_op(self.force_err, self.pos[self.force_axis], desired_speed[self.force_axis])
                     .clamp(-MAX_SPEED, MAX_SPEED)                    
                 };
 
@@ -1277,9 +1271,7 @@ impl AbbRob<'_> {
                     desired_speed[self.force_axis] = -force_speed;
                 }else{
                     desired_speed[self.force_axis] = force_speed;
-                }
-
-            
+                }            
 
                 let sensor: EgmSensor = EgmSensor::set_pose_set_speed(
                     seqno,
@@ -1293,6 +1285,9 @@ impl AbbRob<'_> {
                     .expect("Failed to send sensor info");
                 seqno += 1;
                 cnt += 1;
+
+                println!("SPEED: {:?}", desired_speed);
+
             }
         }
         self.write_marker(&test_data.data_filename, "PHASE 3 ENDED");
@@ -1327,10 +1322,10 @@ impl AbbRob<'_> {
             //Check that the vector is the right length
             if xyz_vec.len() != 3 {
                 println!("XYZ pos read error!");
-                self.pos = (f64::NAN, f64::NAN, f64::NAN);
+                self.pos = [f64::NAN; 3];
             } else {
                 //Store the pos in the robot info
-                self.pos = (xyz_vec[0], xyz_vec[1], xyz_vec[2]);
+                self.pos = [xyz_vec[0], xyz_vec[1], xyz_vec[2]];
 
                 //println!("CURR POS: {:?}", self.pos);
             }
@@ -1353,10 +1348,10 @@ impl AbbRob<'_> {
             //Check that the vector is the right length
             if ori_vec.len() != 4 {
                 println!("ORI pos read error!");
-                self.ori = (f64::NAN, f64::NAN, f64::NAN, f64::NAN);
+                self.ori = [f64::NAN;4];
             } else {
                 //Store the pos in the robot info
-                self.ori = (ori_vec[0], ori_vec[1], ori_vec[2], ori_vec[3]);
+                self.ori = [ori_vec[0], ori_vec[1], ori_vec[2], ori_vec[3]];
             }
         } else {
             //If the socket request returns nothing
@@ -1377,17 +1372,17 @@ impl AbbRob<'_> {
             if jtang_vec.len() != 6 {
                 println!("joint angle read error!");
                 println!("Expected: 6. Actual: {}", jtang_vec.len());
-                self.jnt_angles = (f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN, f64::NAN);
+                self.jnt_angles = [f64::NAN;6];
             } else {
                 //Store the pos in the robot info
-                self.jnt_angles = (
+                self.jnt_angles = [
                     jtang_vec[0],
                     jtang_vec[1],
                     jtang_vec[2],
                     jtang_vec[3],
                     jtang_vec[4],
                     jtang_vec[5],
-                );
+                ];
             }
         } else {
             //If the socket request returns nothing
@@ -1471,13 +1466,13 @@ impl AbbRob<'_> {
                     .unwrap()
                     .as_secs_f64(),
                 //Make sure that you don't print a lack of information in the data
-                self.pos.0,
-                self.pos.1,
-                self.pos.2,
-                self.ori.0,
-                self.ori.1,
-                self.ori.2,
-                self.ori.3,
+                self.pos[0],
+                self.pos[1],
+                self.pos[2],
+                self.ori[0],
+                self.ori[1],
+                self.ori[2],
+                self.ori[3],
                 self.force[0],
                 self.force[1],
                 self.force[2],
@@ -1661,13 +1656,13 @@ impl AbbRob<'_> {
         let max_y = 2650.0;
         let max_z = 2000.0;
 
-        if self.pos.0 > max_x || self.pos.0 < min_x {
+        if self.pos[0] > max_x || self.pos[0] < min_x {
             return true;
         }
-        if self.pos.1 > max_y || self.pos.1 < min_y {
+        if self.pos[1] > max_y || self.pos[1] < min_y {
             return true;
         }
-        if self.pos.2 > max_z || self.pos.2 < min_z {
+        if self.pos[2] > max_z || self.pos[2] < min_z {
             return true;
         }
 
@@ -1962,7 +1957,7 @@ impl AbbRob<'_> {
             let rust_filepath = test_data.filepath;
 
             //Create the thread piping system
-            let(pos_tx, pos_rx)  = watch::channel([self.pos.0 as f32, self.pos.1 as f32, self.pos.2 as f32, self.ori.0 as f32, self.ori.1 as f32, self.ori.2 as f32, self.ori.3 as f32]);
+            let(pos_tx, pos_rx)  = watch::channel([self.pos[0] as f32, self.pos[1] as f32, self.pos[2] as f32, self.ori[0] as f32, self.ori[1] as f32, self.ori[2] as f32, self.ori[3] as f32]);
 
             let (hmap_tx, hmap_rx) = mpsc::channel();
 
@@ -2025,7 +2020,7 @@ impl AbbRob<'_> {
                 self.store_state(&test_data.data_filename, cnt);
 
                 //Update the mapping tool
-                pos_tx.send_replace([self.pos.0 as f32, self.pos.1 as f32, self.pos.2 as f32, self.ori.0 as f32, self.ori.1 as f32, self.ori.2 as f32, self.ori.3 as f32]);
+                pos_tx.send_replace([self.pos[0] as f32, self.pos[1] as f32, self.pos[2] as f32, self.ori[0] as f32, self.ori[1] as f32, self.ori[2] as f32, self.ori[3] as f32]);
 
                 if self.limit_check() {
                     println!("Out of bounds");
