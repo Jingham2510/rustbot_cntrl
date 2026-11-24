@@ -2,7 +2,7 @@
 use crate::config::Config;
 use crate::control::egm_control::abb_egm::{EgmRobot, EgmSensor};
 use crate::control::egm_control::egm_udp::EgmServer;
-use crate::control::force_control::controllers::PIDController;
+use crate::control::force_control::controllers::{AdaptiveAdmittanceController, PIDController};
 use crate::control::force_control::controllers::PIDWithNNTuner;
 use crate::control::force_control::controllers::AdmittanceAndIntegralController;
 use crate::control::force_control::force_function_generator::ForceFunctionGenerator;
@@ -56,7 +56,7 @@ pub struct AbbRob<'a> {
 ///Contains all the relevant test data for when a test starts
 struct TestData {
     ///The trajectory of the test
-    traj: Vec<(f64, f64, f64)>,
+    traj: Vec<[f64;3]>,
     ///The name of the test
     test_name: String,
     ///The filepath to store all test information
@@ -106,7 +106,7 @@ impl TestData {
     }
 
     ///Lets the user pick a desired trajectory from a set of predetermined trajectories (or an earlier custom made one)
-    fn pick_trajectory(_forcemode: bool) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
+    fn pick_trajectory(_forcemode: bool) -> Result<Vec<[f64;3]>, anyhow::Error> {
         let mut traj;
         //Loop until command given
         loop {
@@ -450,44 +450,16 @@ impl AbbRob<'_> {
 
     ///Set the TCP point within the global coordinate system
     ///xyz - desired position in cartesian coordinates
-    fn set_pos(&mut self, xyz: (f64, f64, f64)) {
+    fn set_pos(&mut self, xyz: [f64;3]) {
         if let Ok(_resp) = self
             .socket
-            .req(&format!("MVTO:[{},{},{}]", xyz.0, xyz.1, xyz.2))
+            .req(&format!("MVTO:[{},{},{}]", xyz[0], xyz[1], xyz[2]))
         {
             println!("Response!");
             //self.update_rob_info();
         } else {
             println!("Warning - no response - robot may not move");
         }
-    }
-
-    ///Allow the user to swap the currently held tool by moving to a predefined position
-    fn swap_tool(&mut self) -> Result<(), anyhow::Error> {
-        //First move to home to ensure an unobstructed movement
-        self.go_home_pos();
-
-        //DO NOT CHANGE WITHOUT MANUAL CONFIRMATION
-        const TOOL_CHANGE_POS: (f64, f64, f64) = (2190.0, 440.0, 183.0);
-        const TOOL_CHANGE_ORI: Quaternion = Quaternion {
-            w: 0.70621,
-            x: -0.02795,
-            y: 0.70730,
-            z: -0.01446,
-        };
-
-        //Go to the tool change position and rotate
-        self.set_pos(TOOL_CHANGE_POS);
-        self.set_ori(TOOL_CHANGE_ORI);
-
-        //Wait for user confirmation that tool is swapped
-        println!("Please swap tool and press enter");
-        wait_for_enter();
-
-        //Move the robot back to home
-        self.go_home_pos();
-
-        Ok(())
     }
 
     ///A trajectory run that stores no information other than the desired trajectory
@@ -527,12 +499,12 @@ impl AbbRob<'_> {
         
 
         //Move to starting position
-         let start_pos = (
-            test_data.traj[0].0,
-            test_data.traj[0].1,
-            test_data.traj[0].2,
-        );
-        println!("START height: {}", test_data.traj[0].2);
+         let start_pos = [
+            test_data.traj[0][0],
+            test_data.traj[0][1],
+            test_data.traj[0][2],
+         ];
+        println!("START height: {}", test_data.traj[0][2]);
         self.write_marker(&test_data.data_filename, "TEST STARTED");
         println!("Moving to startpos : {:?}", start_pos);
         self.set_pos(start_pos);
@@ -682,13 +654,13 @@ impl AbbRob<'_> {
         
         self.go_home_pos();
 
-        let start_pos = (
-            test_data.traj[0].0,
-            test_data.traj[0].1,
-            test_data.traj[0].2,
-        );
+        let start_pos = [
+            test_data.traj[0][0],
+            test_data.traj[0][1],
+            test_data.traj[0][2],
+        ];
 
-        println!("START height: {}", test_data.traj[0].2);
+        println!("START height: {}", test_data.traj[0][2]);
 
         self.write_marker(&test_data.data_filename, "TEST STARTED");
 
@@ -697,7 +669,7 @@ impl AbbRob<'_> {
 
         //Embed self if doing horizontal loading - simplistic  approach
         if self.force_axis != 2 {
-            self.set_pos((start_pos.0, start_pos.1, start_pos.2 - 525.0))
+            self.set_pos([start_pos[0], start_pos[1], start_pos[2] - 25.0])
         }
 
         //Read the values once
@@ -1118,7 +1090,7 @@ impl AbbRob<'_> {
         let force_times = ffunc.as_time_f64(total_time);
 
         //Setup the force controller
-        let mut force_controller = AdmittanceAndIntegralController::create(5.0, 75.0, 0.0, 0.001,0.0);
+        let mut force_controller = AdaptiveAdmittanceController::create(5.0, 75.0, 0.0, test_data.traj[0][2]);
         
 
         //Log the config
@@ -1127,13 +1099,13 @@ impl AbbRob<'_> {
         
         self.go_home_pos();
 
-        let start_pos = (
-            test_data.traj[0].0,
-            test_data.traj[0].1,
-            test_data.traj[0].2,
-        );
+        let start_pos = [
+            test_data.traj[0][0],
+            test_data.traj[0][1],
+            test_data.traj[0][2],
+        ];
 
-        println!("START height: {}", test_data.traj[0].2);
+        println!("START height: {}", test_data.traj[0][2]);
 
         self.write_marker(&test_data.data_filename, "TEST STARTED");
 
@@ -1142,7 +1114,7 @@ impl AbbRob<'_> {
 
         //Embed self if doing horizontal loading - simplistic  approach
         if self.force_axis != 2 {
-            self.set_pos((start_pos.0, start_pos.1, start_pos.2 - 25.0))
+            self.set_pos([start_pos[0], start_pos[1], start_pos[2] - 25.0])
         }
 
         //Read the values once
@@ -1207,12 +1179,14 @@ impl AbbRob<'_> {
 
        
 
-        for instruction in speed_instructions.iter() {
+        for (i, instruction) in speed_instructions.iter().enumerate() {
             //Get the time limit
             let time_lim = instruction.0;
 
             //Start the timer
             let local_time = SystemTime::now();
+
+            force_controller.set_target_pos(test_data.traj[i][2]);
 
             //While the timer is running
 
@@ -1286,7 +1260,7 @@ impl AbbRob<'_> {
                 seqno += 1;
                 cnt += 1;
 
-                println!("SPEED: {:?}", desired_speed);
+                //println!("SPEED: {:?}", desired_speed);
 
             }
         }

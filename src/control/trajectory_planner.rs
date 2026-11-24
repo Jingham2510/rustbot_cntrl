@@ -373,7 +373,7 @@ pub fn calc_lateral_timing(traj: &mut [[f64;3]], des_lat_speed: f64) -> Vec<(f64
 }
 
 ///Calculate the orthogonal speeds of the axis to achieve a desired trajectory
-pub fn calc_xyz_timing(traj: &mut [(f64, f64, f64)], desired_speed : f64) -> Vec<(f64, (f64, f64, f64))>{
+pub fn calc_xyz_timing(traj: &mut [[f64;3]], desired_speed : f64) -> Vec<(f64, (f64, f64, f64))>{
  let mut timing_instructions: Vec<(f64, (f64, f64, f64))> = vec![];
 
     let mut last_pnt = traj[0];
@@ -385,7 +385,7 @@ pub fn calc_xyz_timing(traj: &mut [(f64, f64, f64)], desired_speed : f64) -> Vec
             continue;
         }
         //Get the total distance required to move
-        let (del_x, del_y, del_z) = (pnt.0 - last_pnt.0, pnt.1 - last_pnt.1, pnt.2 - last_pnt.2);
+        let (del_x, del_y, del_z) = (pnt[0] - last_pnt[0], pnt[1] - last_pnt[1], pnt[2] - last_pnt[2]);
 
         let total_distance = (del_x.powi(2) + del_y.powi(2) + del_z.powi(2)).sqrt();
 
