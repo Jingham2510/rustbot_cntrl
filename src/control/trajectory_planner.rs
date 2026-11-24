@@ -20,9 +20,9 @@ const IMPL_TRAJS: [&str; 7] = [
 const DEFAULT_Z : f64 = 53.0;
 
 ///Generates a trajectory bsaed on string input from user
-pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
+pub fn traj_gen(traj: &str) -> Result<Vec<[f64;3]>, anyhow::Error> {
     //Define the trajcetory - it will be of unknown size so have to store on the heap
-    let mut trajectory: Vec<(f64, f64, f64)> = Vec::new();
+    let mut trajectory: Vec<[f64;3]> = Vec::new();
 
     match traj.to_lowercase().as_str() {
         //Line trajectory
@@ -35,8 +35,8 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
             let line_z = DEFAULT_Z;
             let start_y = 1900.0;
             let end_y = 2000.0;
-            let start_pos = (line_x, start_y + offset, line_z);
-            let end_pos = (line_x, end_y + offset, line_z);
+            let start_pos = [line_x, start_y + offset, line_z];
+            let end_pos = [line_x, end_y + offset, line_z];
 
             trajectory = vec![start_pos, end_pos];
         }
@@ -48,8 +48,8 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
             let line_z = DEFAULT_Z;
             let start_y = 1800.0;
             let end_y = 1900.0;
-            let start_pos = (line_x, start_y, line_z);
-            let end_pos = (line_x, end_y, line_z);
+            let start_pos = [line_x, start_y, line_z];
+            let end_pos = [line_x, end_y, line_z];
 
             trajectory = vec![end_pos, start_pos];
         }
@@ -61,8 +61,8 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
             let line_z = DEFAULT_Z;
             let start_y = 1800.0;
             let end_y = 2200.0;
-            let start_pos = (line_x, start_y, line_z);
-            let end_pos = (line_x, end_y, line_z);
+            let start_pos = [line_x, start_y, line_z];
+            let end_pos = [line_x, end_y, line_z];
 
             let num_of_points = 1000;
 
@@ -72,7 +72,7 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
 
             //Add all the middle points
             for i in 1..num_of_points {
-                trajectory.push((line_x, start_y + (i as f64 * dist_per_pnt), DEFAULT_Z));
+                trajectory.push([line_x, start_y + (i as f64 * dist_per_pnt), DEFAULT_Z]);
             }
 
             trajectory.push(end_pos);
@@ -89,11 +89,11 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
 
             //Create the circle trajectory
             for i in 1..(360 * loops) {
-                trajectory.push((
+                trajectory.push([
                     centre.0 + ((i as f64 * (PI / 180.0)).sin() * radius),
                     centre.1 + ((i as f64 * (PI / 180.0)).cos() * radius),
                     centre.2,
-                ));
+                ]);
             }
         }
 
@@ -112,11 +112,11 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
 
             //Create the circle trajectory
             for i in 1..(360 * loops) {
-                trajectory.push((
+                trajectory.push([
                     centre.0 + ((i as f64 * (PI / 180.0)).sin() * curr_r),
                     centre.1 + ((i as f64 * (PI / 180.0)).cos() * curr_r),
                     centre.2,
-                ));
+                ]);
 
                 if start_r <= stop_r {
                     curr_r = start_r + ((stop_r - start_r).abs() * (i / (360 * loops)) as f64);
@@ -133,8 +133,8 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
             let end_z = start_z - 50.0;
             let start_y = 1650.0;
             let end_y = 2100.0;
-            let start_pos = (line_x, start_y, start_z);
-            let end_pos = (line_x, end_y, end_z);
+            let start_pos = [line_x, start_y, start_z];
+            let end_pos = [line_x, end_y, end_z];
 
             //Ensure the trajectory starts in the right position
             trajectory = vec![start_pos, end_pos];
@@ -156,15 +156,15 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
 
             for i in 0..no_of_lines {
                 for j in 0..=pnts_per_line {
-                    trajectory.push((
+                    trajectory.push([
                         start_x + (i as f64 * line_sep),
                         (start_y + (step * j as f64)),
                         start_z - (i as f64 * depth_sep),
-                    ));
+                    ]);
                 }
 
                 //Go home to not disturb the other lines
-                trajectory.push((start_x + (i as f64 * line_sep), start_y, DEFAULT_Z + 50.0))
+                trajectory.push([start_x + (i as f64 * line_sep), start_y, DEFAULT_Z + 50.0])
             }
         }
 
@@ -178,19 +178,19 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
             //NORMALLY 300
             for i in 1..300 {
                 if i % 2 == 0 {
-                    trajectory.push((start_x + WIGGLE_MOVE, start_y, DEFAULT_Z));
+                    trajectory.push([start_x + WIGGLE_MOVE, start_y, DEFAULT_Z]);
                 }
                 if i % 3 == 0 {
-                    trajectory.push((start_x, start_y, DEFAULT_Z));
+                    trajectory.push([start_x, start_y, DEFAULT_Z]);
                 }
                 if i % 4 == 0 {
-                    trajectory.push((start_x - WIGGLE_MOVE, start_y, DEFAULT_Z));
+                    trajectory.push([start_x - WIGGLE_MOVE, start_y, DEFAULT_Z]);
                 }
                 if i % 5 == 0 {
-                    trajectory.push((start_x, start_y + WIGGLE_MOVE, DEFAULT_Z));
+                    trajectory.push([start_x, start_y + WIGGLE_MOVE, DEFAULT_Z]);
                 }
                 if i % 6 == 0 {
-                    trajectory.push((start_x, start_y - WIGGLE_MOVE, DEFAULT_Z));
+                    trajectory.push([start_x, start_y - WIGGLE_MOVE, DEFAULT_Z]);
                 }
             }
         }
@@ -203,8 +203,8 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
             let start_z = DEFAULT_Z;
             let end_z = start_z - 80.0;
 
-            let start_pos = (line_x, line_y, start_z);
-            let end_pos = (line_x, line_y, end_z);
+            let start_pos = [line_x, line_y, start_z];
+            let end_pos = [line_x, line_y, end_z];
 
             trajectory = vec![start_pos, end_pos];
         }
@@ -212,7 +212,7 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
         //Trajectory that hovers above the entire terrain to map out the whole thing
         "map" =>{
 
-            trajectory = vec![(25.37, 1786.00, DEFAULT_Z), (25.33, 2554.89, DEFAULT_Z), (387.91, 2554.93, DEFAULT_Z), (387.93, 1814.03, DEFAULT_Z), (785.68, 1819.25, DEFAULT_Z), (785.64, 2504.83, DEFAULT_Z)]
+            trajectory = vec![[25.37, 1786.00, DEFAULT_Z], [25.33, 2554.89, DEFAULT_Z], [387.91, 2554.93, DEFAULT_Z], [387.93, 1814.03, DEFAULT_Z], [785.68, 1819.25, DEFAULT_Z], [85.64, 2504.83, DEFAULT_Z]]
 
 
         }
@@ -241,7 +241,7 @@ pub fn traj_gen(traj: &str) -> Result<Vec<(f64, f64, f64)>, anyhow::Error> {
 }
 
 ///Reads a custom trajectory file and creates the xyz vector
-fn cust_traj_handler() -> Option<Vec<(f64, f64, f64)>> {
+fn cust_traj_handler() -> Option<Vec<[f64;3]>> {
     //Stored within the local directory for the project! (updated manually with custom trajectories)
     const CUST_TRAJ_LOC: &str = "./cust_trajs/";
 
@@ -282,7 +282,7 @@ fn cust_traj_handler() -> Option<Vec<(f64, f64, f64)>> {
     //Attempt to match to a trajectory in the directory
     if let Ok(file) = File::open(format!("{}{}.traj", CUST_TRAJ_LOC, user_inp.trim())) {
         //Create an empty vector
-        let mut traj: Vec<(f64, f64, f64)> = vec![];
+        let mut traj: Vec<[f64;3]> = vec![];
 
         //Extract each line containing the trajectory info
         let mut traj_str = String::new();
@@ -304,7 +304,7 @@ fn cust_traj_handler() -> Option<Vec<(f64, f64, f64)>> {
             let z : f64 = split_traj[2].parse().unwrap();
 
             //Plac  
-            traj.push((x, y, z));
+            traj.push([x, y, z]);
         
         }
 
@@ -320,7 +320,7 @@ fn cust_traj_handler() -> Option<Vec<(f64, f64, f64)>> {
 
 ///Calculates the required xy speeds to achieve a desired trajectory based on a desired speed
 ///Return format (time of speed (s), (X speed (mm/s), Y speed (mm/s))
-pub fn calc_lateral_timing(traj: &mut [(f64, f64, f64)], des_lat_speed: f64) -> Vec<(f64, (f64, f64))> {
+pub fn calc_lateral_timing(traj: &mut [[f64;3]], des_lat_speed: f64) -> Vec<(f64, (f64, f64))> {
     let mut timing_instructions: Vec<(f64, (f64, f64))> = vec![];
 
     let mut last_pnt = traj[0];
@@ -332,7 +332,7 @@ pub fn calc_lateral_timing(traj: &mut [(f64, f64, f64)], des_lat_speed: f64) -> 
             continue;
         }
 
-        let xy_distances: (f64, f64) = ((pnt.0 - last_pnt.0), (pnt.1 - last_pnt.1));
+        let xy_distances: (f64, f64) = ((pnt[0] - last_pnt[0]), (pnt[1] - last_pnt[1]));
 
         //Calculate distance between points
         let lat_distance = (xy_distances.0.powi(2) + xy_distances.1.powi(2)).sqrt();
@@ -356,10 +356,10 @@ pub fn calc_lateral_timing(traj: &mut [(f64, f64, f64)], des_lat_speed: f64) -> 
         }
 
         //If the robot needs to move in a negative direction
-        if pnt.0 < last_pnt.0 {
+        if pnt[0] < last_pnt[0] {
             req_x_speed = -req_x_speed;
         }
-        if pnt.1 < last_pnt.1 {
+        if pnt[1] < last_pnt[1] {
             req_y_speed = -req_y_speed;
         }
 
