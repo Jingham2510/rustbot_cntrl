@@ -274,7 +274,7 @@ impl PIDWithNNTuner{
 
 
 
-///Admittance controller
+///Admittance controller with an integral add-on to help reduce steady state error
 pub struct AdmittanceAndIntegralController{
 
     /*
@@ -326,7 +326,13 @@ impl AdmittanceAndIntegralController{
         //Stop running if there is no stiffness!
         assert!(mass != 0.0);
 
-        Self { mass, damping, stiffness, target_pos, integral_gain,prev_time: None , errs : vec![], timestamps : vec![], curr_integral : 0.0}
+        Self { mass, damping, stiffness, target_pos, integral_gain,prev_time: None , errs : vec![0.0], timestamps : vec![Instant::now()], curr_integral : 0.0}
+    }
+
+
+    ///Update the target pos of the controller
+    pub fn set_target_pos(&mut self, target_pos : f64){
+        self.target_pos = target_pos;
     }
 
 
@@ -381,3 +387,154 @@ impl AdmittanceAndIntegralController{
 }
 
 
+///Admittance controller that utilises a stiffness estimation to update its siffness value
+pub struct AdaptiveAdmittanceController{
+
+    /*
+    Based on standard admittance controller function
+        F = M*(double dot x) + B*(dot x) * K*(x)
+        F - Force
+        M - Stiffness Matrix (diagonal - Positive semi-definite)
+        B - Damping (diagonal - Positive semi-definite)
+        K - Spring constants(?)
+        x - position of robot
+     */
+
+    //For now implementing M,B,K as singular values
+    //Potential for expansion into 3 dimensions?
+
+    ///Virtual mass (inertia)
+    mass : f64,
+    
+    ///Damping (Velocity resistance)
+    damping : f64,
+
+    ///Stiffness constant (pull to target position)
+    stiffness : f64,
+
+    ///Stiffness covariance estimator
+    stiffness_covar : f64,
+
+    //Rest position
+    target_pos : f64,
+
+    ///Last timestep
+    prev_time : Option<Instant>,
+
+    ///Previous position
+    prev_pos : Option<f64>,
+
+    ///Previous force measurement
+    prev_force : Option<f64>
+
+
+
+}
+
+impl AdaptiveAdmittanceController{
+
+    ///Create the admittance controller
+    pub fn create(mass : f64, damping : f64, stiffness : f64, target_pos : f64) -> Self{
+
+        //Stop running if there is no stiffness!
+        assert!(mass != 0.0);
+
+            //High initial stiffness covariance because we don't know the terrain properties
+
+        Self { mass, damping, stiffness, stiffness_covar : 1000.0, target_pos, prev_time: None, prev_pos : None, prev_force : None}
+    }
+
+    ///Update the target pos of the controller
+    pub fn set_target_pos(&mut self, target_pos : f64){
+        self.target_pos = target_pos;
+    }  
+
+
+    ///Use the current force error to calculate the updated velocity
+    pub fn calc_op(&mut self, force : f64, force_err : f64, position : f64, velocity : f64) -> f64{
+
+
+        if self.prev_pos == None && self.prev_force == None{
+            //Set them before the stiffness can be updated
+            self.prev_pos = Option::from(position);
+            self.prev_force = Option::from(force);
+        }else{
+
+            //Calculate the change in force and position
+            let force_delta = force - self.prev_force.unwrap();
+            let pos_delta = position - self.prev_pos.unwrap();
+
+            //Update the stiffness estimate
+            self.update_stiffness_estimate(force_delta, pos_delta);
+
+            //Update the previous values
+            self.prev_pos = Option::from(position);
+            self.prev_force = Option::from(force);
+
+        }
+
+
+        
+
+        //Compute acceleration
+        //(double-dot x) = 1/M(force_err - B(previous dot x) - K (previous x - x nominal))
+        let acc = (force_err - self.damping * velocity - self.stiffness*(position - self.target_pos))/(self.mass);
+
+
+        //Calculate the time delta - if the first instance assume no time delta
+        let now = self.prev_time.unwrap();
+        let time_delta = if self.prev_time == None{
+            0.0
+        }else{
+            (now - self.prev_time.unwrap()).as_secs_f64()
+        };
+
+        self.prev_time = Option::from(now);
+
+        //Use this to update the target velocity
+        //(dot x) = (previous speed) + (accel * delta_t)
+        return velocity + (acc * time_delta)
+    }
+
+
+    ///Update the controllers stiffness measurement using a recursive least squares method
+    fn update_stiffness_estimate(&mut self, force_delta : f64, pos_delta : f64){
+
+         //Based on the idea of incremental stiffness changes as opposed to a purely elastic stiffness
+
+         const DECAY_RATE : f64 = 0.85;
+
+        //Stiffness error prediction
+        let predict_err = force_delta  - pos_delta * self.stiffness;
+
+     
+        //Update the RLS covariance
+        self.stiffness_covar = 1.0/DECAY_RATE * (self.stiffness_covar - ((self.stiffness_covar.powi(2) * pos_delta.powi(2))/(DECAY_RATE + self.stiffness_covar * pos_delta.powi(2))));
+
+
+        //Update the stiffness prediction
+        self.stiffness = self.stiffness + self.stiffness_covar*pos_delta*predict_err;
+
+    }
+
+
+    ///Update the mass and damping values based on the calculated stiffness
+    fn update_mass_damping(&mut self){
+
+        const M_BASE : f64 = 5.0;
+        const M_MIN : f64 = 1.0;
+        const M_MAX: f64 = 100.0;
+
+        const M_SCALING : f64 = 0.00005;
+
+        const B_BASE : f64 = 75.0;
+        const B_MIN : f64 = 10.0;
+        const B_MAX : f64 = 250.0;
+        const DAMPING_RATIO : f64 = 1.1;
+
+        self.mass = (M_BASE + M_SCALING*self.stiffness).clamp(M_MIN, M_MAX);
+        self.damping = (B_BASE + 2.0*DAMPING_RATIO*(self.mass*self.stiffness).sqrt()).clamp(B_MIN, B_MAX);
+    }
+
+
+}
