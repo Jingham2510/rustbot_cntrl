@@ -1228,7 +1228,7 @@ impl AbbRob<'_> {
                 let force_speed : f64 ={                  
                     //Set to 2 which is vertical -- the current desired speed is assumed to be the robot velocity
                     force_controller
-                    .calc_op(self.force_err, self.pos[self.force_axis], desired_speed[self.force_axis])
+                    .calc_op(self.force[self.force_axis], self.force_err, self.pos[self.force_axis], desired_speed[self.force_axis])
                     .clamp(-MAX_SPEED, MAX_SPEED)                    
                 };
 
