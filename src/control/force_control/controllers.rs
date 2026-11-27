@@ -1,7 +1,7 @@
 ///A collection of controller implementations used for force control
 ///NOTE - all control functions must have a footprint of fn function_name(err: f32)->Result<f32, anyhow::Error>
 ///This is to comply with the callback function used in the main test procedure
-use std::time::Instant;
+use std::{intrinsics::unaligned_volatile_load, time::Instant};
 use std::fmt::Display;
 use tch::{Tensor, nn ,Device, nn::OptimizerConfig, nn::Module};
 
@@ -308,10 +308,8 @@ pub struct AdmittanceAndIntegralController{
     ///Last timestep
     prev_time : Option<Instant>,
 
-     ///Error history
-    errs: Vec<f64>,
-    ///Timestamps of the errors
-    timestamps: Vec<Instant>,
+     ///The previous error
+    prev_err : Option<f64>,
 
     ///The current integral value
     curr_integral : f64
@@ -326,7 +324,7 @@ impl AdmittanceAndIntegralController{
         //Stop running if there is no stiffness!
         assert!(mass != 0.0);
 
-        Self { mass, damping, stiffness, target_pos, integral_gain,prev_time: None , errs : vec![0.0], timestamps : vec![Instant::now()], curr_integral : 0.0}
+        Self { mass, damping, stiffness, target_pos, integral_gain,prev_time: None , prev_err : None,  curr_integral : 0.0}
     }
 
 
@@ -340,48 +338,44 @@ impl AdmittanceAndIntegralController{
     pub fn calc_op(&mut self, force_err : f64, position : f64, velocity : f64) -> f64{
 
 
-        self.timestamps.push(Instant::now());
-        self.errs.push(force_err);
+
+        //Calculate the time delta - if the first instance assume no time delta
+        let now = Instant::now();
+        let time_delta = if self.prev_time == None{
+            0.0
+        }else{
+            (now - self.prev_time.unwrap()).as_secs_f64()
+        };
+
+        self.prev_time = Option::from(now);
+
         
+
+
         //Compute acceleration
         //(double-dot x) = 1/M(force_err - B(previous dot x) - K (previous x - x nominal))
         let acc = (force_err - self.damping * velocity - self.stiffness*(position - self.target_pos))/(self.mass);
 
+        //Calculate the velocity with and without the integral terms
+        let velocity = velocity + acc * time_delta;
+        let velocity_w_integral = velocity + self.integral_gain * force_err * time_delta;
 
-        //Calculate the time delta - if the first instance assume no time delta
-        let now = self.timestamps.last().unwrap();
-        let time_delta = if self.prev_time == None{
-            0.0
+
+
+        //Check if the output would be saturated by the integral term
+        const MAX_VELOCITY  : f64= 10.0;
+        let towards_limit = velocity_w_integral.abs() > MAX_VELOCITY && velocity_w_integral.signum() == force_err.signum();
+
+
+        if towards_limit{
+            return velocity
         }else{
-            (*now - self.prev_time.unwrap()).as_secs_f64()
-        };
+            return velocity_w_integral
+        }
 
-        self.prev_time = Option::from(*now);
-
-        //Use this to update the target velocity
-        //(dot x) = (previous speed) + (accel * delta_t)
-        return velocity + (acc * time_delta) + (self.integral_gain*self.calc_integral_reimann_approx())
     }
 
-    //Approximate the integral area using the trapezium approximation
-    fn calc_integral_reimann_approx(&mut self) -> f64 {
-        let curr_err = self.errs[self.errs.len() - 1];
-        let prev_err = self.errs[self.errs.len() - 2];
-        let curr_time = self.timestamps[self.timestamps.len() - 1];
-        let prev_time = self.timestamps[self.timestamps.len() - 2];
-        let time_delta = (curr_time - prev_time).as_secs_f64();
 
-        //Check the magnitudes of the errors 
-        let new_area =
-            if curr_err != -prev_err {
-                (time_delta) * ((prev_err + curr_err) / 2.0)
-            } else {
-                0.0
-            };
-
-        self.curr_integral += new_area;
-        self.curr_integral
-    }
 
 
 }
@@ -466,6 +460,7 @@ impl AdaptiveAdmittanceController{
 
             //Update the stiffness estimate
             self.update_stiffness_estimate(force_delta, pos_delta);
+            //self.update_mass_damping();
 
             //Update the previous values
             self.prev_pos = Option::from(position);
@@ -482,7 +477,7 @@ impl AdaptiveAdmittanceController{
 
 
         //Calculate the time delta - if the first instance assume no time delta
-        let now = self.prev_time.unwrap();
+        let now = Instant::now();
         let time_delta = if self.prev_time == None{
             0.0
         }else{
@@ -490,6 +485,9 @@ impl AdaptiveAdmittanceController{
         };
 
         self.prev_time = Option::from(now);
+
+
+        println!("M:{} B:{} K:{}", self.mass, self.damping, self.stiffness);        
 
         //Use this to update the target velocity
         //(dot x) = (previous speed) + (accel * delta_t)
@@ -502,7 +500,7 @@ impl AdaptiveAdmittanceController{
 
          //Based on the idea of incremental stiffness changes as opposed to a purely elastic stiffness
 
-         const DECAY_RATE : f64 = 0.85;
+         const DECAY_RATE : f64 = 0.99;
 
         //Stiffness error prediction
         let predict_err = force_delta  - pos_delta * self.stiffness;

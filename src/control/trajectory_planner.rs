@@ -17,7 +17,7 @@ const IMPL_TRAJS: [&str; 7] = [
 ];
 
 //Default height at which the tool sits just on top of the terrain
-const DEFAULT_Z : f64 = 53.0;
+const DEFAULT_Z : f64 = 65.0;
 
 ///Generates a trajectory bsaed on string input from user
 pub fn traj_gen(traj: &str) -> Result<Vec<[f64;3]>, anyhow::Error> {
