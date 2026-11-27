@@ -1,7 +1,7 @@
 ///A collection of controller implementations used for force control
 ///NOTE - all control functions must have a footprint of fn function_name(err: f32)->Result<f32, anyhow::Error>
 ///This is to comply with the callback function used in the main test procedure
-use std::{intrinsics::unaligned_volatile_load, time::Instant};
+use std::{time::Instant};
 use std::fmt::Display;
 use tch::{Tensor, nn ,Device, nn::OptimizerConfig, nn::Module};
 
@@ -312,7 +312,10 @@ pub struct AdmittanceAndIntegralController{
     prev_err : Option<f64>,
 
     ///The current integral value
-    curr_integral : f64
+    curr_integral : f64,
+
+    //Undamped velcoty
+    internal_velocity : f64
 
 }
 
@@ -324,7 +327,7 @@ impl AdmittanceAndIntegralController{
         //Stop running if there is no stiffness!
         assert!(mass != 0.0);
 
-        Self { mass, damping, stiffness, target_pos, integral_gain,prev_time: None , prev_err : None,  curr_integral : 0.0}
+        Self { mass, damping, stiffness, target_pos, integral_gain,prev_time: None , prev_err : None,  curr_integral : 0.0, internal_velocity : 0.0}
     }
 
 
@@ -335,7 +338,7 @@ impl AdmittanceAndIntegralController{
 
 
     ///Use the current force error to calculate the updated velocity
-    pub fn calc_op(&mut self, force_err : f64, position : f64, velocity : f64) -> f64{
+    pub fn calc_op(&mut self, force_err : f64, position : f64) -> f64{
 
 
 
@@ -349,29 +352,25 @@ impl AdmittanceAndIntegralController{
 
         self.prev_time = Option::from(now);
 
-        
-
 
         //Compute acceleration
         //(double-dot x) = 1/M(force_err - B(previous dot x) - K (previous x - x nominal))
-        let acc = (force_err - self.damping * velocity - self.stiffness*(position - self.target_pos))/(self.mass);
+        let acc = (force_err - self.damping * self.internal_velocity - self.stiffness*(position - self.target_pos))/(self.mass);
+        self.internal_velocity = acc*time_delta;
 
         //Calculate the velocity with and without the integral terms
-        let velocity = velocity + acc * time_delta;
-        let velocity_w_integral = velocity + self.integral_gain * force_err * time_delta;
-
+        let velocity = self.internal_velocity + self.integral_gain * self.curr_integral;
 
 
         //Check if the output would be saturated by the integral term
         const MAX_VELOCITY  : f64= 10.0;
-        let towards_limit = velocity_w_integral.abs() > MAX_VELOCITY && velocity_w_integral.signum() == force_err.signum();
+        let towards_limit = velocity.abs() > MAX_VELOCITY && velocity.signum() == force_err.signum();
 
-
-        if towards_limit{
-            return velocity
-        }else{
-            return velocity_w_integral
+        if !towards_limit{
+            self.curr_integral += force_err * time_delta
         }
+
+        self.internal_velocity + self.integral_gain * self.curr_integral
 
     }
 
